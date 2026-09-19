@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSquare, Send, User } from 'lucide-react';
+import { supabase, safeApiFetch } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -17,12 +18,39 @@ export default function Comments({ postId }) {
 
   useEffect(() => {
     if (!postId) return;
-    setLoading(true);
-    fetch(`/api/posts/${postId}/comments`)
-      .then(res => res.json())
-      .then(data => setComments(Array.isArray(data) ? data : []))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const loadComments = async () => {
+      setLoading(true);
+      const data = await safeApiFetch(`/api/posts/${postId}/comments`);
+      if (Array.isArray(data)) {
+        setComments(data);
+        setLoading(false);
+        return;
+      }
+
+      // Direct Supabase fallback
+      try {
+        let realPostId = postId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+        if (!isUuid) {
+          const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (posts && posts[0]) realPostId = posts[0].id;
+        }
+
+        const { data: supaComments } = await supabase
+          .from('comments')
+          .select('*')
+          .eq('post_id', realPostId)
+          .order('created_at', { ascending: true });
+
+        setComments(supaComments || []);
+      } catch {
+        setComments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadComments();
   }, [postId]);
 
   const handleSubmit = async (e) => {
@@ -33,25 +61,53 @@ export default function Comments({ postId }) {
     setError(null);
     setMessage(null);
 
+    const name = authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader';
+    let newComment = null;
+
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author_name: authorName, content: content.trim() })
+        body: JSON.stringify({ author_name: name, content: content.trim() })
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed posting comment.');
-
-      setComments(prev => [...prev, data]);
-      setContent('');
-      setMessage('Your comment has been posted.');
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
+      if (res.ok) {
+        newComment = await res.json();
+      }
+    } catch {
+      // API call failed, fallback to direct Supabase
     }
+
+    if (!newComment) {
+      try {
+        let realPostId = postId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+        if (!isUuid) {
+          const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (!posts || !posts[0]) throw new Error('Entry not found.');
+          realPostId = posts[0].id;
+        }
+
+        const { data: supaInserted, error: supaErr } = await supabase
+          .from('comments')
+          .insert([{ post_id: realPostId, author_name: name, content: content.trim() }])
+          .select('*')
+          .single();
+
+        if (supaErr) throw supaErr;
+        newComment = supaInserted;
+      } catch (err) {
+        setError(err.message || 'Failed posting comment.');
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    setComments(prev => [...prev, newComment]);
+    setContent('');
+    setMessage('Your comment has been posted.');
+    setTimeout(() => setMessage(null), 3000);
+    setSubmitting(false);
   };
 
   return (

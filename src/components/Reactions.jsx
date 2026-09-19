@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Lightbulb, Coffee, Heart, Sparkles } from 'lucide-react';
+import { supabase, safeApiFetch } from '../supabase';
 
 export default function Reactions({ postId }) {
   const [counts, setCounts] = useState({ thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 });
@@ -8,21 +9,54 @@ export default function Reactions({ postId }) {
 
   useEffect(() => {
     if (!postId) return;
-    fetch(`/api/posts/${postId}/reactions`)
-      .then(res => res.json())
-      .then(data => setCounts(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const loadReactions = async () => {
+      setLoading(true);
+      const data = await safeApiFetch(`/api/posts/${postId}/reactions`);
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        setCounts(data);
+        setLoading(false);
+      } else {
+        // Direct Supabase fallback
+        try {
+          let realPostId = postId;
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+          if (!isUuid) {
+            const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+            if (posts && posts[0]) realPostId = posts[0].id;
+          }
 
-    try {
-      const stored = localStorage.getItem(`reacted_${postId}`);
-      if (stored) {
-        setUserReacted(JSON.parse(stored));
+          const { data: reactions } = await supabase
+            .from('reactions')
+            .select('reaction_type')
+            .eq('post_id', realPostId);
+
+          const newCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+          (reactions || []).forEach(r => {
+            if (newCounts[r.reaction_type] !== undefined) {
+              newCounts[r.reaction_type]++;
+            }
+          });
+
+          setCounts(newCounts);
+        } catch {
+          // Keep default counts
+        } finally {
+          setLoading(false);
+        }
       }
-    } catch (e) {}
+
+      try {
+        const stored = localStorage.getItem(`reacted_${postId}`);
+        if (stored) {
+          setUserReacted(JSON.parse(stored));
+        }
+      } catch (e) {}
+    };
+
+    loadReactions();
   }, [postId]);
 
-  const handleReact = (type) => {
+  const handleReact = async (type) => {
     if (userReacted[type]) return; // Prevent spamming same reaction
 
     // Optimistic UI update
@@ -34,14 +68,39 @@ export default function Reactions({ postId }) {
       localStorage.setItem(`reacted_${postId}`, JSON.stringify(newReacted));
     } catch (e) {}
 
-    fetch(`/api/posts/${postId}/reactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reaction_type: type })
-    })
-      .then(res => res.json())
-      .then(data => setCounts(data))
-      .catch(() => {});
+    let updatedCounts = null;
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reaction_type: type })
+      });
+
+      if (res.ok) {
+        updatedCounts = await res.json();
+      }
+    } catch {
+      // API call failed, fallback to direct Supabase insert
+    }
+
+    if (updatedCounts && typeof updatedCounts === 'object') {
+      setCounts(updatedCounts);
+    } else {
+      // Direct Supabase fallback
+      try {
+        let realPostId = postId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+        if (!isUuid) {
+          const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (posts && posts[0]) realPostId = posts[0].id;
+        }
+
+        await supabase.from('reactions').insert([{ post_id: realPostId, reaction_type: type }]);
+      } catch (e) {
+        console.error('Failed to post reaction to Supabase:', e);
+      }
+    }
   };
 
   const reactionButtons = [
