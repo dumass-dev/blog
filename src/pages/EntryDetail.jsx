@@ -47,59 +47,72 @@ export default function EntryDetail() {
     setIsUnlocked(false);
 
     const loadEntry = async () => {
+      let postData = null;
+      let prev = null;
+      let next = null;
+
       // 1. Try API server first
       const resData = await safeApiFetch(`/api/posts/${slug}`);
       if (resData && typeof resData === 'object') {
-        const post = resData.entry || resData;
-        const prev = resData.prev || null;
-        const next = resData.next || null;
-        const hasPasscode = Boolean(post.has_passcode || (post.passcode && post.passcode.trim() !== ''));
+        postData = resData.entry || resData;
+        prev = resData.prev || null;
+        next = resData.next || null;
+      } else {
+        // 2. Direct Supabase fallback
+        try {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+          let query = supabase.from('entries').select('*');
+          if (isUuid) {
+            query = query.eq('id', slug);
+          } else {
+            query = query.eq('slug', slug);
+          }
 
-        setData({ entry: post, prev, next });
-        if (!hasPasscode) {
-          setIsUnlocked(true);
+          const { data: posts, error: supaErr } = await query;
+          if (supaErr || !posts || posts.length === 0) {
+            throw new Error('Entry not found.');
+          }
+          postData = posts[0];
+        } catch (err) {
+          setError(err.message || 'Entry not found.');
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
       }
 
-      // 2. Direct Supabase fallback
-      try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-        let query = supabase.from('entries').select('*');
-        if (isUuid) {
-          query = query.eq('id', slug);
-        } else {
-          query = query.eq('slug', slug);
+      if (postData) {
+        // Increment view count
+        const updatedViews = (postData.views || 0) + 1;
+        postData.views = updatedViews;
+
+        // Persist incremented view count to Supabase
+        if (postData.id) {
+          supabase
+            .from('entries')
+            .update({ views: updatedViews })
+            .eq('id', postData.id)
+            .then(() => {})
+            .catch(() => {});
         }
 
-        const { data: posts, error: supaErr } = await query;
-
-        if (supaErr || !posts || posts.length === 0) {
-          throw new Error('Entry not found.');
-        }
-
-        const post = posts[0];
-        const hasPasscode = Boolean(post.passcode && post.passcode.trim() !== '');
+        const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 
         setData({
           entry: {
-            ...post,
+            ...postData,
             has_passcode: hasPasscode,
-            content: hasPasscode ? '🔒 This entry is passcode-protected.' : post.content
+            content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
           },
-          prev: null,
-          next: null
+          prev,
+          next
         });
 
         if (!hasPasscode) {
           setIsUnlocked(true);
         }
-      } catch (err) {
-        setError(err.message || 'Entry not found.');
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     loadEntry();
@@ -246,12 +259,12 @@ export default function EntryDetail() {
             </>
           )}
 
-          {entry.views > 0 && (
+          {entry.views !== undefined && entry.views !== null && (
             <>
               <span>·</span>
               <span className="flex items-center gap-1">
                 <Eye className="w-3 h-3 opacity-60" />
-                <span>{entry.views} views</span>
+                <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
               </span>
             </>
           )}
