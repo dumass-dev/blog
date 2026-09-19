@@ -352,9 +352,9 @@ export default function EntryDetail() {
       {/* Tags */}
       {entry.tags && (
         <div className="pt-4 flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-12">
-          {entry.tags.split(',').map(tag => (
+          {entry.tags.split(',').map((tag, idx) => (
             <Link
-              key={tag}
+              key={`${tag.trim()}-${idx}`}
               to={`/archive?tag=${encodeURIComponent(tag.trim())}`}
               className="hover:text-[var(--text-primary)] transition-colors"
             >

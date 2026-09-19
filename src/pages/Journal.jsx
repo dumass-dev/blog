@@ -82,8 +82,8 @@ export default function Journal() {
 
               {item.tags && (
                 <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3">
-                  {item.tags.split(',').map(tag => (
-                    <span key={tag} className="hover:text-[var(--text-primary)]">
+                  {item.tags.split(',').map((tag, idx) => (
+                    <span key={`${tag.trim()}-${idx}`} className="hover:text-[var(--text-primary)]">
                       #{tag.trim()}
                     </span>
                   ))}
