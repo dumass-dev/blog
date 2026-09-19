@@ -98,10 +98,10 @@ export default function Header() {
         </div>
 
         {/* Right: Burger Icon Trigger & Renovated Dropdown Card */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative w-5 h-5" ref={dropdownRef}>
           <button
             onClick={() => setMenuOpen(prev => !prev)}
-            className="p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
+            className="w-5 h-5 p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
             aria-expanded={menuOpen}
             aria-label="Toggle navigation menu"
           >
