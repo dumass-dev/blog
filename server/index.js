@@ -964,6 +964,11 @@ app.post('/api/about', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server active on http://localhost:${PORT} connected to Supabase & Backblaze B2.`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Backend server active on http://localhost:${PORT} connected to Supabase & Backblaze B2.`);
+  });
+}
+
+export default app;
+
