@@ -50,18 +50,18 @@ export default function Header() {
 
   return (
     <header className="notebook-container pt-8 pb-4 mb-10 border-b border-[var(--border-subtle)] relative">
-      <div className="flex justify-between items-baseline">
+      <div className="flex justify-between items-baseline gap-2">
         {/* Left: Serif Wordmark & Inline Text Links */}
-        <div className="flex items-baseline space-x-6 sm:space-x-8">
+        <div className="flex items-baseline space-x-3 sm:space-x-8 min-w-0">
           <Link
             to="/"
-            className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal"
+            className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal shrink-0"
           >
             {siteMeta.author_name}
           </Link>
 
-          {/* Desktop Inline Text Links (Hidden on mobile) */}
-          <nav className="hidden sm:flex items-center space-x-6 text-sm font-sans">
+          {/* Inline Text Links (Visible on Mobile & Desktop) */}
+          <nav className="flex items-center space-x-3 sm:space-x-6 text-xs sm:text-sm font-sans shrink-0">
             <Link
               to="/"
               className={`transition-colors lowercase ${
@@ -97,11 +97,11 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Right: Burger Icon Trigger & Renovated Dropdown Card */}
-        <div className="relative" ref={dropdownRef}>
+        {/* Right: Burger Icon Trigger & Dropdown Menu */}
+        <div className="relative shrink-0" ref={dropdownRef}>
           <button
             onClick={() => setMenuOpen(prev => !prev)}
-            className="p-1.5 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none rounded"
+            className="p-1 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
             aria-expanded={menuOpen}
             aria-label="Toggle navigation menu"
           >
@@ -112,9 +112,9 @@ export default function Header() {
             )}
           </button>
 
-          {/* Renovated Mobile & Desktop Dropdown Card */}
+          {/* Renovated Dropdown Card (Strictly bounded within viewport) */}
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-2.5 z-50 w-48 sm:w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100">
+            <div className="absolute right-0 top-full mt-2 z-50 w-44 sm:w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-xs sm:text-sm font-sans animate-in fade-in duration-100">
               <Link
                 to="/"
                 className={`py-2 px-3 rounded-md transition-colors lowercase flex justify-between items-center ${
