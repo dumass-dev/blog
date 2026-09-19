@@ -176,7 +176,7 @@ export default function Comments({ postId }) {
             type="text"
             value={authorName}
             onChange={e => setAuthorName(e.target.value)}
-            placeholder="Your Name (optional, defaults to Anonymous Reader)"
+            placeholder="Name (optional)"
             className="quiet-input text-xs"
           />
         </div>

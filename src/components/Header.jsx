@@ -60,8 +60,8 @@ export default function Header() {
             {siteMeta.author_name}
           </Link>
 
-          {/* Inline Text Links (desktop) */}
-          <nav className="hidden sm:flex items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
+          {/* Inline Text Links (desktop only) */}
+          <nav className="desktop-nav space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
             <Link
               to="/"
               className={`transition-colors lowercase ${
