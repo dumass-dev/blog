@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSquare, Send, User } from 'lucide-react';
-import { supabase, safeApiFetch } from '../supabase';
+import { supabase, safeApiFetch, subscribeToComments } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -18,16 +18,9 @@ export default function Comments({ postId }) {
 
   useEffect(() => {
     if (!postId) return;
-    const loadComments = async () => {
-      setLoading(true);
-      const data = await safeApiFetch(`/api/posts/${postId}/comments`);
-      if (Array.isArray(data)) {
-        setComments(data);
-        setLoading(false);
-        return;
-      }
+    let isMounted = true;
 
-      // Direct Supabase fallback
+    const loadComments = async () => {
       try {
         let realPostId = postId;
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
@@ -42,15 +35,27 @@ export default function Comments({ postId }) {
           .eq('post_id', realPostId)
           .order('created_at', { ascending: true });
 
-        setComments(supaComments || []);
+        if (isMounted) {
+          setComments(supaComments || []);
+          setLoading(false);
+        }
       } catch {
-        setComments([]);
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setComments([]);
+          setLoading(false);
+        }
       }
     };
 
     loadComments();
+    const unsubscribe = subscribeToComments(postId, () => {
+      loadComments();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [postId]);
 
   const handleSubmit = async (e) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Lightbulb, Coffee, Heart, Sparkles } from 'lucide-react';
-import { supabase, safeApiFetch } from '../supabase';
+import { supabase, safeApiFetch, subscribeToReactions } from '../supabase';
 
 export default function Reactions({ postId }) {
   const [counts, setCounts] = useState({ thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 });
@@ -9,51 +9,56 @@ export default function Reactions({ postId }) {
 
   useEffect(() => {
     if (!postId) return;
+    let isMounted = true;
+
     const loadReactions = async () => {
-      setLoading(true);
-      const data = await safeApiFetch(`/api/posts/${postId}/reactions`);
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        setCounts(data);
-        setLoading(false);
-      } else {
-        // Direct Supabase fallback
-        try {
-          let realPostId = postId;
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
-          if (!isUuid) {
-            const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
-            if (posts && posts[0]) realPostId = posts[0].id;
+      try {
+        let realPostId = postId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+        if (!isUuid) {
+          const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (posts && posts[0]) realPostId = posts[0].id;
+        }
+
+        const { data: reactions } = await supabase
+          .from('reactions')
+          .select('reaction_type')
+          .eq('post_id', realPostId);
+
+        const newCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+        (reactions || []).forEach(r => {
+          if (newCounts[r.reaction_type] !== undefined) {
+            newCounts[r.reaction_type]++;
           }
+        });
 
-          const { data: reactions } = await supabase
-            .from('reactions')
-            .select('reaction_type')
-            .eq('post_id', realPostId);
-
-          const newCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
-          (reactions || []).forEach(r => {
-            if (newCounts[r.reaction_type] !== undefined) {
-              newCounts[r.reaction_type]++;
-            }
-          });
-
+        if (isMounted) {
           setCounts(newCounts);
-        } catch {
-          // Keep default counts
-        } finally {
           setLoading(false);
         }
+      } catch {
+        // Keep default counts
+      } finally {
+        if (isMounted) setLoading(false);
       }
 
       try {
         const stored = localStorage.getItem(`reacted_${postId}`);
-        if (stored) {
+        if (stored && isMounted) {
           setUserReacted(JSON.parse(stored));
         }
       } catch (e) {}
     };
 
     loadReactions();
+    const unsubscribe = subscribeToReactions(postId, () => {
+      loadReactions();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [postId]);
 
   const handleReact = async (type) => {

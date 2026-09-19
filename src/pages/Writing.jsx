@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
-import { supabase, safeApiFetch } from '../supabase';
+import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -17,33 +17,24 @@ export default function Writing() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const loadWritingEntries = async () => {
-      setLoading(true);
-      const data = await safeApiFetch('/api/posts?type=writing&status=published');
-      if (Array.isArray(data)) {
+      const data = await fetchPublishedEntries({ type: 'writing' });
+      if (isMounted) {
         setEntries(data);
-        setLoading(false);
-        return;
-      }
-
-      // Direct Supabase fallback
-      try {
-        const { data: supaPosts } = await supabase
-          .from('entries')
-          .select('*')
-          .eq('type', 'writing')
-          .neq('status', 'draft')
-          .order('date', { ascending: false });
-
-        setEntries(supaPosts || []);
-      } catch (e) {
-        setEntries([]);
-      } finally {
         setLoading(false);
       }
     };
 
     loadWritingEntries();
+    const unsubscribe = subscribeToEntries(() => {
+      loadWritingEntries();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   return (

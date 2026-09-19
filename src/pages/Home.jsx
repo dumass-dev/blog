@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, MapPin, Cloud, Smile, Lock } from 'lucide-react';
-import { supabase, safeApiFetch } from '../supabase';
+import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -24,33 +24,24 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const loadHomeEntries = async () => {
-      setLoading(true);
-      const data = await safeApiFetch('/api/posts?status=published&limit=15');
-      if (Array.isArray(data)) {
+      const data = await fetchPublishedEntries({ limit: 15 });
+      if (isMounted) {
         setEntries(data);
-        setLoading(false);
-        return;
-      }
-
-      // Direct Supabase fallback
-      try {
-        const { data: supaPosts } = await supabase
-          .from('entries')
-          .select('*')
-          .neq('status', 'draft')
-          .order('date', { ascending: false })
-          .limit(15);
-
-        setEntries(supaPosts || []);
-      } catch (e) {
-        setEntries([]);
-      } finally {
         setLoading(false);
       }
     };
 
     loadHomeEntries();
+    const unsubscribe = subscribeToEntries(() => {
+      loadHomeEntries();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   return (
