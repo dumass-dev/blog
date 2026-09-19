@@ -60,8 +60,8 @@ export default function Header() {
             {siteMeta.author_name}
           </Link>
 
-          {/* Inline Text Links */}
-          <nav className="flex items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
+          {/* Desktop Inline Text Links (Hidden on mobile) */}
+          <nav className="hidden sm:flex items-center space-x-6 text-sm font-sans">
             <Link
               to="/"
               className={`transition-colors lowercase ${
@@ -101,7 +101,7 @@ export default function Header() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setMenuOpen(prev => !prev)}
-            className="p-1 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
+            className="p-1.5 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none rounded"
             aria-expanded={menuOpen}
             aria-label="Toggle navigation menu"
           >
@@ -112,9 +112,9 @@ export default function Header() {
             )}
           </button>
 
-          {/* Renovated Dropdown Card (Same Position, Elevated Typography & Spacing) */}
+          {/* Renovated Mobile & Desktop Dropdown Card */}
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-3 z-50 w-52 bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100">
+            <div className="absolute right-0 top-full mt-2.5 z-50 w-48 sm:w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100">
               <Link
                 to="/"
                 className={`py-2 px-3 rounded-md transition-colors lowercase flex justify-between items-center ${
