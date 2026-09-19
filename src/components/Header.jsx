@@ -101,7 +101,7 @@ export default function Header() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setMenuOpen(prev => !prev)}
-            className="p-1 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
+            className="p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
             aria-expanded={menuOpen}
             aria-label="Toggle navigation menu"
           >
@@ -112,9 +112,9 @@ export default function Header() {
             )}
           </button>
 
-          {/* Renovated Dropdown Card (Positioned fully inside screen bounds) */}
+          {/* Dropdown Card aligned with left edge of burger icon */}
           {menuOpen && (
-            <div className="absolute right-0 left-auto top-full mt-3 z-50 w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100">
+            <div className="absolute left-0 right-auto top-full mt-3 z-50 w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100">
               <Link
                 to="/"
                 className={`py-2 px-3 rounded-md transition-colors lowercase flex justify-between items-center ${
