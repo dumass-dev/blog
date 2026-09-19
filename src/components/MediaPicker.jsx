@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Upload, X, Check, Image as ImageIcon } from 'lucide-react';
 
+import Modal from './Modal';
+
 export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const { token } = useAuth();
   const [mediaList, setMediaList] = useState([]);
@@ -56,13 +58,11 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Insert Media from Library">
+      <div className="flex flex-col space-y-3">
         {/* Modal Header */}
-        <div className="p-4 border-b border-[var(--border-subtle)] flex justify-between items-center">
+        <div className="pb-3 border-b border-[var(--border-subtle)] flex justify-between items-center">
           <h2 className="text-base font-sans font-medium flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-[var(--accent-warm)]" />
             <span>Insert Media from Library</span>
@@ -73,7 +73,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         </div>
 
         {/* Upload bar */}
-        <div className="p-4 border-b border-[var(--border-subtle)] bg-[var(--code-bg)] flex justify-between items-center">
+        <div className="p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-wrap justify-between items-center gap-2">
           <div className="text-xs font-sans text-[var(--text-secondary)]">
             Upload new photo or video clip
           </div>
@@ -91,19 +91,19 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         </div>
 
         {error && (
-          <div className="p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans border-b border-[var(--border-subtle)]">
+          <div className="p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans border border-[var(--border-subtle)] rounded">
             {error}
           </div>
         )}
 
-        {/* Media Grid */}
-        <div className="p-4 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Media Grid - Using vanilla CSS responsive-media-grid */}
+        <div className="responsive-media-grid max-h-[50dvh] overflow-y-auto p-1">
           {loading ? (
-            <div className="col-span-2 sm:col-span-3 text-center py-8 text-xs font-sans text-[var(--text-muted)]">
+            <div className="text-center py-8 text-xs font-sans text-[var(--text-muted)]">
               Loading media files...
             </div>
           ) : mediaList.length === 0 ? (
-            <div className="col-span-2 sm:col-span-3 text-center py-8 text-xs font-sans text-[var(--text-muted)]">
+            <div className="text-center py-8 text-xs font-sans text-[var(--text-muted)]">
               No media uploaded yet. Use the upload button above.
             </div>
           ) : (
@@ -130,12 +130,12 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3 border-t border-[var(--border-subtle)] text-right">
+        <div className="pt-3 border-t border-[var(--border-subtle)] text-right">
           <button onClick={onClose} className="quiet-button-secondary text-xs">
             Cancel
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

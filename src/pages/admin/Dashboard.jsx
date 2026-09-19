@@ -38,23 +38,26 @@ export default function Dashboard() {
   const loadData = async () => {
     setLoading(true);
 
-    // 1. Fetch Posts (API first, then Supabase fallback)
+    // 1. Fetch Posts
     const apiPosts = await safeApiFetch('/api/posts?status=all', {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
 
+    let postsList = [];
     if (Array.isArray(apiPosts)) {
+      postsList = apiPosts;
       setEntries(apiPosts);
     } else {
       try {
         const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
-        setEntries(supaPosts || []);
+        postsList = supaPosts || [];
+        setEntries(postsList);
       } catch {
         setEntries([]);
       }
     }
 
-    // 2. Fetch Stats (API first, then calculate from Supabase fallback)
+    // 2. Fetch Stats
     const apiStats = await safeApiFetch('/api/stats', {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
@@ -62,22 +65,20 @@ export default function Dashboard() {
     if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
       setStats(apiStats);
     } else {
-      try {
-        const { data: allPosts } = await supabase.from('entries').select('id, type, status, views');
-        const { count: mediaCount } = await supabase.from('media').select('*', { count: 'exact', head: true });
+      const published = postsList.filter(e => e.status !== 'draft').length;
+      const drafts = postsList.filter(e => e.status === 'draft').length;
+      const updates = postsList.filter(e => e.type === 'update').length;
+      const totalViews = postsList.reduce((acc, curr) => acc + (curr.views || 0), 0);
 
-        const postsList = allPosts || [];
-        setStats({
-          total: postsList.length,
-          published: postsList.filter(p => p.status === 'published').length,
-          drafts: postsList.filter(p => p.status === 'draft').length,
-          updates: postsList.filter(p => p.type === 'update').length,
-          mediaCount: mediaCount || 0,
-          totalViews: postsList.reduce((acc, p) => acc + (p.views || 0), 0)
-        });
-      } catch {
-        setStats({ total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0 });
-      }
+      setStats({
+        total: postsList.length,
+        published,
+        drafts,
+        updates,
+        mediaCount: 0,
+        totalViews,
+        topPosts: []
+      });
     }
 
     setLoading(false);
@@ -89,70 +90,70 @@ export default function Dashboard() {
 
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`/api/posts/${id}`, {
+      const res = await fetch(`/api/admin/entries/${id}`, {
         method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: { Authorization: `Bearer ${token}` }
       });
+
       if (!res.ok) {
-        // Direct Supabase fallback deletion
-        await supabase.from('entries').delete().eq('id', id);
+        throw new Error('Failed to delete entry');
       }
+
       setDeleteTarget(null);
-      loadData();
+      fetchEntries();
     } catch (err) {
-      try {
-        await supabase.from('entries').delete().eq('id', id);
-      } catch {}
-      setDeleteTarget(null);
-      loadData();
+      alert(err.message);
     }
   };
 
-  const filteredEntries = entries.filter(e => {
-    if (filterStatus !== 'all' && e.status !== filterStatus) return false;
-    if (filterType !== 'all' && e.type !== filterType) return false;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      return (
-        e.title.toLowerCase().includes(query) ||
-        e.content.toLowerCase().includes(query) ||
-        (e.tags && e.tags.toLowerCase().includes(query))
-      );
-    }
+  // Filtering Logic
+  const filteredEntries = entries.filter(item => {
+    const matchesSearch =
+      !search.trim() ||
+      (item.title && item.title.toLowerCase().includes(search.toLowerCase())) ||
+      (item.content && item.content.toLowerCase().includes(search.toLowerCase())) ||
+      (item.tags && item.tags.toLowerCase().includes(search.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    if (filter === 'all') return true;
+    if (filter === 'published') return item.status !== 'draft';
+    if (filter === 'draft') return item.status === 'draft';
+    if (filter === 'journal') return item.type === 'journal';
+    if (filter === 'writing') return item.type === 'writing';
+    if (filter === 'update') return item.type === 'update';
+
     return true;
   });
 
   return (
-    <div className="wide-container pb-20">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-6 border-b border-[var(--border-subtle)] mb-8 gap-4">
+    <div className="wide-container py-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 mb-8 border-b border-[var(--border-subtle)] gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-medium flex items-center gap-2">
-            <span>Author Studio</span>
-            <span className="text-xs font-sans px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-              Admin
-            </span>
+          <h1 className="text-2xl sm:text-3xl font-serif font-medium tracking-tight">
+            Author Studio
           </h1>
-          <p className="text-xs font-sans text-[var(--text-muted)] mt-0.5">
-            Manage your personal diary, blog, micro updates, media & settings.
+          <p className="text-xs font-sans text-[var(--text-secondary)] mt-1">
+            Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.username}</span>
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5" target="_blank">
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View Public Site</span>
           </Link>
 
-          <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+          <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5">
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
           </button>
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-8">
+      {/* Metrics Row - Using vanilla CSS responsive-card-grid */}
+      <div className="responsive-card-grid mb-8">
         <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
           <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Entries</div>
           <div className="text-2xl font-serif font-medium mt-1">{stats.total}</div>
@@ -181,7 +182,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)] col-span-2 sm:col-span-1">
+        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
           <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Media Files</div>
           <div className="text-2xl font-serif font-medium mt-1">{stats.mediaCount}</div>
         </div>
@@ -218,43 +219,24 @@ export default function Dashboard() {
       {/* Filter and Search Controls */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center mb-6">
         <div className="flex flex-wrap items-center gap-2 text-xs font-sans">
-          <span className="text-[var(--text-muted)] mr-1">Status:</span>
-          {['all', 'published', 'draft', 'unlisted'].map(status => (
+          {[
+            { id: 'all', label: 'All Entries' },
+            { id: 'published', label: 'Published' },
+            { id: 'draft', label: 'Drafts' },
+            { id: 'journal', label: 'Journal' },
+            { id: 'writing', label: 'Essays' },
+            { id: 'update', label: 'Updates' }
+          ].map(f => (
             <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-2.5 py-1 rounded capitalize border transition-all cursor-pointer ${
-                filterStatus === status
-                  ? 'font-medium shadow-xs'
-                  : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-hover)] bg-[var(--card-bg)]'
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`px-3 py-1.5 rounded transition-colors ${
+                filter === f.id
+                  ? 'bg-[var(--text-primary)] text-[var(--bg-main)] font-medium'
+                  : 'bg-[var(--code-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
               }`}
-              style={
-                filterStatus === status
-                  ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)', borderColor: 'var(--text-primary)' }
-                  : {}
-              }
             >
-              {status}
-            </button>
-          ))}
-
-          <span className="text-[var(--text-muted)] ml-3 mr-1">Type:</span>
-          {['all', 'journal', 'writing', 'update'].map(type => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={`px-2.5 py-1 rounded capitalize border transition-all cursor-pointer ${
-                filterType === type
-                  ? 'font-medium shadow-xs'
-                  : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-hover)] bg-[var(--card-bg)]'
-              }`}
-              style={
-                filterType === type
-                  ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)', borderColor: 'var(--text-primary)' }
-                  : {}
-              }
-            >
-              {type}
+              {f.label}
             </button>
           ))}
         </div>
@@ -263,24 +245,24 @@ export default function Dashboard() {
         <div className="relative w-full sm:w-64">
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search entries..."
-            className="quiet-input pl-8 py-1 text-xs"
+            className="quiet-input pl-9 text-xs py-1.5"
           />
-          <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-2.5 top-2" />
+          <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5" />
         </div>
       </div>
 
       {/* Entries List Container */}
-      <div className="border border-[var(--border-subtle)] rounded overflow-hidden bg-[var(--card-bg)]">
+      <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--card-bg)]">
         {loading ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
-            Loading database entries...
+            Loading entries...
           </div>
         ) : filteredEntries.length === 0 ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)]">
-            No entries found matching filters.
+            No entries found.
           </div>
         ) : (
           <>
@@ -289,7 +271,7 @@ export default function Dashboard() {
               {filteredEntries.map(item => (
                 <div key={item.id} className="p-4 space-y-3">
                   <div className="flex items-center justify-between text-xs font-sans">
-                    <span className="text-[var(--text-secondary)] font-mono">
+                    <span className="text-[var(--text-muted)] font-mono">
                       {formatDate(item.date)}
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -423,31 +405,29 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-serif font-medium mb-2 text-[var(--text-primary)]">Confirm Deletion</h3>
-            <p className="text-xs font-sans text-[var(--text-secondary)] mb-6 leading-relaxed">
-              Are you sure you want to permanently delete <strong className="text-[var(--text-primary)]">"{deleteTarget.title || 'this entry'}"</strong>? This action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="quiet-button-secondary text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteTarget.id)}
-                className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)]"
-              >
-                Delete Entry
-              </button>
-            </div>
+      {/* Delete Confirmation Modal using Portal */}
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirm Deletion">
+        <div className="flex flex-col space-y-4">
+          <h3 className="text-lg font-serif font-medium text-[var(--text-primary)]">Confirm Deletion</h3>
+          <p className="text-xs font-sans text-[var(--text-secondary)] leading-relaxed">
+            Are you sure you want to permanently delete <strong className="text-[var(--text-primary)]">"{deleteTarget?.title || 'this entry'}"</strong>? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3 pt-2 border-t border-[var(--border-subtle)]">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="quiet-button-secondary text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)]"
+            >
+              Delete Entry
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, X, Share2, Copy, Check, Palette } from 'lucide-react';
 
+import Modal from './Modal';
+
 export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }) {
   const canvasRef = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -102,11 +104,9 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-      <div className="bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-xl p-6 max-w-2xl w-full shadow-2xl flex flex-col space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="Generate Social Quote Card">
+      <div className="flex flex-col space-y-4">
         {/* Header */}
         <div className="flex justify-between items-center">
           <h3 className="text-base font-sans font-medium flex items-center gap-2 text-[var(--text-primary)]">
@@ -123,12 +123,12 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
         </div>
 
         {/* Theme Selector Toolbar */}
-        <div className="flex items-center justify-between text-xs font-sans border-b border-[var(--border-subtle)]/60 pb-3 pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-sans border-b border-[var(--border-subtle)]/60 pb-3 pt-1">
           <div className="flex items-center gap-2 text-[var(--text-secondary)]">
             <Palette className="w-3.5 h-3.5 opacity-70" />
             <span>Card Theme:</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {[
               { id: 'warm', label: 'Warm Parchment' },
               { id: 'dark', label: 'Midnight Dark' },
@@ -150,14 +150,14 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
         </div>
 
         {/* Canvas Preview Container */}
-        <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden shadow-inner bg-black/5">
-          <canvas ref={canvasRef} className="w-full h-auto block" />
+        <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden shadow-inner bg-black/5 max-w-full">
+          <canvas ref={canvasRef} className="w-full h-auto block max-w-full" />
         </div>
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans text-[var(--text-muted)] pt-1">
           <span className="text-[11px]">HD 1200x675 formatted for Twitter, Instagram & LinkedIn.</span>
-          <div className="flex space-x-2.5 w-full sm:w-auto justify-end">
+          <div className="flex space-x-2.5 w-full sm:w-auto justify-end flex-wrap gap-y-2">
             <button
               onClick={handleCopyText}
               className="quiet-button-secondary text-xs flex items-center gap-1.5 py-1.5 px-3"
@@ -175,6 +175,6 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

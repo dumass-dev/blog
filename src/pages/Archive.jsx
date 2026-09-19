@@ -191,19 +191,22 @@ export default function Archive() {
                   {year}
                 </h2>
                 <ul className="space-y-2 text-sm font-sans">
-                  {archiveTree[year].map(monthItem => (
-                    <li key={monthItem.monthNum} className="flex items-center space-x-3">
-                      <Link
-                        to={`/archive?year=${year}&month=${monthItem.monthNum}`}
-                        className="hover:text-[var(--accent-warm)] underline underline-offset-4 text-[var(--text-primary)]"
-                      >
-                        {monthItem.monthName}
-                      </Link>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        — {monthItem.count} {monthItem.count === 1 ? 'entry' : 'entries'}
-                      </span>
-                    </li>
-                  ))}
+                  {Object.keys(archiveTree[year]).map(monthNum => {
+                    const monthItem = archiveTree[year][monthNum];
+                    return (
+                      <li key={monthNum} className="flex items-center space-x-3">
+                        <Link
+                          to={`/archive?year=${year}&month=${monthNum}`}
+                          className="hover:text-[var(--accent-warm)] underline underline-offset-4 text-[var(--text-primary)]"
+                        >
+                          {monthItem.name}
+                        </Link>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          — {monthItem.count} {monthItem.count === 1 ? 'entry' : 'entries'}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))
