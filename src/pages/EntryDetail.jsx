@@ -7,6 +7,7 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
+import { supabase, safeApiFetch } from '../supabase';
 import { Clock, MapPin, Cloud, Smile, Lock, Share2, Eye, Quote } from 'lucide-react';
 
 function formatDate(dateStr) {
@@ -45,25 +46,63 @@ export default function EntryDetail() {
     setError(null);
     setIsUnlocked(false);
 
-    fetch(`/api/posts/${slug}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Entry not found.');
-        }
-        return res.json();
-      })
-      .then(resData => {
-        setData(resData);
-        // Auto unlock if no passcode required
-        if (!resData.entry.has_passcode) {
+    const loadEntry = async () => {
+      // 1. Try API server first
+      const resData = await safeApiFetch(`/api/posts/${slug}`);
+      if (resData && typeof resData === 'object') {
+        const post = resData.entry || resData;
+        const prev = resData.prev || null;
+        const next = resData.next || null;
+        const hasPasscode = Boolean(post.has_passcode || (post.passcode && post.passcode.trim() !== ''));
+
+        setData({ entry: post, prev, next });
+        if (!hasPasscode) {
           setIsUnlocked(true);
         }
-      })
-      .catch(err => {
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+        return;
+      }
+
+      // 2. Direct Supabase fallback
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+        let query = supabase.from('entries').select('*');
+        if (isUuid) {
+          query = query.eq('id', slug);
+        } else {
+          query = query.eq('slug', slug);
+        }
+
+        const { data: posts, error: supaErr } = await query;
+
+        if (supaErr || !posts || posts.length === 0) {
+          throw new Error('Entry not found.');
+        }
+
+        const post = posts[0];
+        const hasPasscode = Boolean(post.passcode && post.passcode.trim() !== '');
+
+        setData({
+          entry: {
+            ...post,
+            has_passcode: hasPasscode,
+            content: hasPasscode ? '🔒 This entry is passcode-protected.' : post.content
+          },
+          prev: null,
+          next: null
+        });
+
+        if (!hasPasscode) {
+          setIsUnlocked(true);
+        }
+      } catch (err) {
+        setError(err.message || 'Entry not found.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEntry();
   }, [slug]);
 
   // Listen for text selection to show Floating "Quote Card" pill
