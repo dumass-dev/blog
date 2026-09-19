@@ -6,7 +6,7 @@ export default function RichViewer({ content = '' }) {
 
   // Custom processing for video embeds (YouTube / MP4) before rendering HTML
   const processEmbeds = (rawText) => {
-    let processed = rawText;
+    let processed = rawText ? String(rawText).replace(/\\n/g, '\n') : '';
 
     // Convert standalone YouTube URLs into iframe embeds
     // e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or https://youtu.be/dQw4w9WgXcQ
