@@ -61,7 +61,7 @@ export default function EntryDetail() {
         // 2. Direct Supabase fallback
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-          let query = supabase.from('entries').select('*');
+          let query = supabase.from('entries').select('*').eq('status', 'published');
           if (isUuid) {
             query = query.eq('id', slug);
           } else {

@@ -464,6 +464,12 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     let query = getSupabaseClient(req).from('entries').select('*');
 
+    // Public requests only fetch published entries
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      query = query.eq('status', 'published');
+    }
+
     // Check if UUID or slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
     if (isUuid) {
