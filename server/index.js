@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import dotenv from 'dotenv';
+import path from 'path';
 import { supabase, getSupabaseClient } from './supabase.js';
 import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured } from './b2.js';
 
