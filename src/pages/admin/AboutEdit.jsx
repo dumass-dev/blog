@@ -228,7 +228,7 @@ export default function AboutEdit() {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="responsive-form-grid">
                   <div>
                     <label className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
                       Project Title
@@ -290,20 +290,20 @@ export default function AboutEdit() {
 
           <div className="space-y-3">
             {formData.links.map((link, idx) => (
-              <div key={idx} className="flex gap-3 items-center">
+              <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-stretch sm:items-center">
                 <input
                   type="text"
                   value={link.label}
                   onChange={(e) => handleLinkChange(idx, 'label', e.target.value)}
                   placeholder="Label (e.g. GitHub)"
-                  className="quiet-input text-xs w-1/3"
+                  className="quiet-input text-xs w-full sm:w-1/3"
                 />
                 <input
                   type="text"
                   value={link.url}
                   onChange={(e) => handleLinkChange(idx, 'url', e.target.value)}
                   placeholder="URL (e.g. https://github.com/...)"
-                  className="quiet-input text-xs font-mono w-2/3"
+                  className="quiet-input text-xs font-mono w-full sm:w-2/3"
                 />
                 <button
                   type="button"
