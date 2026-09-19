@@ -238,35 +238,43 @@ export default function EntryDetail() {
 
       {/* Header */}
       <header className="mb-8">
-        <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-3">
-          <time dateTime={entry.date}>{formatDate(entry.date)}</time>
-          <span>·</span>
-          <span>{entry.type}</span>
+        <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
+            <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+            <span className="opacity-40 font-normal">·</span>
+          </span>
+
+          <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
+            <span>{entry.type}</span>
+            {(entry.category || entry.type !== 'update' || entry.views !== undefined) && (
+              <span className="opacity-40 font-normal">·</span>
+            )}
+          </span>
+
           {entry.category && (
-            <>
-              <span>·</span>
+            <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
               <span>{entry.category}</span>
-            </>
+              {(entry.type !== 'update' || entry.views !== undefined) && (
+                <span className="opacity-40 font-normal">·</span>
+              )}
+            </span>
           )}
 
           {entry.type !== 'update' && (
-            <>
-              <span>·</span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3 opacity-60" />
-                <span>{calcReadingTime(entry.content)}</span>
-              </span>
-            </>
+            <span className="meta-item inline-flex items-center gap-1.5 whitespace-nowrap">
+              <Clock className="w-3 h-3 opacity-60 shrink-0" />
+              <span>{calcReadingTime(entry.content)}</span>
+              {entry.views !== undefined && entry.views !== null && (
+                <span className="opacity-40 font-normal ml-0.5">·</span>
+              )}
+            </span>
           )}
 
           {entry.views !== undefined && entry.views !== null && (
-            <>
-              <span>·</span>
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3 opacity-60" />
-                <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
-              </span>
-            </>
+            <span className="meta-item inline-flex items-center gap-1.5 whitespace-nowrap">
+              <Eye className="w-3 h-3 opacity-60 shrink-0" />
+              <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
+            </span>
           )}
         </div>
 
