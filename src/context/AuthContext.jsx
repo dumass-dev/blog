@@ -51,13 +51,10 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const isDevAdmin = localStorage.getItem('admin_dev_logged_in') === 'true' || localStorage.getItem('admin_token') === 'true';
-  const devUser = isDevAdmin ? { id: 'dev-admin', email: 'admin@q04ti.dev', username: 'q04ti' } : null;
-  const currentUser = user || devUser;
-  const token = session?.access_token || (isDevAdmin ? 'dev-mock-token' : '');
+  const token = session?.access_token || '';
 
   return (
-    <AuthContext.Provider value={{ user: currentUser, session, token, loading, isAdmin: !!currentUser, login, logout }}>
+    <AuthContext.Provider value={{ user, session, token, loading, isAdmin: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
