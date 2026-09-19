@@ -60,8 +60,8 @@ export default function Header() {
             {siteMeta.author_name}
           </Link>
 
-          {/* Inline Text Links */}
-          <nav className="flex items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
+          {/* Inline Text Links (desktop) */}
+          <nav className="hidden sm:flex items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
             <Link
               to="/"
               className={`transition-colors lowercase ${
@@ -116,7 +116,7 @@ export default function Header() {
           {menuOpen && (
             <div
               style={{ right: '0px', left: 'auto' }}
-              className="absolute top-full mt-3 z-50 w-32 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
+              className="absolute top-full mt-3 z-50 w-32 max-w-full bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
             >
               {[
                 { label: 'home', path: '/' },
