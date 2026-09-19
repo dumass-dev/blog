@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase, safeApiFetch } from '../../supabase';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -19,15 +20,38 @@ export default function Media() {
   const [copiedId, setCopiedId] = useState(null);
   const [error, setError] = useState(null);
 
-  const fetchMedia = () => {
+  const fetchMedia = async () => {
     setLoading(true);
-    fetch('/api/media', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => setMediaList(Array.isArray(data) ? data : []))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    setError(null);
+
+    // Try API server first
+    const data = await safeApiFetch('/api/media', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+
+    if (Array.isArray(data)) {
+      setMediaList(data);
+      setLoading(false);
+      return;
+    }
+
+    // Direct Supabase fallback
+    try {
+      const { data: supaMedia, error: supaErr } = await supabase
+        .from('media')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!supaErr && Array.isArray(supaMedia)) {
+        setMediaList(supaMedia);
+      } else {
+        setMediaList([]);
+      }
+    } catch (e) {
+      setMediaList([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

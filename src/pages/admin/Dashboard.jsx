@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase, safeApiFetch } from '../../supabase';
 import {
   Plus,
   FileText,
@@ -34,19 +35,52 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const loadData = () => {
+  const loadData = async () => {
     setLoading(true);
 
-    fetch('/api/stats', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setStats(data))
-      .catch(err => console.error(err));
+    // 1. Fetch Posts (API first, then Supabase fallback)
+    const apiPosts = await safeApiFetch('/api/posts?status=all', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
 
-    fetch('/api/posts?status=all', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setEntries(Array.isArray(data) ? data : []))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    if (Array.isArray(apiPosts)) {
+      setEntries(apiPosts);
+    } else {
+      try {
+        const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
+        setEntries(supaPosts || []);
+      } catch {
+        setEntries([]);
+      }
+    }
+
+    // 2. Fetch Stats (API first, then calculate from Supabase fallback)
+    const apiStats = await safeApiFetch('/api/stats', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+
+    if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
+      setStats(apiStats);
+    } else {
+      try {
+        const { data: allPosts } = await supabase.from('entries').select('id, type, status, views');
+        const { count: mediaCount } = await supabase.from('media').select('*', { count: 'exact', head: true });
+
+        const postsList = allPosts || [];
+        setStats({
+          total: postsList.length,
+          published: postsList.filter(p => p.status === 'published').length,
+          drafts: postsList.filter(p => p.status === 'draft').length,
+          updates: postsList.filter(p => p.type === 'update').length,
+          mediaCount: mediaCount || 0,
+          totalViews: postsList.reduce((acc, p) => acc + (p.views || 0), 0)
+        });
+      } catch {
+        setStats({ total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0 });
+      }
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -57,14 +91,20 @@ export default function Dashboard() {
     try {
       const res = await fetch(`/api/posts/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (res.ok) {
-        setDeleteTarget(null);
-        loadData();
+      if (!res.ok) {
+        // Direct Supabase fallback deletion
+        await supabase.from('entries').delete().eq('id', id);
       }
+      setDeleteTarget(null);
+      loadData();
     } catch (err) {
-      console.error('Delete failed:', err);
+      try {
+        await supabase.from('entries').delete().eq('id', id);
+      } catch {}
+      setDeleteTarget(null);
+      loadData();
     }
   };
 

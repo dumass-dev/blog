@@ -14,4 +14,20 @@ try {
 
 export const supabase = client;
 
+/**
+ * Helper to safely fetch from API endpoints, returning null if 404/non-JSON (e.g. static host without Express backend)
+ */
+export async function safeApiFetch(url, options = {}) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text || text.trim().startsWith('<')) return null;
+    return JSON.parse(text);
+  } catch (err) {
+    return null;
+  }
+}
+
+
 
