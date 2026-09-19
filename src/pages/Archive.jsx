@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
+import { supabase, safeApiFetch } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -22,30 +23,69 @@ export default function Archive() {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(true);
 
-  // Load Archive Tree (Years & Months)
+  // Load Archive Tree & Entries
   useEffect(() => {
-    fetch('/api/archive')
-      .then(res => res.json())
-      .then(data => setArchiveTree(data))
-      .catch(err => console.error(err));
-  }, []);
+    const loadArchive = async () => {
+      setLoading(true);
 
-  // Fetch entries if month or search query is active
-  useEffect(() => {
-    setLoading(true);
-    let url = '/api/posts?status=published';
+      // Try API first
+      let posts = await safeApiFetch('/api/posts?status=published');
 
-    if (searchQuery) {
-      url += `&search=${encodeURIComponent(searchQuery)}`;
-    } else if (activeYear && activeMonth) {
-      url += `&year=${activeYear}&month=${activeMonth}`;
-    }
+      // Direct Supabase fallback
+      if (!Array.isArray(posts)) {
+        try {
+          const { data: supaPosts } = await supabase
+            .from('entries')
+            .select('*')
+            .neq('status', 'draft')
+            .order('date', { ascending: false });
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => setSearchResults(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+          posts = supaPosts || [];
+        } catch {
+          posts = [];
+        }
+      }
+
+      // Build Archive Tree dynamically
+      const tree = {};
+      posts.forEach(post => {
+        if (!post.date) return;
+        const d = new Date(post.date);
+        const year = d.getFullYear();
+        const month = d.toLocaleString('en-US', { month: 'long' });
+        const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+
+        if (!tree[year]) tree[year] = {};
+        if (!tree[year][monthNum]) tree[year][monthNum] = { name: month, count: 0 };
+        tree[year][monthNum].count++;
+      });
+
+      setArchiveTree(tree);
+
+      // Filter search / year-month results
+      let filtered = posts;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        filtered = posts.filter(p =>
+          (p.title && p.title.toLowerCase().includes(q)) ||
+          (p.content && p.content.toLowerCase().includes(q)) ||
+          (p.tags && p.tags.toLowerCase().includes(q)) ||
+          (p.category && p.category.toLowerCase().includes(q))
+        );
+      } else if (activeYear && activeMonth) {
+        filtered = posts.filter(p => {
+          const d = new Date(p.date);
+          const y = String(d.getFullYear());
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          return y === String(activeYear) && m === String(activeMonth);
+        });
+      }
+
+      setSearchResults(filtered);
+      setLoading(false);
+    };
+
+    loadArchive();
   }, [searchQuery, activeYear, activeMonth]);
 
   const handleSearchSubmit = (e) => {

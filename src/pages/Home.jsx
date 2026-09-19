@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, MapPin, Cloud, Smile, Lock } from 'lucide-react';
+import { supabase, safeApiFetch } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -23,13 +24,33 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/posts?status=published&limit=15')
-      .then(res => res.json())
-      .then(data => {
+    const loadHomeEntries = async () => {
+      setLoading(true);
+      const data = await safeApiFetch('/api/posts?status=published&limit=15');
+      if (Array.isArray(data)) {
         setEntries(data);
-      })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+        setLoading(false);
+        return;
+      }
+
+      // Direct Supabase fallback
+      try {
+        const { data: supaPosts } = await supabase
+          .from('entries')
+          .select('*')
+          .neq('status', 'draft')
+          .order('date', { ascending: false })
+          .limit(15);
+
+        setEntries(supaPosts || []);
+      } catch (e) {
+        setEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHomeEntries();
   }, []);
 
   return (

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase, safeApiFetch } from '../supabase';
 
 function formatUpdateTimestamp(dateStr) {
   const d = new Date(dateStr);
@@ -32,11 +33,33 @@ export default function Updates() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/updates')
-      .then(res => res.json())
-      .then(data => setUpdates(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const loadUpdates = async () => {
+      setLoading(true);
+      const data = await safeApiFetch('/api/posts?type=update&status=published');
+      if (Array.isArray(data)) {
+        setUpdates(data);
+        setLoading(false);
+        return;
+      }
+
+      // Direct Supabase fallback
+      try {
+        const { data: supaPosts } = await supabase
+          .from('entries')
+          .select('*')
+          .eq('type', 'update')
+          .neq('status', 'draft')
+          .order('date', { ascending: false });
+
+        setUpdates(supaPosts || []);
+      } catch (e) {
+        setUpdates([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUpdates();
   }, []);
 
   return (

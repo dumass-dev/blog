@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, KeyRound, ArrowRight } from 'lucide-react';
+import { supabase } from '../supabase';
 
 export default function ProtectedEntryModal({ postId, onUnlock }) {
   const [passcode, setPasscode] = useState('');
@@ -20,14 +21,44 @@ export default function ProtectedEntryModal({ postId, onUnlock }) {
         body: JSON.stringify({ passcode: passcode.trim() })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Incorrect passcode.');
+      if (res.ok) {
+        const data = await res.json();
+        onUnlock(data);
+        setVerifying(false);
+        return;
+      }
+    } catch {
+      // API call failed, continue to Supabase fallback
+    }
+
+    // Direct Supabase fallback
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+      let query = supabase.from('entries').select('*');
+      if (isUuid) {
+        query = query.eq('id', postId);
+      } else {
+        query = query.eq('slug', postId);
       }
 
-      onUnlock(data);
+      const { data: posts } = await query;
+      const post = posts && posts[0];
+
+      if (!post) throw new Error('Entry not found.');
+
+      if (post.passcode && post.passcode.trim() === passcode.trim()) {
+        onUnlock({
+          unlocked: true,
+          content: post.content,
+          cover_image: post.cover_image,
+          excerpt: post.excerpt
+        });
+        return;
+      }
+
+      throw new Error('Incorrect passcode.');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Incorrect passcode.');
     } finally {
       setVerifying(false);
     }

@@ -373,9 +373,9 @@ app.get('/api/posts', async (req, res) => {
 
     let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false });
 
-    if (status) {
+    if (status && status !== 'all') {
       query = query.eq('status', status);
-    } else {
+    } else if (!status) {
       // By default, public only sees published entries
       query = query.eq('status', 'published');
     }

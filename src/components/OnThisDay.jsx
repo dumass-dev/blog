@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, Calendar, ArrowRight } from 'lucide-react';
 
+import { supabase, safeApiFetch } from '../supabase';
+
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -11,14 +13,40 @@ export default function OnThisDay() {
   const [entries, setEntries] = useState([]);
 
   useEffect(() => {
-    fetch('/api/posts/on-this-day')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setEntries(data);
-        }
-      })
-      .catch(() => {});
+    const loadOnThisDay = async () => {
+      const data = await safeApiFetch('/api/posts/on-this-day');
+      if (Array.isArray(data) && data.length > 0) {
+        setEntries(data);
+        return;
+      }
+
+      // Direct Supabase fallback
+      try {
+        const today = new Date();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+
+        const { data: supaPosts } = await supabase
+          .from('entries')
+          .select('*')
+          .neq('status', 'draft')
+          .order('date', { ascending: false });
+
+        const matched = (supaPosts || []).filter(post => {
+          if (!post.date) return false;
+          const d = new Date(post.date);
+          const postMonth = String(d.getMonth() + 1).padStart(2, '0');
+          const postDay = String(d.getDate()).padStart(2, '0');
+          return postMonth === month && postDay === day;
+        });
+
+        setEntries(matched);
+      } catch {
+        setEntries([]);
+      }
+    };
+
+    loadOnThisDay();
   }, []);
 
   if (!entries || entries.length === 0) return null;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
+import { supabase, safeApiFetch } from '../supabase';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -16,11 +17,33 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/posts?type=journal&status=published')
-      .then(res => res.json())
-      .then(data => setEntries(data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const loadJournalEntries = async () => {
+      setLoading(true);
+      const data = await safeApiFetch('/api/posts?type=journal&status=published');
+      if (Array.isArray(data)) {
+        setEntries(data);
+        setLoading(false);
+        return;
+      }
+
+      // Direct Supabase fallback
+      try {
+        const { data: supaPosts } = await supabase
+          .from('entries')
+          .select('*')
+          .eq('type', 'journal')
+          .neq('status', 'draft')
+          .order('date', { ascending: false });
+
+        setEntries(supaPosts || []);
+      } catch (e) {
+        setEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadJournalEntries();
   }, []);
 
   return (

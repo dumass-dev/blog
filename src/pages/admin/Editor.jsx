@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../supabase';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import {
@@ -207,6 +208,8 @@ export default function Editor() {
     const url = id ? `/api/posts/${id}` : '/api/posts';
     const method = id ? 'PUT' : 'POST';
 
+    let savedData = null;
+
     try {
       const res = await fetch(url, {
         method,
@@ -217,23 +220,68 @@ export default function Editor() {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed saving entry.');
+      if (res.ok) {
+        savedData = await res.json();
       }
-
-      setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
-
-      if (!id && data.id) {
-        setTimeout(() => {
-          navigate(`/admin/edit/${data.id}`);
-        }, 600);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
+    } catch {
+      // API request failed, fallback to Supabase directly
     }
+
+    if (!savedData) {
+      try {
+        const finalTitle = payload.title || (payload.content.length > 30 ? payload.content.slice(0, 30) + '...' : 'Update');
+        const finalSlug = payload.slug || finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+        const supaPayload = {
+          title: finalTitle,
+          slug: finalSlug,
+          content: payload.content,
+          type: payload.type || 'journal',
+          status: payload.status || 'published',
+          category: payload.category || 'General',
+          tags: payload.tags || '',
+          cover_image: payload.cover_image || '',
+          excerpt: payload.excerpt || payload.content.substring(0, 150),
+          date: payload.date || new Date().toISOString(),
+          location: payload.location || null,
+          weather: payload.weather || null,
+          mood: payload.mood || null,
+          passcode: payload.passcode || null
+        };
+
+        if (id) {
+          const { data: supaUpdated, error: supaErr } = await supabase
+            .from('entries')
+            .update(supaPayload)
+            .eq('id', id)
+            .select('*')
+            .single();
+          if (supaErr) throw supaErr;
+          savedData = supaUpdated;
+        } else {
+          const { data: supaInserted, error: supaErr } = await supabase
+            .from('entries')
+            .insert([supaPayload])
+            .select('*')
+            .single();
+          if (supaErr) throw supaErr;
+          savedData = supaInserted;
+        }
+      } catch (err) {
+        setError(err.message || 'Failed saving entry.');
+        setSaving(false);
+        return;
+      }
+    }
+
+    setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
+
+    if (!id && savedData && savedData.id) {
+      setTimeout(() => {
+        navigate(`/admin/edit/${savedData.id}`);
+      }, 600);
+    }
+    setSaving(false);
   };
 
   if (loading) {
