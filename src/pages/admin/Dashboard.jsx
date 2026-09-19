@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
+import Modal from '../../components/Modal';
 import {
   Plus,
   FileText,
@@ -24,15 +25,14 @@ function formatDate(dateStr) {
 }
 
 export default function Dashboard() {
-  const { token, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({ total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterType, setFilterType] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const loadData = async () => {
@@ -100,7 +100,7 @@ export default function Dashboard() {
       }
 
       setDeleteTarget(null);
-      fetchEntries();
+      loadData();
     } catch (err) {
       alert(err.message);
     }
@@ -135,7 +135,7 @@ export default function Dashboard() {
             Author Studio
           </h1>
           <p className="text-xs font-sans text-[var(--text-secondary)] mt-1">
-            Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.username}</span>
+            Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.email || user?.username || 'Admin'}</span>
           </p>
         </div>
 
