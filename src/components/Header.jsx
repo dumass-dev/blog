@@ -116,7 +116,7 @@ export default function Header() {
           {menuOpen && (
             <div
               style={{ right: '0px', left: 'auto' }}
-              className="absolute top-full mt-3 z-50 w-32 max-w-full bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
+              className="absolute top-full mt-3 z-50 w-32 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-1.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
             >
               {[
                 { label: 'home', path: '/' },
@@ -130,7 +130,7 @@ export default function Header() {
                   <React.Fragment key={item.path}>
                     <Link
                       to={item.path}
-                      className={`py-1.5 px-2.5 rounded-md transition-colors lowercase flex justify-between items-center ${
+                      className={`py-1 px-2 rounded-md transition-colors lowercase flex justify-between items-center ${
                         isActive
                           ? 'bg-[var(--code-bg)] text-[var(--text-primary)] font-medium'
                           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)]/80'
