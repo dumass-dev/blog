@@ -116,40 +116,39 @@ export default function Header() {
           {menuOpen && (
             <div
               style={{ right: '0px', left: 'auto' }}
-              className="absolute top-full mt-3 z-50 w-52 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
+              className="absolute top-full mt-3 z-50 w-32 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-2 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
             >
-              <Link
-                to="/"
-                className={`py-2 px-3 rounded-md transition-colors lowercase flex justify-between items-center ${
-                  location.pathname === '/'
-                    ? 'bg-[var(--code-bg)] text-[var(--text-primary)] font-medium'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)]/80'
-                }`}
-              >
-                <span>home</span>
-                {location.pathname === '/' && <span className="text-xs opacity-60">•</span>}
-              </Link>
+              {[
+                { label: 'home', path: '/' },
+                ...navItems
+              ].map((item, index, array) => {
+                const isActive = item.path === '/' 
+                  ? location.pathname === '/' 
+                  : location.pathname.startsWith(item.path);
 
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
                 return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`py-2 px-3 rounded-md transition-colors lowercase flex justify-between items-center ${
-                      isActive
-                        ? 'bg-[var(--code-bg)] text-[var(--text-primary)] font-medium'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)]/80'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    {isActive && <span className="text-xs opacity-60">•</span>}
-                  </Link>
+                  <React.Fragment key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`py-1.5 px-2.5 rounded-md transition-colors lowercase flex justify-between items-center ${
+                        isActive
+                          ? 'bg-[var(--code-bg)] text-[var(--text-primary)] font-medium'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)]/80'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {isActive && <span className="text-xs opacity-60">•</span>}
+                    </Link>
+
+                    {index < array.length - 1 && (
+                      <div className="h-[1px] bg-[var(--border-subtle)] opacity-40 my-0.5 mx-1" />
+                    )}
+                  </React.Fragment>
                 );
               })}
 
               {/* Theme Toggle Icon Only - Centered */}
-              <div className="pt-2 mt-1.5 border-t border-[var(--border-subtle)] flex items-center justify-center py-0.5">
+              <div className="pt-1.5 mt-1 border-t border-[var(--border-subtle)] flex items-center justify-center py-0.5">
                 <ThemeToggle />
               </div>
             </div>
