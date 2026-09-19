@@ -34,7 +34,7 @@ function slugify(text) {
 const serverStartTime = Date.now();
 
 // Health & Root Status — Serving a sleek, editorial dark-mode status dashboard for browsers
-app.get('/', async (req, res) => {
+app.get(['/', '/api', '/api/'], async (req, res) => {
   const acceptsHtml = req.headers.accept && req.headers.accept.includes('text/html');
 
   if (!acceptsHtml) {
