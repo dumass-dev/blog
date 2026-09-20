@@ -140,7 +140,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5" target="_blank">
+          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View Public Site</span>
           </Link>
@@ -310,6 +310,7 @@ export default function Dashboard() {
                       <Link
                         to={`/entry/${item.slug}`}
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -382,6 +383,7 @@ export default function Dashboard() {
                         <Link
                           to={`/entry/${item.slug}`}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                           title="Preview"
                         >

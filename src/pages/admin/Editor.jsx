@@ -111,6 +111,7 @@ export default function Editor() {
   // Fetch existing entry if editing
   useEffect(() => {
     if (!id) return;
+    let isMounted = true;
     setLoading(true);
 
     fetch(`/api/posts/${id}`, {
@@ -118,7 +119,7 @@ export default function Editor() {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.entry) {
+        if (isMounted && data.entry) {
           const e = data.entry;
           let formattedDate = e.date;
           try {
@@ -143,8 +144,16 @@ export default function Editor() {
           });
         }
       })
-      .catch(err => setError('Failed loading entry.'))
-      .finally(() => setLoading(false));
+      .catch(err => {
+        if (isMounted) setError('Failed loading entry.');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [id, token]);
 
   const handleChange = (e) => {
@@ -629,16 +638,21 @@ export default function Editor() {
 
             {/* Passcode Protection */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Passcode Lock (Optional)</span>
+              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
+                  <span>Passcode Lock</span>
+                </span>
+                {formData.has_passcode && (
+                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono">🔒 Set</span>
+                )}
               </label>
               <input
                 type="password"
                 name="passcode"
                 value={formData.passcode}
                 onChange={handleChange}
-                placeholder="Leave blank for public"
+                placeholder={formData.has_passcode ? "Leave blank to keep existing passcode" : "Leave blank for public access"}
                 className="quiet-input text-xs font-mono"
               />
             </div>
