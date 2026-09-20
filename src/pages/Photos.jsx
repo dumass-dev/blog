@@ -464,6 +464,15 @@ export default function Photos() {
                     )}
                   </div>
                 </div>
+
+                <button
+                  onClick={() => setSelectedPhotoIndex(null)}
+                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)] rounded-md transition-colors cursor-pointer shrink-0"
+                  aria-label="Close photo modal"
+                  title="Close view"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Caption & Comments List */}

@@ -15,7 +15,13 @@ function formatDate(dateStr) {
 
 export default function Journal() {
   const cached = getCachedFeed('journal');
-  const [entries, setEntries] = useState(() => (Array.isArray(cached) ? cached : []));
+  const [entries, setEntries] = useState(() => {
+    if (!Array.isArray(cached)) return [];
+    return cached.filter(item => 
+      item.type !== 'photo' && 
+      (!item.category || item.category.toLowerCase() !== 'photos')
+    );
+  });
   const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
   useEffect(() => {

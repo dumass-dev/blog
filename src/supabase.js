@@ -90,6 +90,12 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (forHomeFeed) {
       rawList = rawList.filter(item => item.show_in_feed !== false);
     }
+    if (type === 'journal') {
+      rawList = rawList.filter(item => 
+        item.type !== 'photo' && 
+        (!item.category || item.category.toLowerCase() !== 'photos')
+      );
+    }
 
     // Check if user is logged in as admin locally
     let isLocalAdmin = false;

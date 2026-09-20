@@ -6,7 +6,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
   const [zoom, setZoom] = useState(1);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox">
+    <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox" maxWidthClass="max-w-4xl w-full">
       <div className="flex flex-col space-y-4 select-none touch-action-none">
         {/* Top Header */}
         <div className="flex justify-between items-center text-[var(--text-primary)]">
