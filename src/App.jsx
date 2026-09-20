@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Journal from './pages/Journal';
 import Writing from './pages/Writing';
 import Updates from './pages/Updates';
+import Photos from './pages/Photos';
 import EntryDetail from './pages/EntryDetail';
 import Archive from './pages/Archive';
 import About from './pages/About';
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/journal" element={<Journal />} />
             <Route path="/writing" element={<Writing />} />
+            <Route path="/photos" element={<Photos />} />
             <Route path="/updates" element={<Updates />} />
             <Route path="/entry/:slug" element={<EntryDetail />} />
             <Route path="/archive" element={<Archive />} />

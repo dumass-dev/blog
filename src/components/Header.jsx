@@ -84,6 +84,7 @@ export default function Header() {
   const navItems = [
     { label: 'writing', path: '/writing' },
     { label: 'journal', path: '/journal' },
+    { label: 'photos', path: '/photos' },
     { label: 'updates', path: '/updates' },
     { label: 'archive', path: '/archive' },
     { label: 'about', path: '/about' }
@@ -122,6 +123,17 @@ export default function Header() {
             }`}
           >
             journal
+          </Link>
+
+          <Link
+            to="/photos"
+            className={`transition-colors lowercase ${
+              location.pathname.startsWith('/photos')
+                ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            photos
           </Link>
 
           <Link

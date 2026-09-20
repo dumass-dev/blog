@@ -241,13 +241,24 @@ export default function Media() {
                   )}
                 </button>
 
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1"
-                  title="Delete media"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {(!item.mime_type || item.mime_type.startsWith('image/')) && (
+                    <Link
+                      to={`/admin/new?type=photo&cover_image=${encodeURIComponent(item.signed_url || item.url)}`}
+                      className="flex items-center gap-1 text-[var(--text-primary)] hover:underline font-medium text-[11px]"
+                      title="Post to Instagram Photos Stream"
+                    >
+                      <span>Publish Photo</span>
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1"
+                    title="Delete media"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}

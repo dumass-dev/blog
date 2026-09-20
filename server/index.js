@@ -734,8 +734,8 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Content is required.' });
     }
 
-    let finalTitle = title && title.trim() ? title.trim() : 'Untitled Update';
-    let finalSlug = slug && slug.trim() ? slug.trim() : slugify(finalTitle);
+    let finalTitle = title && title.trim() ? title.trim() : (type === 'photo' ? `Photo — ${new Date().toLocaleDateString()}` : 'Untitled Update');
+    let finalSlug = slug && slug.trim() ? slug.trim() : (type === 'photo' ? `photo-${Date.now()}` : slugify(finalTitle));
 
     if (type === 'update' && (!title || !title.trim())) {
       const now = new Date();
@@ -747,7 +747,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       title: finalTitle,
       slug: finalSlug,
       content: content.trim(),
-      type: ['journal', 'writing', 'update'].includes(type) ? type : 'journal',
+      type: ['journal', 'writing', 'update', 'photo'].includes(type) ? type : 'journal',
       status: ['published', 'draft', 'unlisted'].includes(status) ? status : 'published',
       category: category ? category.trim() : 'General',
       tags: tags ? tags.trim() : '',

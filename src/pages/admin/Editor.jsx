@@ -33,6 +33,7 @@ export default function Editor() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get('type') || 'journal';
+  const initialCoverImage = searchParams.get('cover_image') || '';
 
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -45,7 +46,7 @@ export default function Editor() {
     status: 'published',
     category: '',
     tags: '',
-    cover_image: '',
+    cover_image: initialCoverImage,
     excerpt: '',
     location: '',
     weather: '',
@@ -603,6 +604,7 @@ export default function Editor() {
                 <option value="journal">Journal (Personal Diary)</option>
                 <option value="writing">Writing (Blog / Essay)</option>
                 <option value="update">Update (Micro stream)</option>
+                <option value="photo">Photo (Instagram Stream)</option>
               </select>
             </div>
 
