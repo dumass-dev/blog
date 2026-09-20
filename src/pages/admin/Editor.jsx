@@ -638,16 +638,21 @@ export default function Editor() {
 
             {/* Passcode Protection */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Passcode Lock (Optional)</span>
+              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
+                  <span>Passcode Lock</span>
+                </span>
+                {formData.has_passcode && (
+                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono">🔒 Set</span>
+                )}
               </label>
               <input
                 type="password"
                 name="passcode"
                 value={formData.passcode}
                 onChange={handleChange}
-                placeholder="Leave blank for public"
+                placeholder={formData.has_passcode ? "Leave blank to keep existing passcode" : "Leave blank for public access"}
                 className="quiet-input text-xs font-mono"
               />
             </div>

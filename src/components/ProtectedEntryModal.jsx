@@ -14,7 +14,9 @@ export default function ProtectedEntryModal({ postId, onUnlock }) {
     setVerifying(true);
     setError(null);
 
+    // Verify passcode via RPC call or backend API server
     try {
+      // 1. Try server API endpoint
       const res = await fetch(`/api/posts/${postId}/verify-passcode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -27,36 +29,28 @@ export default function ProtectedEntryModal({ postId, onUnlock }) {
         setVerifying(false);
         return;
       }
-    } catch {
-      // API call failed, continue to Supabase fallback
-    }
+    } catch {}
 
-    // Direct Supabase fallback
+    // 2. Direct Supabase RPC fallback
     try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
-      let query = supabase.from('entries').select('*');
-      if (isUuid) {
-        query = query.eq('id', postId);
-      } else {
-        query = query.eq('slug', postId);
-      }
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('verify_entry_passcode', {
+        p_slug: String(postId),
+        p_passcode: passcode.trim()
+      });
 
-      const { data: posts } = await query;
-      const post = posts && posts[0];
+      if (rpcErr) throw rpcErr;
 
-      if (!post) throw new Error('Entry not found.');
-
-      if (post.passcode && post.passcode.trim() === passcode.trim()) {
+      if (rpcRes && rpcRes.success) {
         onUnlock({
           unlocked: true,
-          content: post.content,
-          cover_image: post.cover_image,
-          excerpt: post.excerpt
+          content: rpcRes.content,
+          cover_image: rpcRes.cover_image,
+          excerpt: rpcRes.excerpt
         });
         return;
       }
 
-      throw new Error('Incorrect passcode.');
+      throw new Error(rpcRes?.error || 'Incorrect passcode.');
     } catch (err) {
       setError(err.message || 'Incorrect passcode.');
     } finally {
