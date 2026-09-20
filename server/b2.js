@@ -97,22 +97,37 @@ export async function uploadToB2(fileBuffer, originalName, mimeType) {
   };
 }
 
+const b2UrlCache = new Map(); // key -> { url, expiresAt }
+
 /**
- * Generate a temporary signed URL for a private Backblaze B2 object (default 1 hour)
+ * Generate a temporary signed URL for a private Backblaze B2 object (default 24 hours with TTL cache)
  */
-export async function getB2SignedUrl(storageKey, expiresInSeconds = 3600) {
+export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
   if (process.env.NODE_ENV === 'test') {
     return `http://127.0.0.1:3099/${storageKey}`;
   }
 
   if (!s3Client || !storageKey) return null;
 
+  const now = Date.now();
+  const cached = b2UrlCache.get(storageKey);
+  if (cached && cached.expiresAt > now + 3600000) {
+    return cached.url;
+  }
+
   try {
     const getCommand = new GetObjectCommand({
       Bucket: bucket,
       Key: storageKey,
     });
-    return await getSignedUrl(s3Client, getCommand, { expiresIn: expiresInSeconds });
+    const freshUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: expiresInSeconds });
+    if (freshUrl) {
+      b2UrlCache.set(storageKey, {
+        url: freshUrl,
+        expiresAt: now + (expiresInSeconds * 1000)
+      });
+    }
+    return freshUrl;
   } catch (err) {
     console.error('Error generating signed URL for key:', storageKey, err.message);
     return null;

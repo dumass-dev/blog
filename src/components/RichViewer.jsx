@@ -25,10 +25,13 @@ export default function RichViewer({ content = '' }) {
   };
 
   const processedContent = processEmbeds(content);
-  const htmlContent = marked.parse(processedContent, {
+  const rawHtml = marked.parse(processedContent, {
     gfm: true,
     breaks: true
   });
+  const htmlContent = typeof rawHtml === 'string'
+    ? rawHtml.replace(/<img /gi, '<img loading="lazy" decoding="async" ')
+    : rawHtml;
 
   return (
     <div

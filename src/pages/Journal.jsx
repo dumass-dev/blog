@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
-import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
@@ -14,8 +14,9 @@ function formatDate(dateStr) {
 }
 
 export default function Journal() {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedFeed('journal');
+  const [entries, setEntries] = useState(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
   useEffect(() => {
     let isMounted = true;

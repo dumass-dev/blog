@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
-import { formatDate } from '../utils/date';
-import ProtectedEntryModal from '../components/ProtectedEntryModal';
+import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 
 export default function Photos() {
-  const [photos, setPhotos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedFeed('photo');
+  const [photos, setPhotos] = useState(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'feed'
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   
@@ -19,30 +17,39 @@ export default function Photos() {
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
 
   useEffect(() => {
-    fetchPhotos();
-  }, []);
-
-  const fetchPhotos = async () => {
-    try {
-      setLoading(true);
-      // Fetch entries with type=photo or category=photos, or all posts and filter for photos/images
-      const res = await fetch('/api/posts');
-      if (res.ok) {
-        const data = await res.json();
-        // Filter entries that are marked as type 'photo' OR have a valid cover_image
-        const photoEntries = data.filter(item => 
-          item.type === 'photo' || 
-          (item.category && item.category.toLowerCase() === 'photos') ||
-          (item.cover_image && item.cover_image.trim() !== '')
-        );
-        setPhotos(photoEntries);
+    let isMounted = true;
+    const loadPhotos = async () => {
+      let photoEntries = await fetchPublishedEntries({ type: 'photo' });
+      if (!photoEntries || photoEntries.length === 0) {
+        try {
+          const res = await fetch('/api/posts?type=photo');
+          if (res.ok) {
+            const data = await res.json();
+            photoEntries = data.filter(item => 
+              item.type === 'photo' || 
+              (item.category && item.category.toLowerCase() === 'photos') ||
+              (item.cover_image && item.cover_image.trim() !== '')
+            );
+          }
+        } catch {}
       }
-    } catch (err) {
-      console.error('Failed to load photos:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      if (isMounted) {
+        setPhotos(Array.isArray(photoEntries) ? photoEntries : []);
+        setLoading(false);
+      }
+    };
+
+    loadPhotos();
+    const unsubscribe = subscribeToEntries(() => {
+      loadPhotos();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   const activePhoto = selectedPhotoIndex !== null ? photos[selectedPhotoIndex] : null;
 

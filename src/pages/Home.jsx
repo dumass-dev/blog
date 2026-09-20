@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, MapPin, Cloud, Smile, Lock } from 'lucide-react';
-import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
@@ -30,8 +30,9 @@ function getPhotoSrc(item) {
 }
 
 export default function Home() {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedFeed('home');
+  const [entries, setEntries] = useState(() => (Array.isArray(cached) ? cached.filter(item => item.show_in_feed !== false) : []));
+  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
   useEffect(() => {
     let isMounted = true;

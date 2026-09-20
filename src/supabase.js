@@ -24,7 +24,18 @@ export function getCachedEntry(slugOrId) {
 }
 
 export function getCachedFeed(typeKey = 'all') {
-  return feedsCache.get(typeKey) || null;
+  if (feedsCache.has(typeKey)) return feedsCache.get(typeKey);
+  try {
+    const raw = localStorage.getItem(`feed_cache_${typeKey}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        feedsCache.set(typeKey, parsed);
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
 }
 
 export function cacheEntry(entry) {
@@ -118,13 +129,17 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     
     // Cache entries and feed list for instant UI rendering
     list.forEach(item => cacheEntry(item));
-    const cacheKey = type || 'all';
+    const cacheKey = forHomeFeed ? 'home' : (type || 'all');
     feedsCache.set(cacheKey, list);
+    try {
+      localStorage.setItem(`feed_cache_${cacheKey}`, JSON.stringify(list));
+    } catch {}
 
     return list;
   } catch (e) {
     console.error('Supabase fetch entries error:', e);
-    return feedsCache.get(type || 'all') || [];
+    const fallbackKey = forHomeFeed ? 'home' : (type || 'all');
+    return getCachedFeed(fallbackKey) || [];
   }
 }
 

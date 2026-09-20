@@ -520,6 +520,7 @@ async function checkIsAdmin(req) {
 // GET /api/posts — List entries with filtering
 app.get('/api/posts', async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=120');
     const { status, type, category, tag, limit } = req.query;
     const isAdmin = await checkIsAdmin(req);
 

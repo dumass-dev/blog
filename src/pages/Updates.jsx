@@ -29,8 +29,9 @@ function formatUpdateTimestamp(dateStr) {
 }
 
 export default function Updates() {
-  const [updates, setUpdates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedFeed('update');
+  const [updates, setUpdates] = useState(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
   useEffect(() => {
     let isMounted = true;
