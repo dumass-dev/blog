@@ -227,6 +227,32 @@ export default function EntryDetail() {
 
   const { entry, prev, next } = data;
 
+  const isPhotoEntry = Boolean(
+    entry.type === 'photo' ||
+    (entry.category && entry.category.toLowerCase() === 'photos')
+  );
+
+  const backLink = isPhotoEntry
+    ? '/photos'
+    : (entry.type === 'writing' ? '/writing' : entry.type === 'update' ? '/updates' : '/journal');
+
+  const backLabel = isPhotoEntry
+    ? 'Photos'
+    : (entry.type === 'writing' ? 'Writing' : entry.type === 'update' ? 'Updates' : 'Journal');
+
+  const displayType = isPhotoEntry ? 'photo' : entry.type;
+
+  // Check if content already includes the image to prevent duplicate image rendering
+  const contentHasImage = Boolean(
+    entry.content && (
+      (entry.cover_image && entry.content.includes(entry.cover_image)) ||
+      /!\[.*?\]\((.*?)\)/.test(entry.content) ||
+      /https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+/i.test(entry.content)
+    )
+  );
+
+  const shouldRenderCoverImage = Boolean(entry.cover_image && !contentHasImage);
+
   return (
     <article className="notebook-container relative">
       {/* Top Reading Progress Bar */}
@@ -274,10 +300,10 @@ export default function EntryDetail() {
       {/* Back button */}
       <div className="mb-8">
         <Link
-          to={entry.type === 'writing' ? '/writing' : entry.type === 'update' ? '/updates' : '/journal'}
+          to={backLink}
           className="text-xs font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider"
         >
-          ← Back to {entry.type}
+          ← Back to {backLabel}
         </Link>
       </div>
 
@@ -289,7 +315,7 @@ export default function EntryDetail() {
           </span>
 
           <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
-            <span>{entry.type}</span>
+            <span>{displayType}</span>
           </span>
 
           {entry.category && (
@@ -371,17 +397,14 @@ export default function EntryDetail() {
         />
       ) : (
         <>
-          {/* Cover Image if present */}
-          {entry.cover_image && (
+          {/* Cover Image if present and not duplicated in content */}
+          {shouldRenderCoverImage && (
             <div className="mb-10 cursor-pointer group" onClick={handleImageClick}>
               <img
                 src={entry.cover_image}
                 alt={entry.title}
                 className="w-full h-auto rounded border border-[var(--border-subtle)] object-cover max-h-[440px] group-hover:opacity-95 transition-opacity"
               />
-              <div className="text-[11px] font-sans text-right text-[var(--text-muted)] mt-1">
-                Click photo for high-res lightbox view
-              </div>
             </div>
           )}
 

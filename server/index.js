@@ -1121,7 +1121,10 @@ app.get('/api/posts/:id/reactions', async (req, res) => {
       }
     });
 
-    res.json(counts);
+    res.json({
+      ...counts,
+      hearts: (reactions || []).length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1131,7 +1134,8 @@ app.get('/api/posts/:id/reactions', async (req, res) => {
 app.post('/api/posts/:id/reactions', async (req, res) => {
   try {
     const { id } = req.params;
-    const { reaction_type } = req.body;
+    const rawType = req.body.reaction_type || req.body.type || 'loved';
+    const reaction_type = rawType === 'heart' ? 'loved' : rawType;
 
     if (!['thoughtful', 'cozy', 'loved', 'inspiring'].includes(reaction_type)) {
       return res.status(400).json({ error: 'Invalid reaction type.' });
@@ -1151,7 +1155,23 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ success: true });
+    const { data: allReactions } = await getSupabaseClient(req)
+      .from('reactions')
+      .select('reaction_type')
+      .eq('post_id', postId);
+
+    const updatedCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+    (allReactions || []).forEach(r => {
+      if (updatedCounts[r.reaction_type] !== undefined) {
+        updatedCounts[r.reaction_type]++;
+      }
+    });
+
+    res.json({
+      success: true,
+      ...updatedCounts,
+      hearts: (allReactions || []).length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

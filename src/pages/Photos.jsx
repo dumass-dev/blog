@@ -100,18 +100,26 @@ export default function Photos() {
 
   const handleLike = async (photoId, e) => {
     if (e) e.stopPropagation();
+    if (reactions.userLiked) return;
+
+    // Optimistic UI update
+    setReactions(prev => ({
+      hearts: prev.hearts + 1,
+      userLiked: true
+    }));
+
     try {
       const res = await fetch(`/api/posts/${photoId}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'heart' })
+        body: JSON.stringify({ reaction_type: 'loved', type: 'heart' })
       });
       if (res.ok) {
         const data = await res.json();
-        setReactions(prev => ({
-          hearts: data.hearts !== undefined ? data.hearts : prev.hearts + 1,
+        setReactions({
+          hearts: data.hearts !== undefined ? data.hearts : (data.loved || 1),
           userLiked: true
-        }));
+        });
       }
     } catch (err) {
       console.error('Error liking photo:', err);
@@ -390,10 +398,10 @@ export default function Photos() {
             if (e.target === e.currentTarget) setSelectedPhotoIndex(null);
           }}
         >
-          {/* Top-Right Fixed Close Button */}
+          {/* Single Top-Left Fixed Close Button */}
           <button
             onClick={() => setSelectedPhotoIndex(null)}
-            className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[100] p-2.5 rounded-full bg-black/80 hover:bg-black text-white shadow-2xl border border-white/20 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
+            className="fixed top-4 left-4 sm:top-6 sm:left-6 z-[100] p-2.5 rounded-full bg-black/80 hover:bg-black text-white shadow-2xl border border-white/20 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
             aria-label="Close photo view"
           >
             <X className="w-5 h-5" />
@@ -456,14 +464,6 @@ export default function Photos() {
                     )}
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setSelectedPhotoIndex(null)}
-                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-md transition-colors cursor-pointer shrink-0"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Caption & Comments List */}
