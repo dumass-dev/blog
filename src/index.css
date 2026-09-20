@@ -1194,7 +1194,6 @@ main {
   }
 }
 
->>>>>>> Stashed changes
 /* Final safety net for viewport clipping with legacy Safari fallback */
 html, body {
   overflow-x: hidden;
