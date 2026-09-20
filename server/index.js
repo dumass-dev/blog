@@ -145,11 +145,34 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>q04ti — API Service</title>
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('diary-theme') || localStorage.getItem('theme');
+        var isDark = saved ? saved === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch(e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
+      --bg: #FFFFFF;
+      --card-bg: #FAFAFA;
+      --border: #E2E2E2;
+      --border-hover: #000000;
+      --text: #000000;
+      --text-secondary: #444444;
+      --text-muted: #777777;
+      --accent-warm: #000000;
+    }
+    html.dark, body.dark {
       --bg: #0C0C0C;
       --card-bg: #141413;
       --border: #222220;
@@ -158,18 +181,6 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       --text-secondary: #A09D96;
       --text-muted: #66645F;
       --accent-warm: #EBE8E3;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #FFFFFF;
-        --card-bg: #FAFAFA;
-        --border: #E2E2E2;
-        --border-hover: #000000;
-        --text: #000000;
-        --text-secondary: #444444;
-        --text-muted: #777777;
-        --accent-warm: #000000;
-      }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -184,6 +195,7 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       padding: 3rem 1.5rem;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
     .container {
       width: 100%;
@@ -221,12 +233,17 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       border: 1px solid var(--border);
       border-radius: 4px;
       background: var(--card-bg);
+      transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .status-badge:hover {
+      border-color: var(--border-hover);
     }
     .dot {
       width: 6px;
       height: 6px;
-      background-color: var(--text);
+      background-color: #10B981;
       border-radius: 50%;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
     }
     .grid {
       display: grid;
@@ -239,7 +256,7 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 1.25rem;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, background-color 0.2s;
     }
     .card:hover { border-color: var(--border-hover); }
     .card-label {
@@ -274,6 +291,7 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       overflow: hidden;
       margin-bottom: 2.5rem;
       background: var(--card-bg);
+      transition: background-color 0.2s, border-color 0.2s;
     }
     .endpoint-item {
       display: flex;
@@ -286,7 +304,8 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       transition: background 0.15s;
     }
     .endpoint-item:last-child { border-bottom: none; }
-    .endpoint-item:hover { background: rgba(255, 255, 255, 0.02); }
+    .endpoint-item:hover { background: rgba(0, 0, 0, 0.03); }
+    html.dark .endpoint-item:hover { background: rgba(255, 255, 255, 0.03); }
     .endpoint-path {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.8125rem;
@@ -333,7 +352,7 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       </div>
       <div style="display: flex; align-items: center; gap: 0.5rem;">
         <button id="theme-toggle-btn" class="status-badge" style="cursor: pointer; background: var(--card-bg);" title="Toggle Dark/Light Mode">
-          <span id="theme-toggle-text">☀️ Light</span>
+          <span id="theme-toggle-text">🌙 Dark</span>
         </button>
         <div class="status-badge">
           <div class="dot"></div>
@@ -398,25 +417,30 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
     const btn = document.getElementById('theme-toggle-btn');
     const txt = document.getElementById('theme-toggle-text');
 
-    function updateTheme(t) {
-      if (t === 'light') {
-        document.documentElement.classList.add('light-theme');
-        if (txt) txt.textContent = '🌙 Dark';
-      } else {
-        document.documentElement.classList.remove('light-theme');
+    function applyTheme(t) {
+      if (t === 'dark') {
+        document.documentElement.classList.add('dark');
+        if (document.body) document.body.classList.add('dark');
         if (txt) txt.textContent = '☀️ Light';
+      } else {
+        document.documentElement.classList.remove('dark');
+        if (document.body) document.body.classList.remove('dark');
+        if (txt) txt.textContent = '🌙 Dark';
       }
     }
 
-    const savedTheme = localStorage.getItem('diary-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    updateTheme(savedTheme);
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    applyTheme(isCurrentlyDark ? 'dark' : 'light');
 
     if (btn) {
       btn.addEventListener('click', () => {
-        const isCurrentlyLight = document.documentElement.classList.contains('light-theme');
-        const nextTheme = isCurrentlyLight ? 'dark' : 'light';
-        localStorage.setItem('diary-theme', nextTheme);
-        updateTheme(nextTheme);
+        const isDark = document.documentElement.classList.contains('dark');
+        const nextTheme = isDark ? 'light' : 'dark';
+        try {
+          localStorage.setItem('diary-theme', nextTheme);
+          localStorage.setItem('theme', nextTheme);
+        } catch(e) {}
+        applyTheme(nextTheme);
       });
     }
   </script>
