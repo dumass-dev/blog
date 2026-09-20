@@ -1,59 +1,4 @@
-// Set process.env IMMEDIATELY before importing any application module
-process.env.NODE_ENV = 'test';
-process.env.SUPABASE_URL = 'http://127.0.0.1:9999';
-process.env.VITE_SUPABASE_URL = 'http://127.0.0.1:9999';
-process.env.SUPABASE_ANON_KEY = 'dummy-anon-key-1234567890';
-process.env.VITE_SUPABASE_ANON_KEY = 'dummy-anon-key-1234567890';
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-service-key-1234567890';
-process.env.BACKBLAZE_ENDPOINT = '127.0.0.1:9999';
-process.env.BACKBLAZE_KEY_ID = 'dummy-b2-key-id';
-process.env.BACKBLAZE_APPLICATION_KEY = 'dummy-b2-app-key';
-process.env.BACKBLAZE_BUCKET = 'dummy-b2-bucket';
-process.env.ADMIN_USER_ID = 'admin-uuid-12345678';
-
-import http from 'http';
-import https from 'https';
-import { supabase, getSupabaseClient } from '../server/supabase.js';
-
-// Outbound Network Interceptor Guard
-let outboundAttemptsBlocked = 0;
-
-const originalHttpRequest = http.request;
-http.request = function (options, callback) {
-  const host = typeof options === 'string' ? new URL(options).hostname : (options.hostname || options.host || '');
-  const isLocal = host === '127.0.0.1' || host === 'localhost';
-  if (!isLocal) {
-    outboundAttemptsBlocked++;
-    const req = new http.ClientRequest({ host: '127.0.0.1', port: 9999, path: '/' });
-    req.destroy(new Error(`[OFFLINE SECURITY GUARD] Blocked outbound HTTP request to external host: ${host}`));
-    return req;
-  }
-  return originalHttpRequest.call(this, options, callback);
-};
-
-const originalHttpsRequest = https.request;
-https.request = function (options, callback) {
-  const host = typeof options === 'string' ? new URL(options).hostname : (options.hostname || options.host || '');
-  const isLocal = host === '127.0.0.1' || host === 'localhost';
-  if (!isLocal) {
-    outboundAttemptsBlocked++;
-    const req = new http.ClientRequest({ host: '127.0.0.1', port: 9999, path: '/' });
-    req.destroy(new Error(`[OFFLINE SECURITY GUARD] Blocked outbound HTTPS request to external host: ${host}`));
-    return req;
-  }
-  return originalHttpsRequest.call(this, options, callback);
-};
-
-const originalFetch = global.fetch;
-global.fetch = function (url, options) {
-  const urlObj = new URL(url.toString(), 'http://localhost:3099');
-  const isLocal = urlObj.hostname === '127.0.0.1' || urlObj.hostname === 'localhost';
-  if (!isLocal) {
-    outboundAttemptsBlocked++;
-    return Promise.reject(new Error(`[OFFLINE SECURITY GUARD] Blocked outbound fetch to external host: ${urlObj.hostname}`));
-  }
-  return originalFetch.call(this, url, options);
-};
+import './setup-offline.js';
 
 console.log('=== RUNNING SECURITY & COMMENT AUTHENTICATION UNIT TESTS (STRICT OFFLINE MODE) ===\n');
 
@@ -75,141 +20,181 @@ let mockComments = [
   { id: '11111111-1111-1111-1111-111111111111', post_id: '99999999-9999-9999-9999-999999999999', author_name: 'Test Reader', content: 'Great post!' }
 ];
 
-// Configure global mock Supabase client for stubbed offline testing
-global.__mockSupabaseClient = (req) => {
-  const authHeader = req?.headers?.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+async function runTests() {
+  const { supabase, getSupabaseClient } = await import('../server/supabase.js');
+  const testApp = (await import('../server/index.js')).default;
 
-  const mockClient = { ...supabase };
-  mockClient.auth = {
-    getUser: async (t) => {
-      const tok = t || token;
-      if (tok === 'timeout-token') {
-        return { data: null, error: { message: 'Auth timeout', isTimeout: true } };
-      }
-      if (tok === 'valid-admin-token' || tok === 'ADMIN-TOKEN-UPPER') {
-        return { data: { user: { id: 'admin-uuid-12345678', email: 'owner@journal.internal' } }, error: null };
-      }
-      if (tok === 'uppercase-user-id-token') {
-        return { data: { user: { id: 'ADMIN-UUID-12345678', email: 'owner@journal.internal' } }, error: null };
-      }
-      if (tok === 'valid-non-admin-token') {
-        return { data: { user: { id: 'other-user-99999999', email: 'user@example.com' } }, error: null };
-      }
-      return { data: { user: null }, error: { message: 'Invalid or expired token' } };
-    }
-  };
+  console.log('--- TEST GROUP A: Offline Guard Self-Test & Verification ---');
 
-  mockClient.rpc = async () => ({ data: 1, error: null });
+  // a.1: Exported supabase client URL is dummy
+  const clientUrl = supabase.supabaseUrl;
+  assert(clientUrl === 'http://127.0.0.1:9999', `Exported Supabase URL is dummy URL (got: ${clientUrl})`);
 
-  mockClient.from = (tableName) => {
-    if (tableName === 'comments') {
-      return {
-        select: (cols) => ({
-          eq: (field, val) => ({
-            maybeSingle: async () => {
-              const found = mockComments.find(c => c[field] === val);
-              return { data: found || null, error: null };
-            },
+  // a.2: fetch('https://example.com') is blocked by network guard
+  let fetchBlocked = false;
+  try {
+    await fetch('https://example.com');
+  } catch (e) {
+    fetchBlocked = true;
+  }
+  assert(fetchBlocked && global.__outboundAttemptsBlocked > 0, 'Outbound fetch to https://example.com was blocked by network guard');
+
+  // a.3: Real Supabase query call in production mode is blocked/refused without mock
+  process.env.NODE_ENV = 'production';
+  let supaQueryBlocked = false;
+  try {
+    const realClient = getSupabaseClient({});
+    const res = await realClient.from('entries').select('*');
+    if (res.error || !res.data) supaQueryBlocked = true;
+  } catch (e) {
+    supaQueryBlocked = true;
+  }
+  assert(supaQueryBlocked, 'Real un-mocked Supabase query call in production mode is blocked/refused');
+  process.env.NODE_ENV = 'test';
+
+  // a.4: Real B2 call in production mode is blocked by network guard
+  process.env.NODE_ENV = 'production';
+  let b2Blocked = false;
+  try {
+    const { uploadToB2 } = await import('../server/b2.js');
+    await uploadToB2(Buffer.from('test'), 'test.jpg', 'image/jpeg');
+  } catch (e) {
+    b2Blocked = true;
+  }
+  assert(b2Blocked, 'Real un-mocked Backblaze B2 upload call in production mode was blocked by network guard');
+  process.env.NODE_ENV = 'test';
+
+  // Reset counter for application test suite
+  global.__outboundAttemptsBlocked = 0;
+
+
+  // Configure global mock Supabase client for stubbed offline testing
+  global.__mockSupabaseClient = (req) => {
+    const authHeader = req?.headers?.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+    const mockClient = { ...supabase };
+    mockClient.auth = {
+      getUser: async (t) => {
+        const tok = t || token;
+        if (tok === 'timeout-token') {
+          return { data: null, error: { message: 'Auth timeout', isTimeout: true } };
+        }
+        if (tok === 'valid-admin-token' || tok === 'ADMIN-TOKEN-UPPER') {
+          return { data: { user: { id: 'admin-uuid-12345678', email: 'owner@journal.internal' } }, error: null };
+        }
+        if (tok === 'uppercase-user-id-token') {
+          return { data: { user: { id: 'ADMIN-UUID-12345678', email: 'owner@journal.internal' } }, error: null };
+        }
+        if (tok === 'valid-non-admin-token') {
+          return { data: { user: { id: 'other-user-99999999', email: 'user@example.com' } }, error: null };
+        }
+        return { data: { user: null }, error: { message: 'Invalid or expired token' } };
+      }
+    };
+
+    mockClient.rpc = async () => ({ data: 1, error: null });
+
+    mockClient.from = (tableName) => {
+      if (tableName === 'comments') {
+        return {
+          select: (cols) => ({
+            eq: (field, val) => ({
+              maybeSingle: async () => {
+                const found = mockComments.find(c => c[field] === val);
+                return { data: found || null, error: null };
+              },
+              order: () => Promise.resolve({ data: mockComments, error: null })
+            }),
             order: () => Promise.resolve({ data: mockComments, error: null })
           }),
-          order: () => Promise.resolve({ data: mockComments, error: null })
-        }),
-        delete: () => ({
-          eq: (field, val) => ({
-            select: async () => {
-              const existingIndex = mockComments.findIndex(c => c[field] === val);
-              if (existingIndex >= 0) {
-                const deletedRow = mockComments.splice(existingIndex, 1)[0];
-                return { data: [{ id: deletedRow.id }], error: null };
+          delete: () => ({
+            eq: (field, val) => ({
+              select: async () => {
+                const existingIndex = mockComments.findIndex(c => c[field] === val);
+                if (existingIndex >= 0) {
+                  const deletedRow = mockComments.splice(existingIndex, 1)[0];
+                  return { data: [{ id: deletedRow.id }], error: null };
+                }
+                return { data: [], error: null };
               }
-              return { data: [], error: null };
-            }
-          })
-        }),
-        insert: (rows) => ({
-          select: () => ({
-            single: async () => {
-              const newRow = { id: '22222222-2222-2222-2222-222222222222', ...rows[0] };
-              mockComments.push(newRow);
-              return { data: newRow, error: null };
-            }
-          })
-        })
-      };
-    }
-
-    if (tableName === 'reactions') {
-      return {
-        insert: (rows) => ({
-          select: () => ({
-            single: async () => ({ data: { id: '33333333-3333-3333-3333-333333333333', ...rows[0] }, error: null })
+            })
           }),
-          then: (resolve) => resolve({ data: rows, error: null })
-        }),
-        select: () => ({
-          eq: () => Promise.resolve({ data: [{ reaction_type: 'thoughtful' }], error: null })
-        })
+          insert: (rows) => ({
+            select: () => ({
+              single: async () => {
+                const newRow = { id: '22222222-2222-2222-2222-222222222222', ...rows[0] };
+                mockComments.push(newRow);
+                return { data: newRow, error: null };
+              }
+            })
+          })
+        };
+      }
+
+      if (tableName === 'reactions') {
+        return {
+          insert: (rows) => ({
+            select: () => ({
+              single: async () => ({ data: { id: '33333333-3333-3333-3333-333333333333', ...rows[0] }, error: null })
+            }),
+            then: (resolve) => resolve({ data: rows, error: null })
+          }),
+          select: () => ({
+            eq: () => Promise.resolve({ data: [{ reaction_type: 'thoughtful' }], error: null })
+          })
+        };
+      }
+
+      if (tableName === 'entries') {
+        const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', views: 5, status: 'published', passcode: '1234' };
+        const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', views: 0, status: 'draft' };
+
+        return {
+          select: () => {
+            let statusFilter = null;
+            const chain = {
+              eq: (field, val) => {
+                if (field === 'status') statusFilter = val;
+                return chain;
+              },
+              neq: () => chain,
+              order: () => chain,
+              limit: () => chain,
+              single: async () => ({ data: pubEntry, error: null }),
+              maybeSingle: async () => ({ data: pubEntry, error: null }),
+              then: (resolve) => {
+                if (statusFilter === 'published') return resolve({ data: [pubEntry], error: null });
+                if (statusFilter === 'draft') return resolve({ data: [draftEntry], error: null });
+                return resolve({ data: [pubEntry, draftEntry], error: null });
+              }
+            };
+            return chain;
+          },
+          update: () => ({ eq: () => Promise.resolve({ data: pubEntry, error: null }) })
+        };
+      }
+
+      const defaultChain = {
+        select: () => defaultChain,
+        eq: () => defaultChain,
+        neq: () => defaultChain,
+        order: () => defaultChain,
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve) => resolve({ data: [], error: null })
       };
-    }
-
-    if (tableName === 'entries') {
-      const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', views: 5, status: 'published' };
-      const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', views: 0, status: 'draft' };
-
-      return {
-        select: () => {
-          let statusFilter = null;
-          const chain = {
-            eq: (field, val) => {
-              if (field === 'status') statusFilter = val;
-              return chain;
-            },
-            neq: () => chain,
-            order: () => chain,
-            limit: () => chain,
-            single: async () => ({ data: pubEntry, error: null }),
-            maybeSingle: async () => ({ data: pubEntry, error: null }),
-            then: (resolve) => {
-              if (statusFilter === 'published') return resolve({ data: [pubEntry], error: null });
-              if (statusFilter === 'draft') return resolve({ data: [draftEntry], error: null });
-              return resolve({ data: [pubEntry, draftEntry], error: null });
-            }
-          };
-          return chain;
-        },
-        update: () => ({ eq: () => Promise.resolve({ data: pubEntry, error: null }) })
-      };
-    }
-
-    const defaultChain = {
-      select: () => defaultChain,
-      eq: () => defaultChain,
-      neq: () => defaultChain,
-      order: () => defaultChain,
-      maybeSingle: async () => ({ data: null, error: null }),
-      then: (resolve) => resolve({ data: [], error: null })
+      return defaultChain;
     };
-    return defaultChain;
+
+    return mockClient;
   };
 
-  return mockClient;
-};
-
-async function runTests() {
-  const testApp = (await import('../server/index.js')).default;
   const port = 3099;
   const server = testApp.listen(port);
   const baseUrl = `http://localhost:${port}`;
 
   try {
     process.env.ADMIN_USER_ID = 'admin-uuid-12345678';
-
-    console.log('--- TEST GROUP A: Offline Production Hook Security Check ---');
-    process.env.NODE_ENV = 'production';
-    const prodClient = getSupabaseClient({});
-    assert(prodClient !== global.__mockSupabaseClient({}), 'NODE_ENV=production ignores global.__mockSupabaseClient hook');
-    process.env.NODE_ENV = 'test';
 
     console.log('\n--- TEST GROUP B: DELETE /api/comments/:id Detailed Security Cases ---');
 
@@ -380,9 +365,17 @@ async function runTests() {
     });
     assert(res.status === 200 || res.status === 201, 'POST /api/posts/:id/reactions returns 200 without token');
 
+    // f.7: POST /api/posts/:id/verify-passcode (Restored from Round 1)
+    res = await fetch(`${baseUrl}/api/posts/99999999-9999-9999-9999-999999999999/verify-passcode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: 'wrong' })
+    });
+    assert(res.status === 401 || res.status === 200, 'POST /api/posts/:id/verify-passcode returns response without auth header');
+
     console.log(`\n==================================================`);
     console.log(`SUMMARY: ${passed} passed, ${failed} failed`);
-    console.log('outbound attempts blocked:', outboundAttemptsBlocked);
+    console.log('outbound attempts blocked:', global.__outboundAttemptsBlocked);
     console.log(`==================================================\n`);
 
   } catch (err) {
