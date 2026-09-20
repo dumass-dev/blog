@@ -2,26 +2,42 @@ import React, { useEffect, useState } from 'react';
 import RichViewer from '../components/RichViewer';
 
 export default function About() {
-  const [aboutData, setAboutData] = useState({
-    author_name: 'q04ti',
-    tagline: 'thoughts, things I make, places I go, and everything in between.',
-    bio: '',
-    projects: [],
-    links: []
+  const [aboutData, setAboutData] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_about_data');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return {
+      author_name: 'q04ti',
+      tagline: 'thoughts, things I make, places I go, and everything in between.',
+      bio: '',
+      projects: [],
+      links: []
+    };
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('cached_about_data');
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     fetch('/api/about')
       .then(res => res.json())
       .then(data => {
-        setAboutData({
+        const updated = {
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
           bio: data.bio || '',
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
-        });
+        };
+        setAboutData(updated);
+        try {
+          localStorage.setItem('cached_about_data', JSON.stringify(updated));
+        } catch {}
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));

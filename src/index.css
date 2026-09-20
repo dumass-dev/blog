@@ -18,7 +18,7 @@
 
 @media (max-width: 767px) {
   :root {
-    --header-h: 72px;
+    --header-h: 64px;
   }
 }
 
@@ -398,25 +398,23 @@ html {
   padding-bottom: 0 !important;
 }
 
-/* Sticky Header Wrapper (Mobile sticky header, static notebook-container on desktop) */
-@media (max-width: 767px) {
-  .sticky-header-wrapper {
-    position: sticky;
-    top: 0;
-    z-index: var(--z-header);
-    background-color: var(--bg-main);
-    transition: transform 200ms ease, background-color 200ms ease;
-    will-change: transform;
-    padding-top: env(safe-area-inset-top, 0px);
-  }
+/* Sticky Header Wrapper (Desktop & Mobile sticky header) */
+.sticky-header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background-color: var(--bg-main);
+  transition: transform 200ms ease, background-color 200ms ease;
+  will-change: transform;
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
-  .sticky-header-wrapper.header-hidden {
-    transform: translateY(-100%);
-  }
+.sticky-header-wrapper.header-hidden {
+  transform: translateY(-100%);
+}
 
-  .sticky-header-wrapper.header-visible {
-    transform: translateY(0);
-  }
+.sticky-header-wrapper.header-visible {
+  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {

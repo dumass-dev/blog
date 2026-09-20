@@ -1020,11 +1020,18 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
    ABOUT & SETTINGS ROUTES (SUPABASE POWERED)
    ========================================================================== */
 
+let cachedAboutData = null;
+let cachedAboutTimestamp = 0;
+
 app.get('/api/about', async (req, res) => {
   try {
+    if (cachedAboutData && (Date.now() - cachedAboutTimestamp < 60000)) {
+      return res.json(cachedAboutData);
+    }
+
     const { data: settings, error } = await getSupabaseClient(req).from('settings').select('*');
 
-    if (error) throw error;
+    if (error && !cachedAboutData) throw error;
 
     const result = {
       author_name: 'q04ti',
@@ -1046,8 +1053,12 @@ app.get('/api/about', async (req, res) => {
       }
     });
 
+    cachedAboutData = result;
+    cachedAboutTimestamp = Date.now();
+
     res.json(result);
   } catch (err) {
+    if (cachedAboutData) return res.json(cachedAboutData);
     res.status(500).json({ error: err.message });
   }
 });

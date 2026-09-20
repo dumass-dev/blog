@@ -99,28 +99,43 @@ export default function Comments({ postId }) {
     e.preventDefault();
     if (!content.trim()) return;
 
-    setSubmitting(true);
     setError(null);
     setMessage(null);
 
     const name = authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader';
-    let newComment = null;
+    const trimmedContent = content.trim();
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment = {
+      id: tempId,
+      post_id: postId,
+      author_name: name,
+      content: trimmedContent,
+      created_at: new Date().toISOString()
+    };
+
+    // Optimistically add comment to UI state instantly
+    setComments(prev => [...prev, optimisticComment]);
+    setContent('');
+    setMessage('Your comment has been posted.');
+    setTimeout(() => setMessage(null), 3000);
+
+    let realComment = null;
 
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author_name: name, content: content.trim() })
+        body: JSON.stringify({ author_name: name, content: trimmedContent })
       });
 
       if (res.ok) {
-        newComment = await res.json();
+        realComment = await res.json();
       }
     } catch {
       // API call failed, fallback to direct Supabase
     }
 
-    if (!newComment) {
+    if (!realComment) {
       try {
         let realPostId = postId;
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
@@ -132,24 +147,23 @@ export default function Comments({ postId }) {
 
         const { data: supaInserted, error: supaErr } = await supabase
           .from('comments')
-          .insert([{ post_id: realPostId, author_name: name, content: content.trim() }])
+          .insert([{ post_id: realPostId, author_name: name, content: trimmedContent }])
           .select('*')
           .single();
 
         if (supaErr) throw supaErr;
-        newComment = supaInserted;
+        realComment = supaInserted;
       } catch (err) {
+        // Revert optimistic comment if server insert fails
+        setComments(prev => prev.filter(c => c.id !== tempId));
         setError(err.message || 'Failed posting comment.');
-        setSubmitting(false);
         return;
       }
     }
 
-    setComments(prev => [...prev, newComment]);
-    setContent('');
-    setMessage('Your comment has been posted.');
-    setTimeout(() => setMessage(null), 3000);
-    setSubmitting(false);
+    if (realComment) {
+      setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
+    }
   };
 
   return (
