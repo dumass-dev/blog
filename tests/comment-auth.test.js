@@ -189,9 +189,9 @@ async function runTests() {
     return mockClient;
   };
 
-  const port = 3099;
-  const server = testApp.listen(port);
-  const baseUrl = `http://localhost:${port}`;
+  const server = testApp.listen(0);
+  const port = server.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
     process.env.ADMIN_USER_ID = 'admin-uuid-12345678';

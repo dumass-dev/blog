@@ -26,53 +26,70 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Module-level SWR cache for instant admin panel navigation
+let adminDashboardCache = {
+  entries: null,
+  stats: null,
+  comments: null
+};
+
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [stats, setStats] = useState({ total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(() => adminDashboardCache.stats || { total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
+  const [entries, setEntries] = useState(() => adminDashboardCache.entries || []);
+  const [comments, setComments] = useState(() => adminDashboardCache.comments || []);
+  const [loading, setLoading] = useState(() => !adminDashboardCache.entries);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
 
   const loadData = async () => {
-    setLoading(true);
+    if (!adminDashboardCache.entries) {
+      setLoading(true);
+    }
 
     // 1. Fetch Posts
-    const apiPosts = await safeApiFetch('/api/posts?status=all', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    });
-
     let postsList = [];
-    if (Array.isArray(apiPosts)) {
-      postsList = apiPosts;
-      setEntries(apiPosts);
-    } else {
+    try {
+      const apiPosts = await safeApiFetch('/api/posts?status=all', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (Array.isArray(apiPosts)) {
+        postsList = apiPosts;
+      }
+    } catch {}
+
+    if (postsList.length === 0) {
       try {
         const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
         postsList = supaPosts || [];
-        setEntries(postsList);
-      } catch {
-        setEntries([]);
-      }
+      } catch {}
     }
 
-    // 2. Fetch Stats
-    const apiStats = await safeApiFetch('/api/stats', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    });
+    setEntries(postsList);
+    adminDashboardCache.entries = postsList;
 
-    if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
-      setStats(apiStats);
-    } else {
+    // 2. Fetch Stats
+    let currentStats = null;
+    try {
+      const apiStats = await safeApiFetch('/api/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
+        currentStats = apiStats;
+      }
+    } catch {}
+
+    if (!currentStats) {
       const published = postsList.filter(e => e.status !== 'draft').length;
       const drafts = postsList.filter(e => e.status === 'draft').length;
       const updates = postsList.filter(e => e.type === 'update').length;
       const totalViews = postsList.reduce((acc, curr) => acc + (curr.views || 0), 0);
 
-      setStats({
+      currentStats = {
         total: postsList.length,
         published,
         drafts,
@@ -80,8 +97,22 @@ export default function Dashboard() {
         mediaCount: 0,
         totalViews,
         topPosts: []
-      });
+      };
     }
+    setStats(currentStats);
+    adminDashboardCache.stats = currentStats;
+
+    // 3. Fetch Reader Comments for Admin Moderation
+    try {
+      const { data: supaComments } = await supabase
+        .from('comments')
+        .select('*, entries(title, slug)')
+        .order('created_at', { ascending: false });
+      if (supaComments) {
+        setComments(supaComments);
+        adminDashboardCache.comments = supaComments;
+      }
+    } catch {}
 
     setLoading(false);
   };
@@ -91,21 +122,64 @@ export default function Dashboard() {
   }, [token]);
 
   const handleDelete = async (id) => {
+    let deleted = false;
     try {
-      const res = await fetch(`/api/admin/entries/${id}`, {
+      const res = await fetch(`/api/posts/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (res.ok) deleted = true;
+    } catch {}
 
-      if (!res.ok) {
-        throw new Error('Failed to delete entry');
-      }
-
-      setDeleteTarget(null);
-      loadData();
-    } catch (err) {
-      alert(err.message);
+    if (!deleted) {
+      try {
+        const { error } = await supabase.from('entries').delete().eq('id', id);
+        if (!error) deleted = true;
+      } catch {}
     }
+
+    if (deleted) {
+      setDeleteTarget(null);
+      setEntries(prev => {
+        const updated = prev.filter(e => e.id !== id);
+        adminDashboardCache.entries = updated;
+        return updated;
+      });
+    } else {
+      alert('Failed to delete entry.');
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('Permanently delete this reader comment?')) return;
+    setDeletingCommentId(commentId);
+    let deleted = false;
+
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) deleted = true;
+    } catch {}
+
+    if (!deleted) {
+      try {
+        const { error } = await supabase.from('comments').delete().eq('id', commentId);
+        if (!error) deleted = true;
+      } catch {}
+    }
+
+    if (deleted) {
+      setComments(prev => {
+        const updated = prev.filter(c => c.id !== commentId);
+        adminDashboardCache.comments = updated;
+        return updated;
+      });
+    } else {
+      alert('Failed deleting comment.');
+    }
+    setDeletingCommentId(null);
   };
 
   // Filtering Logic
@@ -227,7 +301,8 @@ export default function Dashboard() {
             { id: 'draft', label: 'Drafts' },
             { id: 'journal', label: 'Journal' },
             { id: 'writing', label: 'Essays' },
-            { id: 'update', label: 'Updates' }
+            { id: 'update', label: 'Updates' },
+            { id: 'comments', label: `Comments (${comments.length})` }
           ].map(f => (
             <button
               key={f.id}
@@ -249,19 +324,62 @@ export default function Dashboard() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search entries..."
+            placeholder="Search entries or comments..."
             className="quiet-input pl-10 text-xs py-1.5"
           />
           <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5 pointer-events-none" />
         </div>
       </div>
 
-      {/* Entries List Container */}
+      {/* Entries & Comments Container */}
       <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--card-bg)]">
         {loading ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
-            Loading entries...
+            Loading data...
           </div>
+        ) : filter === 'comments' ? (
+          /* Reader Comments Moderation View */
+          comments.length === 0 ? (
+            <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
+              No reader comments found.
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {comments
+                .filter(c => !search.trim() || c.author_name.toLowerCase().includes(search.toLowerCase()) || c.content.toLowerCase().includes(search.toLowerCase()))
+                .map(item => (
+                  <div key={item.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans">
+                    <div className="space-y-1 max-w-2xl">
+                      <div className="flex items-center gap-2 text-[var(--text-muted)]">
+                        <span className="font-medium text-[var(--text-primary)]">{item.author_name}</span>
+                        <span>·</span>
+                        <span>{formatDate(item.created_at)}</span>
+                        {item.entries?.slug && (
+                          <>
+                            <span>·</span>
+                            <Link to={`/entry/${item.entries.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-[var(--accent-warm)]">
+                              {item.entries.title || 'View Post'}
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                      <p className="font-serif text-sm text-[var(--text-primary)] leading-relaxed">
+                        {item.content}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteComment(item.id)}
+                      disabled={deletingCommentId === item.id}
+                      className="quiet-button-secondary text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5 shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{deletingCommentId === item.id ? 'Deleting...' : 'Delete Comment'}</span>
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )
         ) : filteredEntries.length === 0 ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)]">
             No entries found.
