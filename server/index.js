@@ -144,54 +144,66 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>q04ti — API Server Status</title>
+  <title>q04ti — API Service</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #11100f;
-      --card-bg: #181715;
-      --border: #262422;
-      --border-hover: #3a3733;
-      --text: #ededeb;
-      --text-muted: #8e8880;
-      --accent: #d48c70;
-      --green: #4ade80;
-      --green-bg: rgba(74, 222, 128, 0.1);
+      --bg: #0C0C0C;
+      --card-bg: #141413;
+      --border: #222220;
+      --border-hover: #383734;
+      --text: #EBE8E3;
+      --text-secondary: #A09D96;
+      --text-muted: #66645F;
+      --accent-warm: #EBE8E3;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #FFFFFF;
+        --card-bg: #FAFAFA;
+        --border: #E2E2E2;
+        --border-hover: #000000;
+        --text: #000000;
+        --text-secondary: #444444;
+        --text-muted: #777777;
+        --accent-warm: #000000;
+      }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: var(--bg);
       color: var(--text);
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: 'Newsreader', Georgia, serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 2rem 1rem;
-      line-height: 1.5;
+      padding: 3rem 1.5rem;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
     }
     .container {
       width: 100%;
-      max-width: 680px;
+      max-width: 640px;
     }
     .header {
       margin-bottom: 2.5rem;
-      border-b: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
       padding-bottom: 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
     }
     .title {
-      font-family: 'Newsreader', Georgia, serif;
-      font-size: 2rem;
+      font-size: 2.25rem;
       font-weight: 500;
       letter-spacing: -0.02em;
     }
     .subtitle {
+      font-family: 'Inter', system-ui, sans-serif;
       font-size: 0.8125rem;
       color: var(--text-muted);
       margin-top: 0.25rem;
@@ -199,96 +211,91 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      background: var(--green-bg);
-      border: 1px solid rgba(74, 222, 128, 0.25);
-      color: var(--green);
-      font-size: 0.75rem;
-      font-family: 'JetBrains Mono', monospace;
-      padding: 0.35rem 0.75rem;
-      border-radius: 9999px;
+      gap: 0.4rem;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.7rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--card-bg);
     }
     .dot {
-      width: 7px;
-      height: 7px;
-      background-color: var(--green);
+      width: 6px;
+      height: 6px;
+      background-color: var(--text);
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--green);
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 1rem;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
     }
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 1.25rem;
       transition: border-color 0.2s;
     }
     .card:hover { border-color: var(--border-hover); }
     .card-label {
-      font-size: 0.75rem;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.7rem;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.5rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.35rem;
     }
     .card-value {
-      font-family: 'Newsreader', serif;
-      font-size: 1.5rem;
+      font-size: 1.65rem;
       font-weight: 500;
     }
     .card-sub {
-      font-size: 0.75rem;
-      color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
+      font-size: 0.725rem;
+      color: var(--text-muted);
       margin-top: 0.25rem;
     }
     .section-title {
-      font-size: 0.8125rem;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-muted);
       margin-bottom: 1rem;
     }
     .endpoints-list {
-      background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
+      background: var(--card-bg);
     }
     .endpoint-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.875rem 1.25rem;
+      padding: 0.9rem 1.25rem;
       border-bottom: 1px solid var(--border);
       text-decoration: none;
       color: var(--text);
-      font-size: 0.875rem;
       transition: background 0.15s;
     }
     .endpoint-item:last-child { border-bottom: none; }
-    .endpoint-item:hover { background: rgba(255, 255, 255, 0.03); }
+    .endpoint-item:hover { background: rgba(255, 255, 255, 0.02); }
     .endpoint-path {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.8125rem;
-      color: var(--accent);
+      color: var(--text);
     }
     .endpoint-desc {
+      font-family: 'Inter', system-ui, sans-serif;
       color: var(--text-muted);
-      font-size: 0.8125rem;
+      font-size: 0.775rem;
     }
     .footer {
       display: flex;
@@ -296,85 +303,87 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       align-items: center;
       padding-top: 1.5rem;
       border-top: 1px solid var(--border);
-      font-size: 0.8125rem;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.775rem;
       color: var(--text-muted);
     }
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       background: var(--text);
       color: var(--bg);
       text-decoration: none;
-      font-size: 0.8125rem;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 0.775rem;
       font-weight: 500;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
+      padding: 0.45rem 0.9rem;
+      border-radius: 4px;
       transition: opacity 0.2s;
     }
-    .btn:hover { opacity: 0.9; }
+    .btn:hover { opacity: 0.85; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <div>
-        <h1 class="title">q04ti API Server</h1>
-        <p class="subtitle">Personal Diary, Essays & Media Storage Backend</p>
+        <h1 class="title">q04ti API</h1>
+        <p class="subtitle">Personal Journal, Essays & Backblaze Media Backend</p>
       </div>
       <div class="status-badge">
         <div class="dot"></div>
-        <span>Online</span>
+        <span>Active</span>
       </div>
     </div>
 
     <div class="grid">
       <div class="card">
-        <div class="card-label">Database</div>
-        <div class="card-value" style="color: var(--green);">Supabase</div>
-        <div class="card-sub">${postCount} Entries in Postgres</div>
+        <div class="card-label">Postgres Engine</div>
+        <div class="card-value">Supabase</div>
+        <div class="card-sub">${postCount} DB entries</div>
       </div>
 
       <div class="card">
-        <div class="card-label">Media Storage</div>
-        <div class="card-value" style="color: var(--green);">Backblaze B2</div>
-        <div class="card-sub">${mediaCount} Media Objects (S3)</div>
+        <div class="card-label">Object Storage</div>
+        <div class="card-value">Backblaze B2</div>
+        <div class="card-sub">${mediaCount} media files</div>
       </div>
 
       <div class="card">
-        <div class="card-label">Server Uptime</div>
-        <div class="card-value" style="font-family: 'JetBrains Mono', monospace; font-size: 1.125rem;">${uptimeFormatted}</div>
-        <div class="card-sub">Port 3001 &bull; Node.js</div>
+        <div class="card-label">Uptime</div>
+        <div class="card-value" style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem;">${uptimeFormatted}</div>
+        <div class="card-sub">Node.js Engine</div>
       </div>
     </div>
 
-    <h2 class="section-title">Available API Endpoints</h2>
+    <h2 class="section-title">API Endpoints</h2>
     <div class="endpoints-list">
       <a href="/api/posts" class="endpoint-item" target="_blank">
         <span class="endpoint-path">GET /api/posts</span>
-        <span class="endpoint-desc">Fetch published journal entries & essays</span>
+        <span class="endpoint-desc">Published entries & journal feed</span>
       </a>
       <a href="/api/media" class="endpoint-item" target="_blank">
         <span class="endpoint-path">GET /api/media</span>
-        <span class="endpoint-desc">List media library with pre-signed URLs</span>
+        <span class="endpoint-desc">Backblaze S3 media object index</span>
       </a>
       <a href="/api/stats" class="endpoint-item" target="_blank">
         <span class="endpoint-path">GET /api/stats</span>
-        <span class="endpoint-desc">Admin metrics & view counters</span>
+        <span class="endpoint-desc">Author studio metrics & counters</span>
       </a>
       <a href="/api/about" class="endpoint-item" target="_blank">
         <span class="endpoint-path">GET /api/about</span>
-        <span class="endpoint-desc">Author bio, projects & links</span>
+        <span class="endpoint-desc">Bio & profile info</span>
       </a>
       <a href="/api/health" class="endpoint-item" target="_blank">
         <span class="endpoint-path">GET /api/health</span>
-        <span class="endpoint-desc">System health ping endpoint</span>
+        <span class="endpoint-desc">Health check ping</span>
       </a>
     </div>
 
     <div class="footer">
-      <span>Version 2.0.0 &bull; Supabase & Backblaze B2</span>
-      <a href="http://localhost:3000" class="btn">
+      <span>q04ti Blog Engine &bull; Supabase & B2</span>
+      <a href="/" class="btn">
         <span>Open Blog Site &rarr;</span>
       </a>
     </div>
