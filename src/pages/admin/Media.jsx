@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
-import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage } from 'lucide-react';
+import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B';
@@ -12,17 +12,30 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function getPersistedMediaCache() {
+  try {
+    const raw = localStorage.getItem('cached_admin_media_list');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
 export default function Media() {
   const { token } = useAuth();
-  const [mediaList, setMediaList] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [cachedMedia] = useState(() => getPersistedMediaCache());
+  const [mediaList, setMediaList] = useState(() => cachedMedia);
+  const [loading, setLoading] = useState(() => !cachedMedia.length);
+  const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [error, setError] = useState(null);
 
-  const fetchMedia = async () => {
-    setLoading(true);
+  const fetchMedia = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    else if (!mediaList.length) setLoading(true);
     setError(null);
+
+    let list = [];
 
     // Try API server first
     const data = await safeApiFetch('/api/media', {
@@ -30,28 +43,28 @@ export default function Media() {
     });
 
     if (Array.isArray(data)) {
-      setMediaList(data);
-      setLoading(false);
-      return;
+      list = data;
+    } else {
+      // Direct Supabase fallback
+      try {
+        const { data: supaMedia, error: supaErr } = await supabase
+          .from('media')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!supaErr && Array.isArray(supaMedia)) {
+          list = supaMedia;
+        }
+      } catch (e) {}
     }
 
-    // Direct Supabase fallback
+    setMediaList(list);
     try {
-      const { data: supaMedia, error: supaErr } = await supabase
-        .from('media')
-        .select('*')
-        .order('created_at', { ascending: false });
+      localStorage.setItem('cached_admin_media_list', JSON.stringify(list));
+    } catch {}
 
-      if (!supaErr && Array.isArray(supaMedia)) {
-        setMediaList(supaMedia);
-      } else {
-        setMediaList([]);
-      }
-    } catch (e) {
-      setMediaList([]);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
+    setRefreshing(false);
   };
 
   useEffect(() => {
@@ -122,17 +135,29 @@ export default function Media() {
           <h1 className="text-xl font-serif font-medium">Media Library</h1>
         </div>
 
-        <label className="quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
-          <Upload className="w-3.5 h-3.5" />
-          <span>{uploading ? 'Uploading...' : 'Upload Photo or Video'}</span>
-          <input
-            type="file"
-            accept="image/*,video/*"
-            onChange={handleFileUpload}
-            disabled={uploading}
-            className="hidden"
-          />
-        </label>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchMedia(true)}
+            disabled={refreshing}
+            className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer"
+            title="Refresh media library"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
+          </button>
+
+          <label className="quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
+            <Upload className="w-3.5 h-3.5" />
+            <span>{uploading ? 'Uploading...' : 'Upload Photo or Video'}</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={handleFileUpload}
+              disabled={uploading}
+              className="hidden"
+            />
+          </label>
+        </div>
       </div>
 
       {error && (

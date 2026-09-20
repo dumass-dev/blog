@@ -16,7 +16,8 @@ import {
   LogOut,
   FolderArchive,
   Eye,
-  TrendingUp
+  TrendingUp,
+  RotateCw
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -26,28 +27,41 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Module-level SWR cache for instant admin panel navigation
-let adminDashboardCache = {
-  entries: null,
-  stats: null,
-  comments: null
-};
+function getPersistedCache() {
+  try {
+    const raw = localStorage.getItem('cached_admin_dashboard_v2');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { entries: null, stats: null, comments: null };
+}
+
+function setPersistedCache(data) {
+  try {
+    localStorage.setItem('cached_admin_dashboard_v2', JSON.stringify(data));
+  } catch {}
+}
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [stats, setStats] = useState(() => adminDashboardCache.stats || { total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
-  const [entries, setEntries] = useState(() => adminDashboardCache.entries || []);
-  const [comments, setComments] = useState(() => adminDashboardCache.comments || []);
-  const [loading, setLoading] = useState(() => !adminDashboardCache.entries);
+  const [cachedData] = useState(() => getPersistedCache());
+
+  const [stats, setStats] = useState(() => cachedData.stats || { total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
+  const [entries, setEntries] = useState(() => cachedData.entries || []);
+  const [comments, setComments] = useState(() => cachedData.comments || []);
+  const [loading, setLoading] = useState(() => !cachedData.entries);
+  const [refreshing, setRefreshing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
 
-  const loadData = async () => {
-    if (!adminDashboardCache.entries) {
+  const loadData = async (isManual = false) => {
+    if (isManual) {
+      setRefreshing(true);
+    } else if (!entries.length) {
       setLoading(true);
     }
 
@@ -70,7 +84,6 @@ export default function Dashboard() {
     }
 
     setEntries(postsList);
-    adminDashboardCache.entries = postsList;
 
     // 2. Fetch Stats
     let currentStats = null;
@@ -100,21 +113,33 @@ export default function Dashboard() {
       };
     }
     setStats(currentStats);
-    adminDashboardCache.stats = currentStats;
 
     // 3. Fetch Reader Comments for Admin Moderation
+    let fetchedComments = comments;
     try {
       const { data: supaComments } = await supabase
         .from('comments')
         .select('*, entries(title, slug)')
         .order('created_at', { ascending: false });
       if (supaComments) {
+        fetchedComments = supaComments;
         setComments(supaComments);
-        adminDashboardCache.comments = supaComments;
       }
     } catch {}
 
+    setPersistedCache({
+      entries: postsList,
+      stats: currentStats,
+      comments: fetchedComments
+    });
+
     setLoading(false);
+    setRefreshing(false);
+
+    if (isManual) {
+      setStatusMessage('Refreshed just now');
+      setTimeout(() => setStatusMessage(null), 3000);
+    }
   };
 
   useEffect(() => {
@@ -142,7 +167,7 @@ export default function Dashboard() {
       setDeleteTarget(null);
       setEntries(prev => {
         const updated = prev.filter(e => e.id !== id);
-        adminDashboardCache.entries = updated;
+        setPersistedCache({ entries: updated, stats, comments });
         return updated;
       });
     } else {
@@ -173,7 +198,7 @@ export default function Dashboard() {
     if (deleted) {
       setComments(prev => {
         const updated = prev.filter(c => c.id !== commentId);
-        adminDashboardCache.comments = updated;
+        setPersistedCache({ entries, stats, comments: updated });
         return updated;
       });
     } else {
@@ -216,6 +241,22 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-3">
+          {statusMessage && (
+            <span className="text-xs font-sans text-[var(--accent-warm)] font-medium">
+              {statusMessage}
+            </span>
+          )}
+
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer"
+            title="Force update latest admin data"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
+          </button>
+
           <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View Public Site</span>
