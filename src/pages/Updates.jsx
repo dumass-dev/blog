@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 
 function formatUpdateTimestamp(dateStr) {
   const d = new Date(dateStr);
