@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
+import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -21,7 +22,7 @@ export default function Journal() {
     const loadJournalEntries = async () => {
       const data = await fetchPublishedEntries({ type: 'journal' });
       if (isMounted) {
-        setEntries(data);
+        setEntries(Array.isArray(data) ? data : []);
         setLoading(false);
       }
     };
@@ -77,13 +78,13 @@ export default function Journal() {
               </h2>
 
               <p className="text-[var(--text-secondary)] font-serif text-lg leading-relaxed mb-4">
-                {item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content)}
+                {stripMarkdown(item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content))}
               </p>
 
               {item.tags && (
-                <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3">
+                <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3 min-w-0 max-w-full">
                   {item.tags.split(',').map((tag, idx) => (
-                    <span key={`${tag.trim()}-${idx}`} className="hover:text-[var(--text-primary)]">
+                    <span key={`${tag.trim()}-${idx}`} className="hover:text-[var(--text-primary)] inline-block max-w-full truncate">
                       #{tag.trim()}
                     </span>
                   ))}

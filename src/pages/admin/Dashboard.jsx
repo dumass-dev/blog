@@ -19,6 +19,8 @@ import {
   TrendingUp
 } from 'lucide-react';
 
+import { stripMarkdown } from '../../utils/excerpt';
+
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -189,28 +191,28 @@ export default function Dashboard() {
       </div>
 
       {/* Action Bar */}
-      <div className="flex flex-wrap gap-3 mb-8">
-        <Link to="/admin/new?type=journal" className="quiet-button text-xs flex items-center gap-1.5">
+      <div className="admin-quick-actions-container">
+        <Link to="/admin/new?type=journal" className="quiet-button admin-quick-action text-xs flex items-center gap-1.5">
           <Plus className="w-3.5 h-3.5" />
           <span>New Journal Entry</span>
         </Link>
 
-        <Link to="/admin/new?type=writing" className="quiet-button-secondary text-xs flex items-center gap-1.5">
+        <Link to="/admin/new?type=writing" className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5" />
           <span>New Essay</span>
         </Link>
 
-        <Link to="/admin/new?type=update" className="quiet-button-secondary text-xs flex items-center gap-1.5">
+        <Link to="/admin/new?type=update" className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5">
           <MessageSquare className="w-3.5 h-3.5" />
           <span>Quick Update</span>
         </Link>
 
-        <Link to="/admin/media" className="quiet-button-secondary text-xs flex items-center gap-1.5">
+        <Link to="/admin/media" className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5">
           <ImageIcon className="w-3.5 h-3.5" />
           <span>Media Manager</span>
         </Link>
 
-        <Link to="/admin/about" className="quiet-button-secondary text-xs flex items-center gap-1.5">
+        <Link to="/admin/about" className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5">
           <UserCheck className="w-3.5 h-3.5" />
           <span>Edit About Page</span>
         </Link>
@@ -218,7 +220,7 @@ export default function Dashboard() {
 
       {/* Filter and Search Controls */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center mb-6">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-sans">
+        <div className="admin-filter-tabs">
           {[
             { id: 'all', label: 'All Entries' },
             { id: 'published', label: 'Published' },
@@ -230,10 +232,10 @@ export default function Dashboard() {
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`px-3 py-1.5 rounded transition-colors ${
+              className={`admin-filter-tab ${
                 filter === f.id
-                  ? 'bg-[var(--text-primary)] text-[var(--bg-main)] font-medium'
-                  : 'bg-[var(--code-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
+                  ? 'active'
+                  : 'inactive'
               }`}
             >
               {f.label}
@@ -248,9 +250,9 @@ export default function Dashboard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search entries..."
-            className="quiet-input pl-9 text-xs py-1.5"
+            className="quiet-input pl-10 text-xs py-1.5"
           />
-          <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5" />
+          <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5 pointer-events-none" />
         </div>
       </div>
 
@@ -292,7 +294,7 @@ export default function Dashboard() {
                     </h3>
                     {item.excerpt && (
                       <p className="text-[var(--text-muted)] text-xs line-clamp-2 mt-1 font-serif">
-                        {item.excerpt}
+                        {stripMarkdown(item.excerpt)}
                       </p>
                     )}
                   </div>
@@ -351,11 +353,11 @@ export default function Dashboard() {
                       </td>
                       <td className="py-3 px-4 max-w-md">
                         <div className="font-serif text-base font-medium text-[var(--text-primary)] truncate">
-                          {item.title || item.content}
+                          {stripMarkdown(item.title || item.content)}
                         </div>
                         {item.excerpt && (
                           <div className="text-[var(--text-muted)] text-xs line-clamp-1">
-                            {item.excerpt}
+                            {stripMarkdown(item.excerpt)}
                           </div>
                         )}
                       </td>

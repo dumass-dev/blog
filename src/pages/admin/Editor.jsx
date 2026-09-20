@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabase';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
+import { stripMarkdown } from '../../utils/excerpt';
 import {
   Save,
   ArrowLeft,
@@ -250,7 +251,7 @@ export default function Editor() {
           category: payload.category || 'General',
           tags: payload.tags || '',
           cover_image: payload.cover_image || '',
-          excerpt: payload.excerpt || payload.content.substring(0, 150),
+          excerpt: stripMarkdown(payload.excerpt || payload.content, 150),
           date: payload.date || new Date().toISOString(),
           location: payload.location || null,
           weather: payload.weather || null,

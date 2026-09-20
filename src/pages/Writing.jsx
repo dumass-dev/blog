@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { fetchPublishedEntries, subscribeToEntries } from '../supabase';
+import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -21,7 +22,7 @@ export default function Writing() {
     const loadWritingEntries = async () => {
       const data = await fetchPublishedEntries({ type: 'writing' });
       if (isMounted) {
-        setEntries(data);
+        setEntries(Array.isArray(data) ? data : []);
         setLoading(false);
       }
     };
@@ -77,7 +78,7 @@ export default function Writing() {
               </h2>
 
               <p className="text-[var(--text-secondary)] font-serif text-lg leading-relaxed mb-4">
-                {item.excerpt || (item.content.length > 220 ? item.content.substring(0, 220) + '...' : item.content)}
+                {stripMarkdown(item.excerpt || (item.content.length > 220 ? item.content.substring(0, 220) + '...' : item.content))}
               </p>
 
               <Link

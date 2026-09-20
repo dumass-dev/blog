@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { supabase, safeApiFetch } from '../supabase';
+import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -171,7 +172,7 @@ export default function Archive() {
                   </Link>
                 </h3>
                 <p className="text-sm font-serif text-[var(--text-secondary)] line-clamp-2">
-                  {item.excerpt || item.content}
+                  {stripMarkdown(item.excerpt || item.content)}
                 </p>
               </article>
             ))

@@ -260,6 +260,12 @@ export default function EntryDetail() {
             </span>
           )}
 
+          {entry.tags && (
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <span>#{entry.tags.split(',')[0].trim()}</span>
+            </span>
+          )}
+
           {entry.type !== 'update' && (
             <span className="meta-item inline-flex items-center gap-1.5 whitespace-nowrap">
               <Clock className="w-3 h-3 opacity-60 shrink-0" />
@@ -359,12 +365,12 @@ export default function EntryDetail() {
 
       {/* Tags */}
       {entry.tags && (
-        <div className="pt-4 flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-12">
+        <div className="pt-4 flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-12 min-w-0 max-w-full">
           {entry.tags.split(',').map((tag, idx) => (
             <Link
               key={`${tag.trim()}-${idx}`}
               to={`/archive?tag=${encodeURIComponent(tag.trim())}`}
-              className="hover:text-[var(--text-primary)] transition-colors"
+              className="hover:text-[var(--text-primary)] transition-colors inline-block max-w-full truncate"
             >
               #{tag.trim()}
             </Link>

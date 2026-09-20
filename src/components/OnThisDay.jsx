@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, Calendar, ArrowRight } from 'lucide-react';
 
 import { supabase, safeApiFetch } from '../supabase';
+import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -73,7 +74,7 @@ export default function OnThisDay() {
           </h3>
           {firstEntry.excerpt && (
             <p className="text-xs font-serif italic text-[var(--text-secondary)] mt-1 line-clamp-2">
-              "{firstEntry.excerpt}"
+              "{stripMarkdown(firstEntry.excerpt)}"
             </p>
           )}
         </div>

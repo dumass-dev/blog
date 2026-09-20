@@ -4,6 +4,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import { supabase, getSupabaseClient } from './supabase.js';
+import { stripMarkdown } from '../src/utils/excerpt.js';
 import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured } from './b2.js';
 
 dotenv.config();
@@ -593,7 +594,7 @@ app.post('/api/posts', async (req, res) => {
       category: category ? category.trim() : 'General',
       tags: tags ? tags.trim() : '',
       cover_image: cover_image ? cover_image.trim() : '',
-      excerpt: excerpt ? excerpt.trim() : content.trim().substring(0, 150),
+      excerpt: stripMarkdown(excerpt || content, 150),
       date: date || new Date().toISOString(),
       location: location ? location.trim() : null,
       weather: weather ? weather.trim() : null,
