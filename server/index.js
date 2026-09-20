@@ -431,31 +431,37 @@ app.get('/api/stats', requireAdminAuth, async (req, res) => {
   }
 });
 
+/**
+ * Helper: Check if request is authenticated as owner/admin
+ */
+async function checkIsAdmin(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
+  const token = authHeader.split(' ')[1];
+  if (!token || !token.trim()) return false;
+  const cleanAdminId = (process.env.ADMIN_USER_ID || '').trim().toLowerCase();
+  if (!cleanAdminId) return false;
+
+  try {
+    const client = getSupabaseClient(req);
+    const { data } = await client.auth.getUser(token);
+    if (data && data.user && (data.user.id || '').trim().toLowerCase() === cleanAdminId) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 // GET /api/posts — List entries with filtering
 app.get('/api/posts', async (req, res) => {
   try {
     const { status, type, category, tag, limit } = req.query;
+    const isAdmin = await checkIsAdmin(req);
 
     let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false });
 
     // Restrict status=all or status=draft to authenticated admin only
     if (status === 'all' || status === 'draft') {
-      const authHeader = req.headers.authorization;
-      let isAdmin = false;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        const cleanAdminId = (process.env.ADMIN_USER_ID || '').trim().toLowerCase();
-        if (token && cleanAdminId) {
-          try {
-            const client = getSupabaseClient(req);
-            const { data } = await client.auth.getUser(token);
-            if (data && data.user && (data.user.id || '').trim().toLowerCase() === cleanAdminId) {
-              isAdmin = true;
-            }
-          } catch {}
-        }
-      }
-
       if (!isAdmin) {
         query = query.eq('status', 'published');
       } else if (status === 'draft') {
@@ -486,10 +492,10 @@ app.get('/api/posts', async (req, res) => {
 
     if (error) throw error;
 
-    // Process posts: Redact passcode-protected posts for non-admins
+    // Process posts: Redact passcode-protected posts ONLY for non-admins
     const processed = (posts || []).map(post => {
       const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
-      if (has_passcode) {
+      if (!isAdmin && has_passcode) {
         return {
           ...post,
           has_passcode: true,
@@ -501,8 +507,8 @@ app.get('/api/posts', async (req, res) => {
       }
       return {
         ...post,
-        has_passcode: false,
-        passcode: undefined
+        has_passcode: has_passcode,
+        passcode: isAdmin ? (post.passcode || '') : undefined
       };
     });
 
@@ -546,12 +552,12 @@ app.get('/api/posts/on-this-day', async (req, res) => {
 app.get('/api/posts/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
+    const isAdmin = await checkIsAdmin(req);
 
     let query = getSupabaseClient(req).from('entries').select('*');
 
-    // Public requests only fetch published entries
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Non-admin requests only fetch published entries
+    if (!isAdmin) {
       query = query.eq('status', 'published');
     }
 
@@ -580,7 +586,9 @@ app.get('/api/posts/:identifier', async (req, res) => {
       .catch(() => {});
 
     const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
-    if (has_passcode) {
+
+    // For non-admins, redact protected content
+    if (!isAdmin && has_passcode) {
       return res.json({
         ...post,
         has_passcode: true,
@@ -591,10 +599,11 @@ app.get('/api/posts/:identifier', async (req, res) => {
       });
     }
 
+    // For admins or non-protected entries, return full unredacted post
     res.json({
       ...post,
-      has_passcode: false,
-      passcode: undefined
+      has_passcode: has_passcode,
+      passcode: isAdmin ? (post.passcode || '') : undefined
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

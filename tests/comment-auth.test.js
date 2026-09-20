@@ -147,8 +147,8 @@ async function runTests() {
       }
 
       if (tableName === 'entries') {
-        const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', views: 5, status: 'published', passcode: '1234' };
-        const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', views: 0, status: 'draft' };
+        const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', content: 'Real secret body content', views: 5, status: 'published', passcode: '1234' };
+        const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', content: 'Draft content', views: 0, status: 'draft' };
 
         return {
           select: () => {
@@ -305,6 +305,18 @@ async function runTests() {
     const adminPosts = await res.json();
     const hasDraftsAdmin = Array.isArray(adminPosts) && adminPosts.some(p => p.status === 'draft');
     assert(res.status === 200 && hasDraftsAdmin, 'GET /api/posts?status=all with valid admin token returns draft entries');
+
+    // d.3: Anonymous request for passcode protected post -> redacted content & passcode undefined
+    res = await fetch(`${baseUrl}/api/posts/99999999-9999-9999-9999-999999999999`);
+    const anonPost = await res.json();
+    assert(res.status === 200 && anonPost.content.includes('🔒') && anonPost.passcode === undefined, 'GET /api/posts/:id without admin token redacts passcode-protected entry');
+
+    // d.4: Admin request for passcode protected post -> returns unredacted real content & passcode
+    res = await fetch(`${baseUrl}/api/posts/99999999-9999-9999-9999-999999999999`, {
+      headers: { 'Authorization': 'Bearer valid-admin-token' }
+    });
+    const adminSinglePost = await res.json();
+    assert(res.status === 200 && !adminSinglePost.content.includes('🔒') && adminSinglePost.passcode === '1234', 'GET /api/posts/:id with valid admin token returns unredacted entry content and passcode');
 
 
     console.log('\n--- TEST GROUP E: Admin-Only Routes Require Auth (No Token -> 401) ---');
