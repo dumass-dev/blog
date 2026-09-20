@@ -604,7 +604,7 @@ export default function Editor() {
                 <option value="journal">Journal (Personal Diary)</option>
                 <option value="writing">Writing (Blog / Essay)</option>
                 <option value="update">Update (Micro stream)</option>
-                <option value="photo">Photo (Instagram Stream)</option>
+                <option value="photo">Photo Post</option>
               </select>
             </div>
 

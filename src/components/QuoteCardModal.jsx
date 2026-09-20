@@ -156,7 +156,7 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans text-[var(--text-muted)] pt-1">
-          <span className="text-[11px]">HD 1200x675 formatted for Twitter, Instagram & LinkedIn.</span>
+          <span className="text-[11px]">HD 1200x675 formatted for social cards & export.</span>
           <div className="flex space-x-2.5 w-full sm:w-auto justify-end flex-wrap gap-y-2">
             <button
               onClick={handleCopyText}

@@ -538,7 +538,11 @@ app.get('/api/posts', async (req, res) => {
     }
 
     if (type) {
-      query = query.eq('type', type);
+      if (type === 'photo') {
+        query = query.or('category.ilike.%photos%,type.eq.photo');
+      } else {
+        query = query.eq('type', type);
+      }
     }
 
     if (category) {
@@ -559,10 +563,17 @@ app.get('/api/posts', async (req, res) => {
 
     // Process posts: Redact passcode-protected posts ONLY for non-admins
     const processed = (posts || []).map(post => {
+      const isPhoto = Boolean(
+        post.type === 'photo' ||
+        (post.category && post.category.toLowerCase() === 'photos')
+      );
+      const effectiveType = isPhoto ? 'photo' : post.type;
       const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
+
       if (!isAdmin && has_passcode) {
         return {
           ...post,
+          type: effectiveType,
           has_passcode: true,
           passcode: undefined,
           content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
@@ -572,6 +583,7 @@ app.get('/api/posts', async (req, res) => {
       }
       return {
         ...post,
+        type: effectiveType,
         has_passcode: has_passcode,
         passcode: isAdmin ? (post.passcode || '') : undefined
       };
@@ -650,12 +662,18 @@ app.get('/api/posts/:identifier', async (req, res) => {
       .then(() => {})
       .catch(() => {});
 
+    const isPhoto = Boolean(
+      post.type === 'photo' ||
+      (post.category && post.category.toLowerCase() === 'photos')
+    );
+    const effectiveType = isPhoto ? 'photo' : post.type;
     const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
 
     // For non-admins, redact protected content
     if (!isAdmin && has_passcode) {
       return res.json({
         ...post,
+        type: effectiveType,
         has_passcode: true,
         passcode: undefined,
         content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
@@ -667,6 +685,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
     // For admins or non-protected entries, return full unredacted post
     res.json({
       ...post,
+      type: effectiveType,
       has_passcode: has_passcode,
       passcode: isAdmin ? (post.passcode || '') : undefined
     });
@@ -743,13 +762,17 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       finalSlug = `update-${Date.now()}`;
     }
 
+    const isPhotoType = (type === 'photo');
+    const dbType = isPhotoType ? 'journal' : (['journal', 'writing', 'update'].includes(type) ? type : 'journal');
+    const dbCategory = isPhotoType ? (category && category.trim() ? category.trim() : 'Photos') : (category ? category.trim() : 'General');
+
     const entryData = {
       title: finalTitle,
       slug: finalSlug,
       content: content.trim(),
-      type: ['journal', 'writing', 'update', 'photo'].includes(type) ? type : 'journal',
+      type: dbType,
       status: ['published', 'draft', 'unlisted'].includes(status) ? status : 'published',
-      category: category ? category.trim() : 'General',
+      category: dbCategory,
       tags: tags ? tags.trim() : '',
       cover_image: cover_image ? cover_image.trim() : '',
       excerpt: stripMarkdown(excerpt || content, 150),
@@ -764,7 +787,10 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
 
     if (error) throw error;
 
-    res.status(201).json(data);
+    res.status(201).json({
+      ...data,
+      type: isPhotoType ? 'photo' : data.type
+    });
   } catch (err) {
     console.error('Error creating post in Supabase:', err.message);
     res.status(500).json({ error: err.message });
@@ -793,10 +819,19 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     } = req.body;
 
     const updates = {};
+    let isPhotoUpdate = false;
+    if (type !== undefined) {
+      if (type === 'photo') {
+        isPhotoUpdate = true;
+        updates.type = 'journal';
+        if (!category) updates.category = 'Photos';
+      } else {
+        updates.type = type;
+      }
+    }
     if (title !== undefined) updates.title = title.trim();
     if (slug !== undefined) updates.slug = slug.trim();
     if (content !== undefined) updates.content = content.trim();
-    if (type !== undefined) updates.type = type;
     if (status !== undefined) updates.status = status;
     if (category !== undefined) updates.category = category.trim();
     if (tags !== undefined) updates.tags = tags.trim();
@@ -812,7 +847,10 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
 
     if (error) throw error;
 
-    res.json(data);
+    res.json({
+      ...data,
+      type: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

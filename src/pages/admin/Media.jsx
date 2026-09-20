@@ -246,7 +246,7 @@ export default function Media() {
                     <Link
                       to={`/admin/new?type=photo&cover_image=${encodeURIComponent(item.signed_url || item.url)}`}
                       className="flex items-center gap-1 text-[var(--text-primary)] hover:underline font-medium text-[11px]"
-                      title="Post to Instagram Photos Stream"
+                      title="Publish to Photos Feed"
                     >
                       <span>Publish Photo</span>
                     </Link>
