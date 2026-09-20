@@ -90,7 +90,7 @@ export default function Header() {
   ];
 
   return (
-    <header className={`notebook-container py-5 sm:py-6 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
+    <header className={`notebook-container pt-6 pb-6 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
       <div className="flex justify-between items-center">
         {/* Left: Serif Wordmark & Inline Text Links */}
         <div className="flex items-center space-x-6 sm:space-x-8">
