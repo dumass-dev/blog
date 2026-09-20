@@ -1074,7 +1074,7 @@ app.post('/api/about', requireAdminAuth, async (req, res) => {
   }
 });
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Backend server active on http://localhost:${PORT} connected to Supabase & Backblaze B2.`);
   });

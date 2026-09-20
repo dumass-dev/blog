@@ -26,9 +26,13 @@ if (endpoint && keyId && applicationKey) {
       secretAccessKey: applicationKey,
     },
   });
-  console.log(`Initialized Backblaze B2 S3 Client (Bucket: ${bucket}, Endpoint: ${s3Endpoint})`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`Initialized Backblaze B2 S3 Client (Bucket: ${bucket}, Endpoint: ${s3Endpoint})`);
+  }
 } else {
-  console.warn('Warning: Backblaze B2 credentials incomplete in .env. Uploads will fallback to local storage.');
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('Warning: Backblaze B2 credentials incomplete in .env. Uploads will fallback to local storage.');
+  }
 }
 
 export function isB2Configured() {
