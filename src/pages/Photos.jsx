@@ -422,23 +422,24 @@ export default function Photos() {
           )}
 
           {/* Main Modal Layout Card */}
-          <div className="relative w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
-            {/* Single Close Button on Photo Card Top-Left Corner */}
-            <button
-              onClick={() => setSelectedPhotoIndex(null)}
-              className="absolute top-3 left-3 z-[110] p-2 rounded-full bg-black/70 hover:bg-black text-white shadow-lg border border-white/20 transition-all hover:scale-105 cursor-pointer flex items-center justify-center"
-              aria-label="Close photo view"
-              title="Close photo"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="relative w-full max-w-4xl max-h-[85vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
             {/* Image Viewport Column */}
-            <div className="md:w-7/12 lg:w-8/12 bg-black flex items-center justify-center relative min-h-[280px] max-h-[50vh] md:max-h-[85vh] p-3 sm:p-6 select-none">
+            <div className="md:w-7/12 lg:w-7/12 bg-black flex items-center justify-center relative min-h-[260px] max-h-[50vh] md:max-h-[85vh] p-4 select-none">
+              {/* High-visibility Close Button strictly on Photo Container Top-Left */}
+              <button
+                onClick={() => setSelectedPhotoIndex(null)}
+                className="absolute top-4 left-4 z-[120] p-2.5 rounded-full bg-stone-900/90 hover:bg-black text-white shadow-2xl border border-white/30 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
+                aria-label="Close photo view"
+                title="Close photo"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+
               {getPhotoSrc(activePhoto) ? (
                 <img
                   src={getPhotoSrc(activePhoto)}
                   alt={activePhoto.title}
-                  className="max-w-full max-h-[78vh] object-contain rounded shadow-lg"
+                  className="max-w-full max-h-[48vh] md:max-h-[75vh] object-contain rounded shadow-lg"
                 />
               ) : (
                 <div className="text-white/60 font-serif italic text-sm">No preview available</div>

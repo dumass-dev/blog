@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { supabase, safeApiFetch } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
 function formatDate(dateStr) {
@@ -13,68 +13,57 @@ function formatDate(dateStr) {
   });
 }
 
+function buildTree(posts) {
+  const tree = {};
+  if (!Array.isArray(posts)) return tree;
+  posts.forEach(post => {
+    if (!post.date) return;
+    const d = new Date(post.date);
+    const year = d.getFullYear();
+    const month = d.toLocaleString('en-US', { month: 'long' });
+    const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+
+    if (!tree[year]) tree[year] = {};
+    if (!tree[year][monthNum]) tree[year][monthNum] = { name: month, count: 0 };
+    tree[year][monthNum].count++;
+  });
+  return tree;
+}
+
 export default function Archive() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeYear = searchParams.get('year');
   const activeMonth = searchParams.get('month');
   const initialQuery = searchParams.get('q') || searchParams.get('tag') || '';
 
-  const [archiveTree, setArchiveTree] = useState({});
-  const [searchResults, setSearchResults] = useState([]);
+  const cached = getCachedFeed('all');
+  const [archiveTree, setArchiveTree] = useState(() => buildTree(cached));
+  const [searchResults, setSearchResults] = useState(() => (Array.isArray(cached) ? cached : []));
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
   // Load Archive Tree & Entries
   useEffect(() => {
+    let isMounted = true;
     const loadArchive = async () => {
-      setLoading(true);
+      const posts = await fetchPublishedEntries();
+      if (!isMounted) return;
 
-      // Try API first
-      let posts = await safeApiFetch('/api/posts?status=published');
-
-      // Direct Supabase fallback
-      if (!Array.isArray(posts)) {
-        try {
-          const { data: supaPosts } = await supabase
-            .from('entries')
-            .select('*')
-            .neq('status', 'draft')
-            .order('date', { ascending: false });
-
-          posts = supaPosts || [];
-        } catch {
-          posts = [];
-        }
-      }
-
-      // Build Archive Tree dynamically
-      const tree = {};
-      posts.forEach(post => {
-        if (!post.date) return;
-        const d = new Date(post.date);
-        const year = d.getFullYear();
-        const month = d.toLocaleString('en-US', { month: 'long' });
-        const monthNum = String(d.getMonth() + 1).padStart(2, '0');
-
-        if (!tree[year]) tree[year] = {};
-        if (!tree[year][monthNum]) tree[year][monthNum] = { name: month, count: 0 };
-        tree[year][monthNum].count++;
-      });
-
+      const tree = buildTree(posts);
       setArchiveTree(tree);
 
       // Filter search / year-month results
-      let filtered = posts;
+      let filtered = posts || [];
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        filtered = posts.filter(p =>
+        filtered = filtered.filter(p =>
           (p.title && p.title.toLowerCase().includes(q)) ||
           (p.content && p.content.toLowerCase().includes(q)) ||
           (p.tags && p.tags.toLowerCase().includes(q)) ||
           (p.category && p.category.toLowerCase().includes(q))
         );
       } else if (activeYear && activeMonth) {
-        filtered = posts.filter(p => {
+        filtered = filtered.filter(p => {
           const d = new Date(p.date);
           const y = String(d.getFullYear());
           const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -87,6 +76,7 @@ export default function Archive() {
     };
 
     loadArchive();
+    return () => { isMounted = false; };
   }, [searchQuery, activeYear, activeMonth]);
 
   const handleSearchSubmit = (e) => {
