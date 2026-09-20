@@ -76,11 +76,37 @@ export async function fetchPublishedEntries({ type, limit, tag, category } = {})
     const { data, error } = await query;
     if (error) throw error;
     const rawList = data || [];
+
+    // Check if user is logged in as admin locally
+    let isLocalAdmin = false;
+    try {
+      const keys = Object.keys(localStorage);
+      const authKey = keys.find(k => k.includes('auth-token') || k.includes('sb-token'));
+      if (authKey) {
+        const parsed = JSON.parse(localStorage.getItem(authKey));
+        if (parsed?.user || parsed?.currentSession?.user) isLocalAdmin = true;
+      }
+    } catch {}
+
     const list = rawList.map(item => {
       const isPhoto = Boolean(
         item.type === 'photo' ||
         (item.category && item.category.toLowerCase() === 'photos')
       );
+      const hasPasscode = Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== ''));
+
+      if (!isLocalAdmin && hasPasscode) {
+        return {
+          ...item,
+          type: isPhoto ? 'photo' : item.type,
+          has_passcode: true,
+          passcode: undefined,
+          content: '🔒 This entry is passcode-protected.',
+          excerpt: '🔒 Protected entry',
+          cover_image: ''
+        };
+      }
+
       return {
         ...item,
         type: isPhoto ? 'photo' : item.type

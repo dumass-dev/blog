@@ -373,21 +373,26 @@ export default function Photos() {
 
       {/* FULLSCREEN LIGHTBOX MODAL */}
       {activePhoto && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-150">
-          {/* Close button */}
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedPhotoIndex(null);
+          }}
+        >
+          {/* Top-Right Fixed Close Button */}
           <button
             onClick={() => setSelectedPhotoIndex(null)}
-            className="absolute top-4 right-4 z-50 p-2 text-white/80 hover:text-white bg-black/40 hover:bg-black/70 rounded-full transition-colors cursor-pointer"
+            className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[100] p-2.5 rounded-full bg-black/80 hover:bg-black text-white shadow-2xl border border-white/20 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
             aria-label="Close photo view"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
 
           {/* Navigation Arrows */}
           {selectedPhotoIndex > 0 && (
             <button
               onClick={() => navigatePhoto(-1)}
-              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-50 p-2 text-white/80 hover:text-white bg-black/40 hover:bg-black/70 rounded-full transition-colors cursor-pointer"
+              className="fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 z-[100] p-2.5 text-white/90 hover:text-white bg-black/70 hover:bg-black rounded-full transition-transform hover:scale-110 shadow-xl cursor-pointer"
               aria-label="Previous photo"
             >
               <ChevronLeft className="w-6 h-6" />
@@ -397,55 +402,63 @@ export default function Photos() {
           {selectedPhotoIndex < photos.length - 1 && (
             <button
               onClick={() => navigatePhoto(1)}
-              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-50 p-2 text-white/80 hover:text-white bg-black/40 hover:bg-black/70 rounded-full transition-colors cursor-pointer"
+              className="fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-[100] p-2.5 text-white/90 hover:text-white bg-black/70 hover:bg-black rounded-full transition-transform hover:scale-110 shadow-xl cursor-pointer"
               aria-label="Next photo"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
           )}
 
-          {/* Main Modal Layout */}
-          <div className="w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] rounded-xl overflow-hidden shadow-2xl grid grid-cols-1 md:grid-cols-12 border border-[var(--border-subtle)]">
-            {/* Image Column */}
-            <div className="md:col-span-7 lg:col-span-8 bg-black flex items-center justify-center max-h-[50vh] md:max-h-[85vh] p-2">
+          {/* Main Modal Layout Card */}
+          <div className="w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
+            {/* Image Viewport Column */}
+            <div className="md:w-7/12 lg:w-8/12 bg-black flex items-center justify-center relative min-h-[280px] max-h-[50vh] md:max-h-[85vh] p-3 sm:p-6 select-none">
               {getPhotoSrc(activePhoto) ? (
                 <img
                   src={getPhotoSrc(activePhoto)}
                   alt={activePhoto.title}
-                  className="max-w-full max-h-[80vh] object-contain"
+                  className="max-w-full max-h-[78vh] object-contain rounded shadow-lg"
                 />
               ) : (
-                <div className="text-white/60 font-serif italic">No preview available</div>
+                <div className="text-white/60 font-serif italic text-sm">No preview available</div>
               )}
             </div>
 
             {/* Sidebar Details & Comments Column */}
-            <div className="md:col-span-5 lg:col-span-4 flex flex-col h-full max-h-[40vh] md:max-h-[85vh] border-t md:border-t-0 md:border-l border-[var(--border-subtle)] bg-[var(--bg-main)]">
+            <div className="md:w-5/12 lg:w-4/12 flex flex-col h-full max-h-[40vh] md:max-h-[85vh] border-t md:border-t-0 md:border-l border-[var(--border-subtle)] bg-[var(--bg-main)]">
               {/* Header */}
-              <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-                <div>
-                  <h2 className="font-serif text-base sm:text-lg font-medium text-[var(--text-primary)]">
+              <div className="p-4 border-b border-[var(--border-subtle)] flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-serif text-base sm:text-lg font-medium text-[var(--text-primary)] break-words line-clamp-2">
                     {activePhoto.title}
                   </h2>
-                  <div className="flex items-center space-x-3 text-[11px] text-[var(--text-muted)] font-sans mt-0.5">
-                    <span className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] font-sans mt-1">
+                    <span className="flex items-center gap-1 shrink-0">
                       <Calendar className="w-3 h-3" />
                       {formatDate(activePhoto.date)}
                     </span>
                     {activePhoto.location && (
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 shrink-0 truncate max-w-[140px]">
                         <MapPin className="w-3 h-3" />
-                        {activePhoto.location}
+                        <span>{activePhoto.location}</span>
                       </span>
                     )}
                   </div>
                 </div>
+
+                <button
+                  onClick={() => setSelectedPhotoIndex(null)}
+                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-md transition-colors cursor-pointer shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Caption & Comments List */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans">
                 {getCleanCaption(activePhoto) && (
-                  <div className="pb-3 border-b border-[var(--border-subtle)] text-[var(--text-primary)] leading-relaxed">
+                  <div className="pb-3 border-b border-[var(--border-subtle)] text-[var(--text-primary)] leading-relaxed break-words">
                     {getCleanCaption(activePhoto)}
                   </div>
                 )}
@@ -479,10 +492,10 @@ export default function Photos() {
                     comments.map((c, i) => (
                       <div key={c.id || i} className="space-y-0.5 bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border-subtle)]">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-[var(--text-primary)]">{c.author_name}</span>
-                          <span className="text-[10px] text-[var(--text-muted)]">{formatDate(c.created_at)}</span>
+                          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[120px]">{c.author_name}</span>
+                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{formatDate(c.created_at)}</span>
                         </div>
-                        <p className="text-[var(--text-secondary)]">{c.content}</p>
+                        <p className="text-[var(--text-secondary)] break-words">{c.content}</p>
                       </div>
                     ))
                   )}
@@ -510,7 +523,7 @@ export default function Photos() {
                   <button
                     type="submit"
                     disabled={submittingComment || !newComment.text.trim()}
-                    className="px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-main)] text-xs rounded font-medium disabled:opacity-50 transition-opacity flex items-center justify-center cursor-pointer"
+                    className="px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-main)] text-xs rounded font-medium disabled:opacity-50 transition-opacity flex items-center justify-center cursor-pointer shrink-0"
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
