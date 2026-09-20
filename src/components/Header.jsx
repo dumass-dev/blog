@@ -90,8 +90,8 @@ export default function Header() {
   ];
 
   return (
-    <header className={`notebook-container pt-6 pb-6 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
-      <div className="flex justify-between items-center">
+    <header className={`notebook-container pt-8 pb-4 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
+      <div className="flex justify-between items-center pt-2 sm:pt-2.5">
         {/* Left: Serif Wordmark & Inline Text Links */}
         <div className="flex items-center space-x-6 sm:space-x-8">
           <Link
