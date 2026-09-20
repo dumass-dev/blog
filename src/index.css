@@ -267,6 +267,7 @@ body {
 .leading-tight { line-height: 1.25; }
 .leading-relaxed { line-height: 1.65; }
 
+.text-\[var\(--bg-main\)\] { color: var(--bg-main); }
 .text-\[var\(--text-primary\)\] { color: var(--text-primary); }
 .text-\[var\(--text-secondary\)\] { color: var(--text-secondary); }
 .text-\[var\(--text-muted\)\] { color: var(--text-muted); }

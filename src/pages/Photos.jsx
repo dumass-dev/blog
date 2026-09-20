@@ -169,9 +169,10 @@ export default function Photos() {
         <div className="flex items-center space-x-1 bg-[var(--card-bg)] p-1 rounded-lg border border-[var(--border-subtle)] self-start sm:self-auto">
           <button
             onClick={() => setViewMode('grid')}
+            style={viewMode === 'grid' ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' } : {}}
             className={`px-3 py-1.5 rounded-md text-xs font-sans flex items-center space-x-1.5 transition-colors cursor-pointer ${
               viewMode === 'grid'
-                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] font-medium'
+                ? 'font-medium shadow-sm'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             title="Grid View"
@@ -181,9 +182,10 @@ export default function Photos() {
           </button>
           <button
             onClick={() => setViewMode('feed')}
+            style={viewMode === 'feed' ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' } : {}}
             className={`px-3 py-1.5 rounded-md text-xs font-sans flex items-center space-x-1.5 transition-colors cursor-pointer ${
               viewMode === 'feed'
-                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] font-medium'
+                ? 'font-medium shadow-sm'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             title="Feed Stream View"
