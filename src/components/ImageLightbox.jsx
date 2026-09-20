@@ -8,9 +8,17 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox" maxWidthClass="max-w-4xl w-full">
       <div className="flex flex-col space-y-4 select-none touch-action-none">
-        {/* Top Header */}
-        <div className="flex justify-between items-center text-[var(--text-primary)]">
+        {/* Top Header with Top-Left Close Button */}
+        <div className="flex justify-between items-center text-[var(--text-primary)] relative">
           <div className="flex items-center gap-2 text-xs font-sans font-medium">
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full bg-black/70 hover:bg-black text-white shadow border border-white/20 transition-all hover:scale-105 cursor-pointer flex items-center justify-center mr-1"
+              aria-label="Close photo view"
+              title="Close photo"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <Camera className="w-4 h-4 text-[var(--accent-warm)]" />
             <span>Editorial Photo Lightbox</span>
           </div>
@@ -29,13 +37,6 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
               title="Zoom Out"
             >
               <ZoomOut className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded hover:bg-black/10 transition-colors"
-              title="Close Lightbox"
-            >
-              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
