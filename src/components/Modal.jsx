@@ -44,16 +44,9 @@ export default function Modal({
     }
     lockCount++;
 
-    // Focus modal container
+    // Focus modal container directly (prevents initial button focus flashing)
     if (modalRef.current) {
-      const focusableElements = modalRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusableElements.length > 0) {
-        focusableElements[0].focus();
-      } else {
-        modalRef.current.focus();
-      }
+      modalRef.current.focus({ preventScroll: true });
     }
 
     // Escape key listener

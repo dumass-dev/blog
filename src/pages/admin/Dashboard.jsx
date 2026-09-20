@@ -618,14 +618,16 @@ export default function Dashboard() {
           </p>
           <div className="flex justify-end space-x-3 pt-2 border-t border-[var(--border-subtle)]">
             <button
+              type="button"
               onClick={() => setDeleteTarget(null)}
-              className="quiet-button-secondary text-xs"
+              className="quiet-button-secondary text-xs cursor-pointer select-none"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
-              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)]"
+              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)] cursor-pointer select-none"
             >
               Delete Entry
             </button>
