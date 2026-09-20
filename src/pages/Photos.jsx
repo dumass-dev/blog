@@ -281,7 +281,7 @@ export default function Photos() {
                       q
                     </div>
                     <div>
-                      <h3 className="font-sans text-xs font-semibold text-[var(--text-primary)]">
+                      <h3 className="font-sans text-xs font-semibold text-[var(--text-primary)] break-words leading-normal whitespace-normal">
                         {item.title}
                       </h3>
                       {item.location && (

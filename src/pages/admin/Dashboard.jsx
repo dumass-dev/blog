@@ -261,30 +261,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <button
-            onClick={() => loadData(true)}
-            disabled={refreshing}
-            className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
-            title="Force update latest admin data"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
-          </button>
+        <div className="w-full sm:w-auto overflow-x-auto overflow-y-hidden max-w-full pb-1 pt-0.5 no-scrollbar">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-max">
+            <button
+              onClick={() => loadData(true)}
+              disabled={refreshing}
+              className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+              title="Force update latest admin data"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
+            </button>
 
-          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap" target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>View Public Site</span>
-          </Link>
+            <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>View Public Site</span>
+            </Link>
 
-          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
-            <ThemeToggle />
+            <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
+              <ThemeToggle />
+            </div>
+
+            <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
           </div>
-
-          <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
         </div>
       </div>
 
@@ -542,7 +544,7 @@ export default function Dashboard() {
                         {formatDate(item.date)}
                       </td>
                       <td className="py-3 px-4 max-w-md">
-                        <div className="font-serif text-base font-medium text-[var(--text-primary)] truncate">
+                        <div className="font-serif text-base font-medium text-[var(--text-primary)] break-words whitespace-normal leading-snug">
                           {stripMarkdown(item.title || item.content)}
                         </div>
                         {item.excerpt && (
