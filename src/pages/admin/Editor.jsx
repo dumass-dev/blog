@@ -115,42 +115,63 @@ export default function Editor() {
     let isMounted = true;
     setLoading(true);
 
-    fetch(`/api/posts/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (isMounted && data.entry) {
-          const e = data.entry;
-          let formattedDate = e.date;
+    const loadExistingEntry = async () => {
+      let entryData = null;
+
+      // 1. Try API fetch
+      try {
+        const res = await fetch(`/api/posts/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          entryData = data.entry || (data.id || data.title || data.content ? data : null);
+        }
+      } catch (e) {}
+
+      // 2. Direct Supabase fallback if API fetch didn't return entry
+      if (!entryData) {
+        try {
+          const { data: supaPost } = await supabase
+            .from('entries')
+            .select('*')
+            .eq('id', id)
+            .single();
+          if (supaPost) entryData = supaPost;
+        } catch (e) {}
+      }
+
+      if (isMounted) {
+        if (entryData) {
+          let formattedDate = entryData.date;
           try {
-            formattedDate = new Date(e.date).toISOString().slice(0, 16);
+            formattedDate = new Date(entryData.date).toISOString().slice(0, 16);
           } catch {}
 
           setFormData({
-            title: e.title || '',
-            slug: e.slug || '',
-            content: e.content || '',
-            type: e.type || 'journal',
-            status: e.status || 'published',
-            category: e.category || '',
-            tags: e.tags || '',
-            cover_image: e.cover_image || '',
-            excerpt: e.excerpt || '',
-            location: e.location || '',
-            weather: e.weather || '',
-            mood: e.mood || '',
-            passcode: e.passcode || '',
+            title: entryData.title || '',
+            slug: entryData.slug || '',
+            content: entryData.content || '',
+            type: entryData.type || 'journal',
+            status: entryData.status || 'published',
+            category: entryData.category || '',
+            tags: entryData.tags || '',
+            cover_image: entryData.cover_image || '',
+            excerpt: entryData.excerpt || '',
+            location: entryData.location || '',
+            weather: entryData.weather || '',
+            mood: entryData.mood || '',
+            passcode: entryData.passcode || '',
             date: formattedDate
           });
+        } else {
+          setError('Failed loading entry details.');
         }
-      })
-      .catch(err => {
-        if (isMounted) setError('Failed loading entry.');
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+        setLoading(false);
+      }
+    };
+
+    loadExistingEntry();
 
     return () => {
       isMounted = false;

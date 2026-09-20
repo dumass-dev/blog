@@ -90,10 +90,10 @@ export default function Header() {
   ];
 
   return (
-    <header className={`notebook-container pt-8 pb-4 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
-      <div className="flex justify-between items-baseline">
+    <header className={`notebook-container py-5 sm:py-6 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
+      <div className="flex justify-between items-center">
         {/* Left: Serif Wordmark & Inline Text Links */}
-        <div className="flex items-baseline space-x-6 sm:space-x-8">
+        <div className="flex items-center space-x-6 sm:space-x-8">
           <Link
             to="/"
             className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal"
@@ -102,7 +102,7 @@ export default function Header() {
           </Link>
 
           {/* Inline Text Links (desktop only) */}
-          <nav className="desktop-nav space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
+          <nav className="desktop-nav items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
             <Link
               to="/"
               className={`transition-colors lowercase ${
