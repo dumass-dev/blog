@@ -85,7 +85,18 @@ export default function Dashboard() {
       } catch {}
     }
 
-    setEntries(postsList);
+    const processedPosts = postsList.map(item => {
+      const isPhoto = Boolean(
+        item.type === 'photo' ||
+        (item.category && item.category.toLowerCase() === 'photos')
+      );
+      return {
+        ...item,
+        type: isPhoto ? 'photo' : item.type
+      };
+    });
+
+    setEntries(processedPosts);
 
     // 2. Fetch Stats
     let currentStats = null;
@@ -222,6 +233,7 @@ export default function Dashboard() {
     if (filter === 'all') return true;
     if (filter === 'published') return item.status !== 'draft';
     if (filter === 'draft') return item.status === 'draft';
+    if (filter === 'photo') return item.type === 'photo';
     if (filter === 'journal') return item.type === 'journal';
     if (filter === 'writing') return item.type === 'writing';
     if (filter === 'update') return item.type === 'update';
@@ -319,6 +331,11 @@ export default function Dashboard() {
           <span>New Journal Entry</span>
         </Link>
 
+        <Link to="/admin/new?type=photo" className="quiet-button admin-quick-action text-xs flex items-center gap-1.5">
+          <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-warm)]" />
+          <span>Post Photo</span>
+        </Link>
+
         <Link to="/admin/new?type=writing" className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5" />
           <span>New Essay</span>
@@ -347,6 +364,7 @@ export default function Dashboard() {
             { id: 'all', label: 'All Entries' },
             { id: 'published', label: 'Published' },
             { id: 'draft', label: 'Drafts' },
+            { id: 'photo', label: 'Photos' },
             { id: 'journal', label: 'Journal' },
             { id: 'writing', label: 'Essays' },
             { id: 'update', label: 'Updates' },

@@ -62,14 +62,30 @@ export async function fetchPublishedEntries({ type, limit, tag, category } = {})
       .neq('status', 'draft')
       .order('date', { ascending: false });
 
-    if (type) query = query.eq('type', type);
+    if (type) {
+      if (type === 'photo') {
+        query = query.or('category.ilike.%photos%,type.eq.photo');
+      } else {
+        query = query.eq('type', type);
+      }
+    }
     if (category) query = query.ilike('category', `%${category}%`);
     if (tag) query = query.ilike('tags', `%${tag}%`);
     if (limit) query = query.limit(limit);
 
     const { data, error } = await query;
     if (error) throw error;
-    const list = data || [];
+    const rawList = data || [];
+    const list = rawList.map(item => {
+      const isPhoto = Boolean(
+        item.type === 'photo' ||
+        (item.category && item.category.toLowerCase() === 'photos')
+      );
+      return {
+        ...item,
+        type: isPhoto ? 'photo' : item.type
+      };
+    });
     
     // Cache entries and feed list for instant UI rendering
     list.forEach(item => cacheEntry(item));

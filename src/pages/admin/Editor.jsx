@@ -44,7 +44,7 @@ export default function Editor() {
     content: '',
     type: initialType,
     status: 'published',
-    category: '',
+    category: initialType === 'photo' ? 'Photos' : '',
     tags: '',
     cover_image: initialCoverImage,
     excerpt: '',
@@ -219,7 +219,7 @@ export default function Editor() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title && formData.type !== 'update') {
+    if (!formData.title && formData.type !== 'update' && formData.type !== 'photo') {
       setError('Title is required for Journal and Writing entries.');
       return;
     }
@@ -232,9 +232,14 @@ export default function Editor() {
     setError(null);
     setMessage(null);
 
+    const fallbackTitle = formData.type === 'photo' 
+      ? `Photo — ${new Date(formData.date).toLocaleDateString()}` 
+      : (formData.type === 'update' ? `Update — ${new Date(formData.date).toLocaleDateString()}` : 'Untitled Entry');
+
     const payload = {
       ...formData,
-      title: formData.title || (formData.content.length > 30 ? formData.content.slice(0, 30) + '...' : 'Update'),
+      title: formData.title || fallbackTitle,
+      category: formData.type === 'photo' ? (formData.category || 'Photos') : formData.category,
       date: new Date(formData.date).toISOString()
     };
 
@@ -348,6 +353,12 @@ export default function Editor() {
             <h1 className="text-xl font-serif font-medium">
               {id ? 'Edit Entry' : 'New Entry'}
             </h1>
+            {formData.type === 'photo' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)]">
+                <ImageIcon className="w-3 h-3 text-[var(--accent-warm)]" />
+                <span>Photo Post</span>
+              </span>
+            )}
             {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]" title="Passcode protected for public readers">
                 <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
