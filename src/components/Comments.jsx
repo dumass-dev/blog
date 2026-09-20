@@ -7,11 +7,6 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function sanitizeText(str) {
-  if (!str) return '';
-  return String(str).replace(/[<>]/g, '');
-}
-
 export default function Comments({ postId }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,15 +66,14 @@ export default function Comments({ postId }) {
     setError(null);
     setMessage(null);
 
-    const name = sanitizeText(authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader');
-    const cleanContent = sanitizeText(content.trim());
+    const name = authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader';
     let newComment = null;
 
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author_name: name, content: cleanContent })
+        body: JSON.stringify({ author_name: name, content: content.trim() })
       });
 
       if (res.ok) {
@@ -101,7 +95,7 @@ export default function Comments({ postId }) {
 
         const { data: supaInserted, error: supaErr } = await supabase
           .from('comments')
-          .insert([{ post_id: realPostId, author_name: name, content: cleanContent }])
+          .insert([{ post_id: realPostId, author_name: name, content: content.trim() }])
           .select('*')
           .single();
 
