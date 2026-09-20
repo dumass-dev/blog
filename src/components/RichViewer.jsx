@@ -30,7 +30,7 @@ export default function RichViewer({ content = '' }) {
     breaks: true
   });
   const htmlContent = typeof rawHtml === 'string'
-    ? rawHtml.replace(/<img /gi, '<img loading="lazy" decoding="async" ')
+    ? rawHtml.replace(/<img /gi, '<img loading="lazy" decoding="async" onerror="if(!this.dataset.refreshed){this.dataset.refreshed=\'true\';fetch(\'/api/b2/refresh?url=\'+encodeURIComponent(this.src)).then(r=>r.json()).then(d=>{if(d.url){this.src=d.url;}}).catch(()=>{});}" ')
     : rawHtml;
 
   return (

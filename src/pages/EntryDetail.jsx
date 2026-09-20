@@ -8,6 +8,7 @@ import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
+import { handleImageError } from '../utils/image';
 import { useAuth } from '../context/AuthContext';
 import { Clock, MapPin, Cloud, Smile, Lock, Share2, Eye, Quote } from 'lucide-react';
 
@@ -74,49 +75,37 @@ export default function EntryDetail() {
       let prev = null;
       let next = null;
 
-      // 1. Blazing fast direct Supabase query (~50ms)
+      // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-        let query = supabase.from('entries').select('*').neq('status', 'draft');
-        if (isUuid) {
-          query = query.eq('id', slug);
-        } else {
-          query = query.eq('slug', slug);
-        }
-
-        const { data: posts } = await query;
-        if (posts && posts[0]) {
-          postData = posts[0];
-          cacheEntry(postData);
+        const resData = await safeApiFetch(`/api/posts/${slug}`);
+        if (resData) {
+          if (resData.prev) prev = resData.prev;
+          if (resData.next) next = resData.next;
+          if (resData.entry || resData.title) {
+            postData = resData.entry || resData;
+            cacheEntry(postData);
+          }
         }
       } catch (err) {}
 
-      // 2. Background API fetch for prev/next context links
-      safeApiFetch(`/api/posts/${slug}`).then(resData => {
-        if (resData && isMounted) {
-          if (resData.prev) prev = resData.prev;
-          if (resData.next) next = resData.next;
-          if (resData.entry) {
-            postData = resData.entry;
+      // 2. Secondary fallback: Direct Supabase query if API server endpoint is not reachable
+      if (!postData) {
+        try {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+          let query = supabase.from('entries').select('*').neq('status', 'draft');
+          if (isUuid) {
+            query = query.eq('id', slug);
+          } else {
+            query = query.eq('slug', slug);
+          }
+
+          const { data: posts } = await query;
+          if (posts && posts[0]) {
+            postData = posts[0];
             cacheEntry(postData);
           }
-          if (postData) {
-            const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
-            setData({
-              entry: {
-                ...postData,
-                has_passcode: hasPasscode,
-                content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
-              },
-              prev: resData.prev || prev,
-              next: resData.next || next
-            });
-            if (!hasPasscode) {
-              setIsUnlocked(true);
-            }
-          }
-        }
-      }).catch(() => {});
+        } catch (err) {}
+      }
 
       if (!postData) {
         if (isMounted) {
@@ -404,6 +393,7 @@ export default function EntryDetail() {
                 src={entry.cover_image}
                 alt={entry.title}
                 className="w-full h-auto rounded border border-[var(--border-subtle)] object-cover max-h-[440px] group-hover:opacity-95 transition-opacity"
+                onError={(e) => handleImageError(e, entry.cover_image)}
               />
             </div>
           )}

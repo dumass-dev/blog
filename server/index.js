@@ -455,6 +455,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// GET /api/b2/refresh — Auto-refresh expired presigned Backblaze B2 S3 URLs
+app.get('/api/b2/refresh', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL query parameter required' });
+    const freshUrl = await refreshB2Url(url);
+    res.json({ url: freshUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 /* ==========================================================================
    PUBLIC & ADMIN ENTRY ROUTES (SUPABASE POWERED)
    ========================================================================== */

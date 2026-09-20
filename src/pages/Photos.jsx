@@ -3,6 +3,7 @@ import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, M
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
+import { handleImageError } from '../utils/image';
 
 export default function Photos() {
   const cached = getCachedFeed('photo');
@@ -274,6 +275,7 @@ export default function Photos() {
                     alt={item.title || 'Photo'}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
+                    onError={(e) => handleImageError(e, imgSrc)}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-4 text-center">
@@ -361,6 +363,7 @@ export default function Photos() {
                       alt={item.title}
                       className="w-full h-full object-contain max-h-[560px]"
                       loading="lazy"
+                      onError={(e) => handleImageError(e, imgSrc)}
                     />
                   ) : (
                     <div className="p-8 text-center text-[var(--text-muted)] font-serif italic text-sm">
@@ -454,6 +457,7 @@ export default function Photos() {
                   src={getPhotoSrc(activePhoto)}
                   alt={activePhoto.title}
                   className="max-w-full max-h-[48vh] md:max-h-[75vh] object-contain rounded shadow-lg"
+                  onError={(e) => handleImageError(e, getPhotoSrc(activePhoto))}
                 />
               ) : (
                 <div className="text-white/60 font-serif italic text-sm">No preview available</div>

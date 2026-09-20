@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, Cloud, Smile, Lock } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
+import { handleImageError } from '../utils/image';
 
 function formatShortDate(dateStr) {
   if (!dateStr) return '';
@@ -176,6 +177,7 @@ export default function Home() {
                           alt={item.title || 'Photo'}
                           className="w-full h-auto max-h-80 object-cover group-hover:opacity-95 transition-opacity"
                           loading="lazy"
+                          onError={(e) => handleImageError(e, photoSrc)}
                         />
                       </Link>
                     </div>

@@ -66,6 +66,43 @@ export async function safeApiFetch(url, options = {}) {
  * Direct blazing-fast Supabase query for public entries
  */
 export async function fetchPublishedEntries({ type, limit, tag, category, forHomeFeed } = {}) {
+  // 1. Try server API endpoint FIRST so Backblaze B2 presigned S3 URLs are freshly generated
+  try {
+    const params = new URLSearchParams();
+    if (type) params.append('type', type);
+    if (category) params.append('category', category);
+    if (tag) params.append('tag', tag);
+    if (limit) params.append('limit', String(limit));
+
+    const queryStr = params.toString();
+    const apiUrl = `/api/posts${queryStr ? `?${queryStr}` : ''}`;
+    const apiData = await safeApiFetch(apiUrl);
+
+    if (Array.isArray(apiData) && apiData.length > 0) {
+      let list = apiData;
+      if (forHomeFeed) {
+        list = list.filter(item => item.show_in_feed !== false);
+      }
+      if (type === 'journal') {
+        list = list.filter(item => 
+          item.type !== 'photo' && 
+          (!item.category || item.category.toLowerCase() !== 'photos')
+        );
+      }
+
+      // Cache entries and feed list for instant UI rendering
+      list.forEach(item => cacheEntry(item));
+      const cacheKey = forHomeFeed ? 'home' : (type || 'all');
+      feedsCache.set(cacheKey, list);
+      try {
+        localStorage.setItem(`feed_cache_${cacheKey}`, JSON.stringify(list));
+      } catch {}
+
+      return list;
+    }
+  } catch (apiErr) {}
+
+  // 2. Secondary fallback: Direct Supabase query if API server endpoint is offline
   try {
     let query = supabase
       .from('entries')
