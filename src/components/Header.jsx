@@ -29,7 +29,7 @@ export default function Header() {
         } else if (currentScrollY < 10) {
           setVisible(true);
         } else if (Math.abs(diff) >= 6) {
-          if (diff > 0 && currentScrollY > 80) {
+          if (diff > 0 && currentScrollY > 60) {
             setVisible(false);
           } else if (diff < 0) {
             setVisible(true);
@@ -90,68 +90,67 @@ export default function Header() {
   ];
 
   return (
-    <header className={`notebook-container pt-8 pb-4 mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
-      <div className="flex justify-between items-center pt-2 sm:pt-2.5">
-        {/* Left: Serif Wordmark & Inline Text Links */}
-        <div className="flex items-center space-x-6 sm:space-x-8">
+    <header className={`header-container notebook-container mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
+      {/* Left: Serif Wordmark & Inline Text Links */}
+      <div className="flex items-center space-x-6 sm:space-x-8">
+        <Link
+          to="/"
+          className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal leading-none"
+        >
+          {siteMeta.author_name}
+        </Link>
+
+        {/* Inline Text Links (desktop only) */}
+        <nav className="desktop-nav items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans leading-none">
           <Link
             to="/"
-            className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal"
+            className={`transition-colors lowercase ${
+              location.pathname === '/'
+                ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
           >
-            {siteMeta.author_name}
+            home
           </Link>
 
-          {/* Inline Text Links (desktop only) */}
-          <nav className="desktop-nav items-center space-x-4 sm:space-x-6 text-xs sm:text-sm font-sans">
-            <Link
-              to="/"
-              className={`transition-colors lowercase ${
-                location.pathname === '/'
-                  ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              home
-            </Link>
-
-            <Link
-              to="/journal"
-              className={`transition-colors lowercase ${
-                location.pathname.startsWith('/journal')
-                  ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              journal
-            </Link>
-
-            <Link
-              to="/about"
-              className={`transition-colors lowercase ${
-                location.pathname.startsWith('/about')
-                  ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              about
-            </Link>
-          </nav>
-        </div>
-
-        {/* Right: Burger Icon Trigger & Renovated Dropdown Card */}
-        <div className="relative w-5 h-5" ref={dropdownRef}>
-          <button
-            onClick={() => setMenuOpen(prev => !prev)}
-            className="w-5 h-5 p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none"
-            aria-expanded={menuOpen}
-            aria-label="Toggle navigation menu"
+          <Link
+            to="/journal"
+            className={`transition-colors lowercase ${
+              location.pathname.startsWith('/journal')
+                ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
           >
-            {menuOpen ? (
-              <X className="w-5 h-5 text-[var(--text-primary)]" />
-            ) : (
-              <Menu className="w-5 h-5 text-[var(--text-primary)]" />
-            )}
-          </button>
+            journal
+          </Link>
+
+          <Link
+            to="/about"
+            className={`transition-colors lowercase ${
+              location.pathname.startsWith('/about')
+                ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            about
+          </Link>
+        </nav>
+      </div>
+
+      {/* Right: Burger Icon Trigger & Dropdown Card */}
+      <div className="relative flex items-center justify-center min-w-[44px] min-h-[44px]" ref={dropdownRef}>
+        <button
+          onClick={() => setMenuOpen(prev => !prev)}
+          className="w-11 h-11 p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none touch-target"
+          aria-expanded={menuOpen}
+          aria-label="Toggle navigation menu"
+        >
+          {menuOpen ? (
+            <X className="w-5 h-5 text-[var(--text-primary)]" />
+          ) : (
+            <Menu className="w-5 h-5 text-[var(--text-primary)]" />
+          )}
+        </button>
 
           {/* Dropdown Card aligned with right edge of burger icon */}
           {menuOpen && (
@@ -195,7 +194,6 @@ export default function Header() {
             </div>
           )}
         </div>
-      </div>
-    </header>
+      </header>
   );
 }
