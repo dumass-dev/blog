@@ -1,23 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
-function formatShortDate(dateStr) {
-  if (!dateStr) return '';
+function formatDate(dateStr) {
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  const day = d.getDate();
-  const month = d.toLocaleDateString('en-GB', { month: 'short' });
-  const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
-}
-
-function calcReadingTimeText(text) {
-  if (!text) return null;
-  const words = text.trim().split(/\s+/).length;
-  const mins = Math.ceil(words / 200);
-  return mins >= 3 ? `${mins} min read` : null;
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 }
 
 export default function Journal() {
@@ -58,84 +51,65 @@ export default function Journal() {
 
   return (
     <div className="notebook-container">
-      <header className="mb-4 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-1">Journal</h1>
-        <p className="hidden sm:block text-xs sm:text-sm font-sans text-[var(--text-secondary)]">
+      <header className="mb-12">
+        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">Journal</h1>
+        <p className="text-sm font-sans text-[var(--text-secondary)]">
           Personal thoughts, daily notebook entries, and life logs.
         </p>
       </header>
 
       {loading ? (
-        <div className="py-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
+        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
           Loading journal entries...
         </div>
       ) : entries.length === 0 ? (
-        <div className="py-8 text-center text-xs font-sans text-[var(--text-muted)]">
+        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No journal entries published yet.
         </div>
       ) : (
-        <div>
-          {entries.map((item, idx) => {
-            const itemDate = formatShortDate(item.date);
-            const prevItem = entries[idx - 1];
-            const nextItem = entries[idx + 1];
-            const prevDate = prevItem ? formatShortDate(prevItem.date) : null;
-            const nextDate = nextItem ? formatShortDate(nextItem.date) : null;
-
-            const isGrouped = (prevDate === itemDate || nextDate === itemDate);
-            const isFirstInGroup = isGrouped && (prevDate !== itemDate);
-            const categoryLabel = (item.category || 'JOURNAL').toUpperCase();
-            const readTimeText = calcReadingTimeText(item.content);
-
-            return (
-              <React.Fragment key={item.id || idx}>
-                {isFirstInGroup && (
-                  <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-widest uppercase pt-4 pb-1 mb-1 border-b border-[var(--border-subtle)]/50">
-                    {itemDate}
-                  </div>
+        <div className="space-y-12">
+          {entries.map((item) => (
+            <article key={item.id} className="pb-8 border-b border-[var(--border-subtle)] last:border-0">
+              <div className="flex items-center gap-3 mb-1">
+                <time className="text-xs font-sans text-[var(--text-muted)] tracking-wide">
+                  {formatDate(item.date)}
+                </time>
+                {item.has_passcode && (
+                  <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center gap-1 font-medium font-sans">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Protected</span>
+                  </span>
                 )}
+              </div>
 
-                <article className="py-3 sm:py-4 border-b border-[var(--border-subtle)] last:border-0 group">
-                  <div className="text-[11px] font-sans text-[var(--text-muted)] tracking-wider uppercase mb-1 flex flex-wrap items-center gap-1.5 leading-none">
-                    <span>{categoryLabel}</span>
-                    {!isGrouped && itemDate && (
-                      <>
-                        <span>·</span>
-                        <span>{itemDate}</span>
-                      </>
-                    )}
-                    {readTimeText && (
-                      <>
-                        <span>·</span>
-                        <span>{readTimeText}</span>
-                      </>
-                    )}
-                    {item.has_passcode && (
-                      <>
-                        <span>·</span>
-                        <span className="text-[10px] text-[var(--text-primary)] font-medium">PROTECTED</span>
-                      </>
-                    )}
-                  </div>
+              <h2 className="text-2xl font-serif font-medium tracking-tight mb-2">
+                <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+                  {item.title}
+                </Link>
+              </h2>
 
-                  <h2 className="text-base sm:text-lg font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)] leading-snug">
-                    <Link
-                      to={`/entry/${item.slug}`}
-                      className="hover:underline underline-offset-4 decoration-[var(--border-subtle)] transition-all"
-                    >
-                      {item.title}
-                    </Link>
-                  </h2>
+              <p className="text-[var(--text-secondary)] font-serif text-lg leading-relaxed mb-4">
+                {stripMarkdown(item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content))}
+              </p>
 
-                  {item.content && (
-                    <p className="text-xs sm:text-sm font-sans text-[var(--text-secondary)] leading-relaxed line-clamp-2">
-                      {stripMarkdown(item.excerpt || item.content)}
-                    </p>
-                  )}
-                </article>
-              </React.Fragment>
-            );
-          })}
+              {item.tags && (
+                <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3 min-w-0 max-w-full">
+                  {item.tags.split(',').map((tag, idx) => (
+                    <span key={`${tag.trim()}-${idx}`} className="hover:text-[var(--text-primary)] inline-block max-w-full truncate">
+                      #{tag.trim()}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <Link
+                to={`/entry/${item.slug}`}
+                className="text-xs font-sans tracking-wider text-[var(--text-primary)] uppercase underline underline-offset-4 decoration-[var(--border-subtle)] hover:decoration-[var(--accent-warm)] transition-colors"
+              >
+                Read entry →
+              </Link>
+            </article>
+          ))}
         </div>
       )}
     </div>

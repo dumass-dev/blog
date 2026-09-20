@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Clock, MapPin, Cloud, Smile, Lock } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
-function formatShortDate(dateStr) {
-  if (!dateStr) return '';
+function formatDate(dateStr) {
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  const day = d.getDate();
-  const month = d.toLocaleDateString('en-GB', { month: 'short' });
-  const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 }
 
-function calcReadingTimeText(text) {
-  if (!text) return null;
+function calcReadingTime(text) {
+  if (!text) return '1 min read';
   const words = text.trim().split(/\s+/).length;
   const mins = Math.ceil(words / 200);
-  return mins >= 3 ? `${mins} min read` : null;
+  return `${mins} min read`;
 }
 
 function getPhotoSrc(item) {
@@ -37,7 +37,7 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
     const loadHomeEntries = async () => {
-      const data = await fetchPublishedEntries({ limit: 25, forHomeFeed: true });
+      const data = await fetchPublishedEntries({ limit: 15, forHomeFeed: true });
       if (isMounted) {
         const feed = (Array.isArray(data) ? data : []).filter(item => item.show_in_feed !== false);
         setEntries(feed);
@@ -58,113 +58,137 @@ export default function Home() {
 
   return (
     <div className="notebook-container">
-      {/* Feed Page Header */}
-      <header className="mb-4 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)]">
+
+      <header className="mb-12">
+        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)]">
           Chronological Feed
         </h1>
-        <p className="hidden sm:block text-xs sm:text-sm font-sans text-[var(--text-secondary)]">
+        <p className="text-sm font-sans text-[var(--text-secondary)]">
           A stream of essays, notes, thoughts, photos, and recent updates.
         </p>
       </header>
 
       {loading ? (
-        <div className="py-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
+        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
           Loading entries...
         </div>
       ) : entries.length === 0 ? (
-        <div className="py-8 text-center text-xs font-sans text-[var(--text-muted)]">
+        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No published entries yet.
         </div>
       ) : (
-        <div>
-          {entries.map((item, idx) => {
-            const itemDate = formatShortDate(item.date);
-            const prevItem = entries[idx - 1];
-            const nextItem = entries[idx + 1];
-            const prevDate = prevItem ? formatShortDate(prevItem.date) : null;
-            const nextDate = nextItem ? formatShortDate(nextItem.date) : null;
-
-            // Grouping logic: if consecutive entries share a date, display date header once above the group
-            const isGrouped = (prevDate === itemDate || nextDate === itemDate);
-            const isFirstInGroup = isGrouped && (prevDate !== itemDate);
-
+        <div className="space-y-8 sm:space-y-12">
+          {entries.map((item) => {
             const isPhoto = Boolean(
               item.type === 'photo' ||
               (item.category && item.category.toLowerCase() === 'photos')
             );
-            const effectiveType = isPhoto ? 'photo' : (item.type || 'journal');
-            const categoryLabel = (item.category || effectiveType).toUpperCase();
-            const readTimeText = calcReadingTimeText(item.content);
+            const effectiveType = isPhoto ? 'photo' : item.type;
             const photoSrc = isPhoto || item.cover_image ? getPhotoSrc(item) : null;
+            const isLockedPasscode = item.has_passcode && item.content && item.content.includes('🔒');
 
             return (
-              <React.Fragment key={item.id || idx}>
-                {/* Date Header for grouped date entries */}
-                {isFirstInGroup && (
-                  <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-widest uppercase pt-4 pb-1 mb-1 border-b border-[var(--border-subtle)]/50">
-                    {itemDate}
+              <article key={item.id} className="group pb-8 sm:pb-10 border-b border-[var(--border-subtle)]/70 last:border-0">
+                {/* Date Marker & Type Badge */}
+                <div className="text-xs sm:text-sm font-sans text-[var(--text-muted)] tracking-wide mb-2 flex flex-wrap items-center gap-2.5">
+                  <time dateTime={item.date}>{formatDate(item.date)}</time>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--code-bg)] font-medium text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                    {effectiveType}
+                  </span>
+
+                  {effectiveType !== 'update' && effectiveType !== 'photo' && (
+                    <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                      <Clock className="w-3 h-3 opacity-60" />
+                      <span>{calcReadingTime(item.content)}</span>
+                    </span>
+                  )}
+
+                  {item.has_passcode && (
+                    <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center gap-1 font-medium">
+                      <Lock className="w-2.5 h-2.5" />
+                      <span>Protected</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Title if present */}
+                {effectiveType !== 'update' ? (
+                  <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
+                    <Link
+                      to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
+                      className="hover:text-[var(--accent-warm)] transition-colors"
+                    >
+                      {item.title}
+                    </Link>
+                  </h2>
+                ) : null}
+
+                {/* Context Badges (Location, Weather, Mood) */}
+                {(item.location || item.weather || item.mood) && (
+                  <div className="flex flex-wrap gap-3 text-xs font-sans text-[var(--text-secondary)] mb-3 italic">
+                    {item.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
+                        <span>{item.location}</span>
+                      </span>
+                    )}
+                    {item.weather && (
+                      <span className="flex items-center gap-1">
+                        <Cloud className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
+                        <span>{item.weather}</span>
+                      </span>
+                    )}
+                    {item.mood && (
+                      <span className="flex items-center gap-1">
+                        <Smile className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
+                        <span>{item.mood}</span>
+                      </span>
+                    )}
                   </div>
                 )}
 
-                <article className="py-3 sm:py-4 border-b border-[var(--border-subtle)] last:border-0 group">
-                  {/* Simplified Meta Line: JOURNAL · 20 Sep 2026 (or JOURNAL if in date group) */}
-                  <div className="text-[11px] font-sans text-[var(--text-muted)] tracking-wider uppercase mb-1 flex flex-wrap items-center gap-1.5 leading-none">
-                    <span>{categoryLabel}</span>
-                    {!isGrouped && itemDate && (
-                      <>
-                        <span>·</span>
-                        <span>{itemDate}</span>
-                      </>
-                    )}
-                    {readTimeText && (
-                      <>
-                        <span>·</span>
-                        <span>{readTimeText}</span>
-                      </>
-                    )}
-                    {item.has_passcode && (
-                      <>
-                        <span>·</span>
-                        <span className="text-[10px] text-[var(--text-primary)] font-medium">PROTECTED</span>
-                      </>
-                    )}
+                {/* Photo Thumbnail Preview for Photo entries */}
+                {effectiveType === 'photo' && photoSrc && !isLockedPasscode && (
+                  <div className="my-3.5 rounded-lg overflow-hidden border border-[var(--border-subtle)] max-w-md bg-black/5">
+                    <Link to="/photos">
+                      <img
+                        src={photoSrc}
+                        alt={item.title || 'Photo'}
+                        className="w-full h-auto max-h-80 object-cover group-hover:opacity-95 transition-opacity"
+                        loading="lazy"
+                      />
+                    </Link>
                   </div>
+                )}
 
-                  {/* Entry Title as Link */}
-                  {effectiveType !== 'update' && item.title ? (
-                    <h2 className="text-base sm:text-lg font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)] leading-snug">
-                      <Link
-                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
-                        className="hover:underline underline-offset-4 decoration-[var(--border-subtle)] transition-all"
-                      >
-                        {item.title}
-                      </Link>
-                    </h2>
-                  ) : null}
+                {/* Preview Content / Excerpt */}
+                <div className="text-[var(--text-primary)] font-serif leading-relaxed italic text-base sm:text-lg opacity-90">
+                  {stripMarkdown(item.excerpt || (item.content.length > 220 ? item.content.substring(0, 220) + '...' : item.content))}
+                </div>
 
-                  {/* Optional Photo Preview */}
-                  {effectiveType === 'photo' && photoSrc && !item.has_passcode && (
-                    <div className="my-2 rounded overflow-hidden border border-[var(--border-subtle)] max-w-sm bg-black/5">
-                      <Link to="/photos">
-                        <img
-                          src={photoSrc}
-                          alt={item.title || 'Photo'}
-                          className="w-full h-auto max-h-56 object-cover hover:opacity-95 transition-opacity"
-                          loading="lazy"
-                        />
-                      </Link>
-                    </div>
-                  )}
-
-                  {/* Excerpt: Regular weight, muted gray, clamped to 2 lines */}
-                  {item.content && (
-                    <p className="text-xs sm:text-sm font-sans text-[var(--text-secondary)] leading-relaxed line-clamp-2">
-                      {stripMarkdown(item.excerpt || item.content)}
-                    </p>
-                  )}
-                </article>
-              </React.Fragment>
+                {/* Action Link */}
+                {effectiveType === 'photo' ? (
+                  <div className="mt-3.5">
+                    <Link
+                      to="/photos"
+                      className="text-xs font-sans tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] uppercase underline decoration-[var(--border-subtle)] underline-offset-4 transition-colors inline-flex items-center gap-1"
+                    >
+                      <span>View photo</span>
+                      <span>→</span>
+                    </Link>
+                  </div>
+                ) : effectiveType !== 'update' ? (
+                  <div className="mt-3.5">
+                    <Link
+                      to={`/entry/${item.slug}`}
+                      className="text-xs font-sans tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] uppercase underline decoration-[var(--border-subtle)] underline-offset-4 transition-colors inline-flex items-center gap-1"
+                    >
+                      <span>Read entry</span>
+                      <span>→</span>
+                    </Link>
+                  </div>
+                ) : null}
+              </article>
             );
           })}
         </div>
