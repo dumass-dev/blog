@@ -515,12 +515,12 @@ html {
 /* Video embed wrapper */
 .video-responsive {
   position: relative;
-  padding-bottom: 56.25%; /* 16:9 ratio */
-  height: 0;
-  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   margin-top: 2rem;
   margin-bottom: 2rem;
   border-radius: 4px;
+  overflow: hidden;
   background-color: #000;
 }
 
@@ -529,8 +529,9 @@ html {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
 }
 
 /* Quiet forms for admin & actions */
@@ -1186,19 +1187,22 @@ main {
 }
 
 .prose-editorial img,
-.prose-editorial iframe,
-.prose-editorial video,
+.prose-editorial video:not(.video-responsive video),
 .rich-viewer img,
-.rich-viewer iframe,
-.rich-viewer video,
+.rich-viewer video:not(.video-responsive video),
 .comment-body img,
-.comment-body iframe,
-.comment-body video,
+.comment-body video:not(.video-responsive video),
 .comments-section img,
-.comments-section iframe,
-.comments-section video {
+.comments-section video:not(.video-responsive video) {
   max-width: 100%;
   height: auto;
+}
+
+.prose-editorial iframe:not(.video-responsive iframe),
+.rich-viewer iframe:not(.video-responsive iframe),
+.comment-body iframe:not(.video-responsive iframe),
+.comments-section iframe:not(.video-responsive iframe) {
+  max-width: 100%;
 }
 
 /* Mobile-only layout containment (< 768px) */
