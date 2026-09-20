@@ -38,7 +38,7 @@ export default function OnThisDay() {
           const d = new Date(post.date);
           const postMonth = String(d.getMonth() + 1).padStart(2, '0');
           const postDay = String(d.getDate()).padStart(2, '0');
-          return postMonth === month && postDay === day;
+          return postMonth === month && postDay === day && d.getFullYear() < today.getFullYear();
         });
 
         setEntries(matched);
