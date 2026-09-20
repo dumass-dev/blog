@@ -398,14 +398,7 @@ export default function Photos() {
             if (e.target === e.currentTarget) setSelectedPhotoIndex(null);
           }}
         >
-          {/* Single Top-Left Fixed Close Button */}
-          <button
-            onClick={() => setSelectedPhotoIndex(null)}
-            className="fixed top-4 left-4 sm:top-6 sm:left-6 z-[100] p-2.5 rounded-full bg-black/80 hover:bg-black text-white shadow-2xl border border-white/20 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
-            aria-label="Close photo view"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
 
           {/* Navigation Arrows */}
           {selectedPhotoIndex > 0 && (
@@ -429,7 +422,16 @@ export default function Photos() {
           )}
 
           {/* Main Modal Layout Card */}
-          <div className="w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
+          <div className="relative w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
+            {/* Single Close Button on Photo Card Top-Left Corner */}
+            <button
+              onClick={() => setSelectedPhotoIndex(null)}
+              className="absolute top-3 left-3 z-[110] p-2 rounded-full bg-black/70 hover:bg-black text-white shadow-lg border border-white/20 transition-all hover:scale-105 cursor-pointer flex items-center justify-center"
+              aria-label="Close photo view"
+              title="Close photo"
+            >
+              <X className="w-4 h-4" />
+            </button>
             {/* Image Viewport Column */}
             <div className="md:w-7/12 lg:w-8/12 bg-black flex items-center justify-center relative min-h-[280px] max-h-[50vh] md:max-h-[85vh] p-3 sm:p-6 select-none">
               {getPhotoSrc(activePhoto) ? (
@@ -464,15 +466,6 @@ export default function Photos() {
                     )}
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setSelectedPhotoIndex(null)}
-                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)] rounded-md transition-colors cursor-pointer shrink-0"
-                  aria-label="Close photo modal"
-                  title="Close view"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Caption & Comments List */}
