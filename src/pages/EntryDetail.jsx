@@ -29,18 +29,16 @@ function calcReadingTime(text) {
 
 export default function EntryDetail() {
   const { slug } = useParams();
-  const { isAdmin, token } = useAuth();
   const cachedInitial = getCachedEntry(slug);
 
   const [data, setData] = useState(() => {
     if (!cachedInitial) return null;
     const hasPasscode = Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
-    const isRedacted = !isAdmin && hasPasscode;
     return {
       entry: {
         ...cachedInitial,
         has_passcode: hasPasscode,
-        content: isRedacted ? '🔒 This entry is passcode-protected.' : cachedInitial.content
+        content: hasPasscode ? '🔒 This entry is passcode-protected.' : cachedInitial.content
       },
       prev: null,
       next: null
@@ -49,7 +47,6 @@ export default function EntryDetail() {
   const [loading, setLoading] = useState(!cachedInitial);
   const [error, setError] = useState(null);
   const [isUnlocked, setIsUnlocked] = useState(() => {
-    if (isAdmin) return true;
     if (!cachedInitial) return false;
     return !Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
   });
@@ -68,7 +65,7 @@ export default function EntryDetail() {
 
     if (!cached) {
       setLoading(true);
-      setIsUnlocked(Boolean(isAdmin));
+      setIsUnlocked(false);
     }
     setError(null);
 
@@ -95,9 +92,7 @@ export default function EntryDetail() {
       } catch (err) {}
 
       // 2. Background API fetch for prev/next context links
-      safeApiFetch(`/api/posts/${slug}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      }).then(resData => {
+      safeApiFetch(`/api/posts/${slug}`).then(resData => {
         if (resData && isMounted) {
           if (resData.prev) prev = resData.prev;
           if (resData.next) next = resData.next;
@@ -107,17 +102,16 @@ export default function EntryDetail() {
           }
           if (postData) {
             const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
-            const isRedacted = !isAdmin && hasPasscode;
             setData({
               entry: {
                 ...postData,
                 has_passcode: hasPasscode,
-                content: isRedacted ? '🔒 This entry is passcode-protected.' : postData.content
+                content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
               },
               prev: resData.prev || prev,
               next: resData.next || next
             });
-            if (isAdmin || !hasPasscode) {
+            if (!hasPasscode) {
               setIsUnlocked(true);
             }
           }
@@ -146,20 +140,19 @@ export default function EntryDetail() {
       }
 
       const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
-      const isRedacted = !isAdmin && hasPasscode;
 
       if (isMounted) {
         setData({
           entry: {
             ...postData,
             has_passcode: hasPasscode,
-            content: isRedacted ? '🔒 This entry is passcode-protected.' : postData.content
+            content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
           },
           prev,
           next
         });
 
-        if (isAdmin || !hasPasscode) {
+        if (!hasPasscode) {
           setIsUnlocked(true);
         }
         setLoading(false);
@@ -168,7 +161,7 @@ export default function EntryDetail() {
 
     loadEntry();
     return () => { isMounted = false; };
-  }, [slug, isAdmin, token]);
+  }, [slug]);
 
   // Listen for text selection to show Floating "Quote Card" pill
   useEffect(() => {

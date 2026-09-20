@@ -17,7 +17,8 @@ import {
   FolderArchive,
   Eye,
   TrendingUp,
-  RotateCw
+  RotateCw,
+  Lock
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -436,6 +437,12 @@ export default function Dashboard() {
                       {formatDate(item.date)}
                     </span>
                     <div className="flex items-center gap-1.5">
+                      {Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== '')) && (
+                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Locked</span>
+                        </span>
+                      )}
                       <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                         {item.type}
                       </span>
@@ -526,11 +533,19 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span
-                          className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]"
-                        >
-                          {item.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                          >
+                            {item.status}
+                          </span>
+                          {Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== '')) && (
+                            <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] flex items-center gap-1" title="Passcode Protected for public readers">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Locked</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right space-x-2">
                         <Link

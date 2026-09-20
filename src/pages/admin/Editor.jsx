@@ -342,9 +342,17 @@ export default function Editor() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-serif font-medium">
-            {id ? 'Edit Entry' : 'New Entry'}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-serif font-medium">
+              {id ? 'Edit Entry' : 'New Entry'}
+            </h1>
+            {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]" title="Passcode protected for public readers">
+                <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
+                <span>Passcode Locked</span>
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -660,9 +668,14 @@ export default function Editor() {
 
             {/* Passcode Protection */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Passcode Lock (Optional)</span>
+              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
+                  <span>Passcode Lock (Optional)</span>
+                </span>
+                {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
+                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">🔒 active</span>
+                )}
               </label>
               <input
                 type="password"
@@ -672,6 +685,9 @@ export default function Editor() {
                 placeholder="Leave blank for public"
                 className="quiet-input text-xs font-mono"
               />
+              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
+                Public readers must enter passcode to read. In Admin studio, you can edit directly.
+              </p>
             </div>
 
             {/* Date */}
