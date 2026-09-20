@@ -35,6 +35,57 @@ function slugify(text) {
 
 const serverStartTime = Date.now();
 
+/**
+ * Strict Server-Side Admin Authentication Middleware (Fail Closed)
+ * Verifies Supabase JWT token server-side and checks against ADMIN_USER_ID or ADMIN_EMAIL
+ */
+async function requireAdminAuth(req, res, next) {
+  const adminUserId = process.env.ADMIN_USER_ID;
+  const adminEmail = process.env.ADMIN_EMAIL;
+
+  if (!adminUserId && !adminEmail) {
+    console.error('SECURITY ERROR: Neither ADMIN_USER_ID nor ADMIN_EMAIL env var is configured on server. Denying access (Fail Closed).');
+    return res.status(403).json({ error: 'Server authentication unconfigured. Access denied.' });
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or malformed Authorization header.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  if (!token || token.trim() === '') {
+    return res.status(401).json({ error: 'Authentication token missing.' });
+  }
+
+  let user = null;
+  try {
+    const client = getSupabaseClient(req);
+    const authPromise = client.auth.getUser(token);
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: new Error('Auth timeout') }), 1000));
+    const res = await Promise.race([authPromise, timeoutPromise]);
+    if (res && !res.error && res.data && res.data.user) {
+      user = res.data.user;
+    }
+  } catch (err) {
+    user = null;
+  }
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid, revoked, or expired authentication token.' });
+  }
+
+  const matchesId = adminUserId && user.id === adminUserId;
+  const matchesEmail = adminEmail && user.email && user.email.toLowerCase() === adminEmail.toLowerCase();
+
+  if (!matchesId && !matchesEmail) {
+    return res.status(403).json({ error: 'Forbidden: Authenticated user is not authorized as owner/admin.' });
+  }
+
+  req.user = user;
+  next();
+}
+
 // Health & Root Status — Serving a sleek, editorial dark-mode status dashboard for browsers
 app.get(['/', '/api', '/api/'], async (req, res) => {
   const acceptsHtml = req.headers.accept && req.headers.accept.includes('text/html');
@@ -331,8 +382,8 @@ app.get('/api/health', (req, res) => {
    PUBLIC & ADMIN ENTRY ROUTES (SUPABASE POWERED)
    ========================================================================== */
 
-// GET /api/stats — Admin dashboard summary metrics
-app.get('/api/stats', async (req, res) => {
+// GET /api/stats — Admin dashboard summary metrics (Requires Admin Auth)
+app.get('/api/stats', requireAdminAuth, async (req, res) => {
   try {
     const supabaseClient = getSupabaseClient(req);
 
@@ -552,8 +603,8 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
   }
 });
 
-// POST /api/posts — Create new entry
-app.post('/api/posts', async (req, res) => {
+// POST /api/posts — Create new entry (Requires Admin Auth)
+app.post('/api/posts', requireAdminAuth, async (req, res) => {
   try {
     const {
       title,
@@ -613,8 +664,8 @@ app.post('/api/posts', async (req, res) => {
   }
 });
 
-// PUT /api/posts/:id — Edit existing entry
-app.put('/api/posts/:id', async (req, res) => {
+// PUT /api/posts/:id — Edit existing entry (Requires Admin Auth)
+app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -660,8 +711,8 @@ app.put('/api/posts/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/posts/:id — Delete entry
-app.delete('/api/posts/:id', async (req, res) => {
+// DELETE /api/posts/:id — Delete entry (Requires Admin Auth)
+app.delete('/api/posts/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { error } = await getSupabaseClient(req).from('entries').delete().eq('id', id);
@@ -678,8 +729,8 @@ app.delete('/api/posts/:id', async (req, res) => {
    MEDIA UPLOAD & STORAGE (BACKBLAZE B2 + SUPABASE METADATA)
    ========================================================================== */
 
-// POST /api/media/upload — Upload media file to Backblaze B2 & record metadata in Supabase
-app.post('/api/media/upload', upload.single('file'), async (req, res) => {
+// POST /api/media/upload — Upload media file to Backblaze B2 & record metadata in Supabase (Requires Admin Auth)
+app.post('/api/media/upload', requireAdminAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded.' });
@@ -717,8 +768,8 @@ app.post('/api/media/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// GET /api/media — List uploaded media with fresh pre-signed URLs from Backblaze B2
-app.get('/api/media', async (req, res) => {
+// GET /api/media — List uploaded media with fresh pre-signed URLs from Backblaze B2 (Requires Admin Auth)
+app.get('/api/media', requireAdminAuth, async (req, res) => {
   try {
     const { data: mediaList, error } = await getSupabaseClient(req)
       .from('media')
@@ -748,8 +799,8 @@ app.get('/api/media', async (req, res) => {
   }
 });
 
-// DELETE /api/media/:id — Delete media from Backblaze B2 and Supabase
-app.delete('/api/media/:id', async (req, res) => {
+// DELETE /api/media/:id — Delete media from Backblaze B2 and Supabase (Requires Admin Auth)
+app.delete('/api/media/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -840,12 +891,31 @@ app.post('/api/posts/:id/comments', async (req, res) => {
   }
 });
 
-// DELETE /api/comments/:id
-app.delete('/api/comments/:id', async (req, res) => {
+// DELETE /api/comments/:id — Delete comment (Requires Admin Auth)
+app.delete('/api/comments/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await getSupabaseClient(req).from('comments').delete().eq('id', id);
-    if (error) throw error;
+
+    // Validate UUID format
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) {
+      return res.status(404).json({ error: 'Comment not found.' });
+    }
+
+    const client = getSupabaseClient(req);
+    const { data: existing, error: findErr } = await client
+      .from('comments')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (findErr || !existing) {
+      return res.status(404).json({ error: 'Comment not found.' });
+    }
+
+    const { error: delErr } = await client.from('comments').delete().eq('id', id);
+    if (delErr) throw delErr;
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -950,7 +1020,7 @@ app.get('/api/about', async (req, res) => {
   }
 });
 
-app.post('/api/about', async (req, res) => {
+app.post('/api/about', requireAdminAuth, async (req, res) => {
   try {
     const { author_name, tagline, bio, projects, links } = req.body;
 

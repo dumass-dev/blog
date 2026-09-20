@@ -16,6 +16,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
  * Get Supabase client authenticated as the calling user (if bearer token present in request header)
  */
 export function getSupabaseClient(req) {
+  if (global.__mockSupabaseClient) {
+    return global.__mockSupabaseClient(req);
+  }
   const authHeader = req?.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ') && authHeader.split(' ')[1]) {
     const token = authHeader.split(' ')[1];
