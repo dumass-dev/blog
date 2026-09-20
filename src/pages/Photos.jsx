@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send } from 'lucide-react';
+import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 
@@ -155,6 +155,7 @@ export default function Photos() {
 
   const getCleanCaption = (item) => {
     if (!item || !item.content) return '';
+    if (item.content.startsWith('🔒')) return '';
     const clean = item.content.replace(/!\[.*?\]\(.*?\)/g, '').trim();
     if (clean && !clean.startsWith('http://') && !clean.startsWith('https://')) {
       return clean;
@@ -301,7 +302,27 @@ export default function Photos() {
                   className="relative aspect-square sm:aspect-auto max-h-[560px] bg-black/5 cursor-pointer overflow-hidden flex items-center justify-center"
                   onClick={() => openPhoto(item, idx)}
                 >
-                  {imgSrc ? (
+                  {item.has_passcode && item.content && item.content.includes('🔒') ? (
+                    <div className="p-8 text-center flex flex-col items-center justify-center space-y-3 py-16 bg-[var(--card-bg)] w-full h-full">
+                      <div className="w-12 h-12 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--accent-warm)]">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-serif text-base font-medium text-[var(--text-primary)]">Passcode Protected Photo</h4>
+                      <p className="font-sans text-xs text-[var(--text-muted)] max-w-xs leading-relaxed">
+                        This capture is private. Tap to enter passcode and view high-res photo.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openPhoto(item, idx);
+                        }}
+                        className="quiet-button text-xs py-2 px-4 font-sans inline-flex items-center gap-1.5 mt-2"
+                      >
+                        <span>Unlock Photo</span>
+                      </button>
+                    </div>
+                  ) : imgSrc ? (
                     <img
                       src={imgSrc}
                       alt={item.title}
@@ -504,9 +525,25 @@ export default function Photos() {
       {passcodeModalPhoto && (
         <ProtectedEntryModal
           entry={passcodeModalPhoto}
-          onSuccess={() => {
+          onUnlock={(unlockedData) => {
+            const unlockedId = passcodeModalPhoto.id || passcodeModalPhoto.slug;
+            setPhotos(prev => prev.map(p => {
+              if (p.id === unlockedId || p.slug === unlockedId) {
+                return {
+                  ...p,
+                  has_passcode: false,
+                  content: unlockedData.content || p.content,
+                  cover_image: unlockedData.cover_image || p.cover_image
+                };
+              }
+              return p;
+            }));
+
+            const targetIdx = photos.findIndex(p => p.id === unlockedId || p.slug === unlockedId);
+            if (targetIdx !== -1) {
+              setSelectedPhotoIndex(targetIdx);
+            }
             setPasscodeModalPhoto(null);
-            fetchPhotos();
           }}
           onClose={() => setPasscodeModalPhoto(null)}
         />

@@ -151,15 +151,15 @@ export default function Media() {
             <ThemeToggle />
           </div>
 
-          <label className="quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
+          <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
             <span>{uploading ? 'Uploading...' : 'Upload Photo or Video'}</span>
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
               onChange={handleFileUpload}
               disabled={uploading}
-              className="hidden"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
           </label>
         </div>
@@ -181,14 +181,14 @@ export default function Media() {
           <p className="text-sm font-serif text-[var(--text-secondary)] mb-4">
             Your media library is currently empty.
           </p>
-          <label className="quiet-button text-xs inline-flex items-center gap-1.5 cursor-pointer">
+          <label className="relative overflow-hidden quiet-button text-xs inline-flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
             <span>Upload first image or video</span>
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
               onChange={handleFileUpload}
-              className="hidden"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
           </label>
         </div>
