@@ -111,6 +111,7 @@ export default function Editor() {
   // Fetch existing entry if editing
   useEffect(() => {
     if (!id) return;
+    let isMounted = true;
     setLoading(true);
 
     fetch(`/api/posts/${id}`, {
@@ -118,7 +119,7 @@ export default function Editor() {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.entry) {
+        if (isMounted && data.entry) {
           const e = data.entry;
           let formattedDate = e.date;
           try {
@@ -143,8 +144,16 @@ export default function Editor() {
           });
         }
       })
-      .catch(err => setError('Failed loading entry.'))
-      .finally(() => setLoading(false));
+      .catch(err => {
+        if (isMounted) setError('Failed loading entry.');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [id, token]);
 
   const handleChange = (e) => {
