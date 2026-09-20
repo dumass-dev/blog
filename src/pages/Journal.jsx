@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 
-function formatDate(dateStr) {
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+  if (isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const month = d.toLocaleDateString('en-GB', { month: 'short' });
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+function calcReadingTimeText(text) {
+  if (!text) return null;
+  const words = text.trim().split(/\s+/).length;
+  const mins = Math.ceil(words / 200);
+  return mins >= 3 ? `${mins} min read` : null;
 }
 
 export default function Journal() {
@@ -68,48 +75,75 @@ export default function Journal() {
         </div>
       ) : (
         <div className="space-y-12">
-          {entries.map((item) => (
-            <article key={item.id} className="pb-8 border-b border-[var(--border-subtle)] last:border-0">
-              <div className="flex items-center gap-3 mb-1">
-                <time className="text-xs font-sans text-[var(--text-muted)] tracking-wide">
-                  {formatDate(item.date)}
-                </time>
-                {item.has_passcode && (
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center gap-1 font-medium font-sans">
-                    <Lock className="w-2.5 h-2.5" />
-                    <span>Protected</span>
-                  </span>
+          {entries.map((item, idx) => {
+            const itemDate = formatShortDate(item.date);
+            const prevItem = entries[idx - 1];
+            const nextItem = entries[idx + 1];
+            const prevDate = prevItem ? formatShortDate(prevItem.date) : null;
+            const nextDate = nextItem ? formatShortDate(nextItem.date) : null;
+
+            const isGrouped = (prevDate === itemDate || nextDate === itemDate);
+            const isFirstInGroup = isGrouped && (prevDate !== itemDate);
+            const categoryLabel = (item.category || 'JOURNAL').toUpperCase();
+            const readTimeText = calcReadingTimeText(item.content);
+
+            return (
+              <React.Fragment key={item.id || idx}>
+                {isFirstInGroup && (
+                  <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-wider uppercase pt-2 pb-1 mb-2 border-b border-[var(--border-subtle)]/50">
+                    {itemDate}
+                  </div>
                 )}
-              </div>
 
-              <h2 className="text-2xl font-serif font-medium tracking-tight mb-2">
-                <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
-                  {item.title}
-                </Link>
-              </h2>
+                <article className="pb-8 border-b border-[var(--border-subtle)] last:border-0 group">
+                  <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-1.5">
+                    <span>{categoryLabel}</span>
+                    {!isGrouped && itemDate && (
+                      <>
+                        <span>·</span>
+                        <span>{itemDate}</span>
+                      </>
+                    )}
+                    {readTimeText && (
+                      <>
+                        <span>·</span>
+                        <span>{readTimeText}</span>
+                      </>
+                    )}
+                    {item.has_passcode && (
+                      <>
+                        <span>·</span>
+                        <span className="text-[10px] text-[var(--text-primary)] font-medium">PROTECTED</span>
+                      </>
+                    )}
+                  </div>
 
-              <p className="text-[var(--text-secondary)] font-serif text-lg leading-relaxed mb-4">
-                {stripMarkdown(item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content))}
-              </p>
+                  <h2 className="text-2xl font-serif font-medium tracking-tight mb-2">
+                    <Link
+                      to={`/entry/${item.slug}`}
+                      className="hover:underline underline-offset-4 decoration-[var(--border-subtle)] transition-colors text-[var(--text-primary)]"
+                    >
+                      {item.title}
+                    </Link>
+                  </h2>
 
-              {item.tags && (
-                <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3 min-w-0 max-w-full">
-                  {item.tags.split(',').map((tag, idx) => (
-                    <span key={`${tag.trim()}-${idx}`} className="hover:text-[var(--text-primary)] inline-block max-w-full truncate">
-                      #{tag.trim()}
-                    </span>
-                  ))}
-                </div>
-              )}
+                  <p className="text-[var(--text-secondary)] font-serif text-lg leading-relaxed mb-4 italic opacity-90">
+                    {stripMarkdown(item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content))}
+                  </p>
 
-              <Link
-                to={`/entry/${item.slug}`}
-                className="text-xs font-sans tracking-wider text-[var(--text-primary)] uppercase underline underline-offset-4 decoration-[var(--border-subtle)] hover:decoration-[var(--accent-warm)] transition-colors"
-              >
-                Read entry →
-              </Link>
-            </article>
-          ))}
+                  {item.tags && (
+                    <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3 min-w-0 max-w-full">
+                      {item.tags.split(',').map((tag, i) => (
+                        <span key={`${tag.trim()}-${i}`} className="hover:text-[var(--text-primary)] inline-block max-w-full truncate">
+                          #{tag.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
     </div>
