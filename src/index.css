@@ -1223,3 +1223,23 @@ html, body {
   overflow-x: hidden;
   overflow-x: clip;
 }
+
+/* Mobile horizontal scroll for admin header buttons */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.admin-header-actions-scroll {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  overscroll-behavior-x: contain !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+  display: flex !important;
+}

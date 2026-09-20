@@ -52,6 +52,7 @@ export default function Editor() {
     weather: '',
     mood: '',
     passcode: '',
+    show_in_feed: initialType !== 'photo',
     date: new Date().toISOString().slice(0, 16) // YYYY-MM-THH:mm
   });
 
@@ -164,6 +165,7 @@ export default function Editor() {
             weather: entryData.weather || '',
             mood: entryData.mood || '',
             passcode: entryData.passcode || '',
+            show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : (entryData.type !== 'photo'),
             date: formattedDate
           });
         } else {
@@ -240,6 +242,7 @@ export default function Editor() {
       ...formData,
       title: formData.title || fallbackTitle,
       category: formData.type === 'photo' ? (formData.category || 'Photos') : formData.category,
+      show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : (formData.type !== 'photo'),
       date: new Date(formData.date).toISOString()
     };
 
@@ -284,7 +287,8 @@ export default function Editor() {
           location: payload.location || null,
           weather: payload.weather || null,
           mood: payload.mood || null,
-          passcode: payload.passcode || null
+          passcode: payload.passcode || null,
+          show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : (payload.type !== 'photo')
         };
 
         if (id) {
@@ -634,6 +638,23 @@ export default function Editor() {
                 <option value="draft">Draft (Private admin only)</option>
                 <option value="unlisted">Unlisted (Visible only via direct link)</option>
               </select>
+            </div>
+
+            {/* Show in Chronological Feed Toggle */}
+            <div className="py-2 border-y border-[var(--border-subtle)]">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-sans text-[var(--text-primary)] font-medium">
+                <input
+                  type="checkbox"
+                  name="show_in_feed"
+                  checked={Boolean(formData.show_in_feed)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, show_in_feed: e.target.checked }))}
+                  className="w-4 h-4 rounded border-[var(--border-subtle)] text-[var(--accent-warm)] focus:ring-0 cursor-pointer"
+                />
+                <span>Show in Main Chronological Feed</span>
+              </label>
+              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 ml-6 leading-snug">
+                Uncheck to hide from home feed (photo posts are kept in Photos gallery only by default).
+              </p>
             </div>
 
             {/* Location */}

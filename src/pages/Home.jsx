@@ -36,9 +36,10 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
     const loadHomeEntries = async () => {
-      const data = await fetchPublishedEntries({ limit: 15 });
+      const data = await fetchPublishedEntries({ limit: 15, forHomeFeed: true });
       if (isMounted) {
-        setEntries(Array.isArray(data) ? data : []);
+        const feed = (Array.isArray(data) ? data : []).filter(item => item.show_in_feed !== false);
+        setEntries(feed);
         setLoading(false);
       }
     };

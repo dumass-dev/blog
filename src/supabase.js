@@ -54,7 +54,7 @@ export async function safeApiFetch(url, options = {}) {
 /**
  * Direct blazing-fast Supabase query for public entries
  */
-export async function fetchPublishedEntries({ type, limit, tag, category } = {}) {
+export async function fetchPublishedEntries({ type, limit, tag, category, forHomeFeed } = {}) {
   try {
     let query = supabase
       .from('entries')
@@ -75,7 +75,10 @@ export async function fetchPublishedEntries({ type, limit, tag, category } = {})
 
     const { data, error } = await query;
     if (error) throw error;
-    const rawList = data || [];
+    let rawList = data || [];
+    if (forHomeFeed) {
+      rawList = rawList.filter(item => item.show_in_feed !== false);
+    }
 
     // Check if user is logged in as admin locally
     let isLocalAdmin = false;

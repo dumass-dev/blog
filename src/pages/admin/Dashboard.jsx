@@ -261,7 +261,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="w-full sm:w-auto overflow-x-auto overflow-y-hidden max-w-full pb-1 pt-0.5 no-scrollbar">
+        <div 
+          className="w-full sm:w-auto admin-header-actions-scroll no-scrollbar max-w-full pb-1 pt-0.5"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+        >
           <div className="flex items-center gap-2 sm:gap-3 min-w-max">
             <button
               onClick={() => loadData(true)}

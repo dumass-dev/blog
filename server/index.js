@@ -806,7 +806,8 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       location: location ? location.trim() : null,
       weather: weather ? weather.trim() : null,
       mood: mood ? mood.trim() : null,
-      passcode: passcode && passcode.trim() !== '' ? passcode.trim() : null
+      passcode: passcode && passcode.trim() !== '' ? passcode.trim() : null,
+      show_in_feed: req.body.show_in_feed !== undefined ? Boolean(req.body.show_in_feed) : (type !== 'photo')
     };
 
     const { data, error } = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
@@ -868,6 +869,7 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (weather !== undefined) updates.weather = weather;
     if (mood !== undefined) updates.mood = mood;
     if (passcode !== undefined) updates.passcode = passcode && passcode.trim() !== '' ? passcode.trim() : null;
+    if (req.body.show_in_feed !== undefined) updates.show_in_feed = Boolean(req.body.show_in_feed);
 
     const { data, error } = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
 
