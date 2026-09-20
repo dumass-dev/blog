@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Send, User } from 'lucide-react';
+import { MessageSquare, Send, User, Trash2 } from 'lucide-react';
 import { supabase, safeApiFetch, subscribeToComments } from '../supabase';
+import { useAuth } from '../context/AuthContext';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -8,11 +9,13 @@ function formatDate(dateStr) {
 }
 
 export default function Comments({ postId }) {
+  const { isAdmin, token } = useAuth();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authorName, setAuthorName] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
@@ -57,6 +60,40 @@ export default function Comments({ postId }) {
       unsubscribe();
     };
   }, [postId]);
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+    setDeletingId(commentId);
+    setError(null);
+
+    let deleted = false;
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) deleted = true;
+    } catch {
+      // Fallback
+    }
+
+    if (!deleted) {
+      try {
+        const { error: supaErr } = await supabase.from('comments').delete().eq('id', commentId);
+        if (supaErr) throw supaErr;
+        deleted = true;
+      } catch (err) {
+        setError(err.message || 'Failed deleting comment.');
+      }
+    }
+
+    if (deleted) {
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    }
+    setDeletingId(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,7 +180,20 @@ export default function Comments({ postId }) {
                   <User className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
                   <span>{item.author_name}</span>
                 </span>
-                <span className="text-[10px] text-[var(--text-muted)]">{formatDate(item.created_at)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-[var(--text-muted)]">{formatDate(item.created_at)}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteComment(item.id)}
+                      disabled={deletingId === item.id}
+                      className="text-red-500/80 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-500/10 inline-flex items-center gap-1 text-[11px] font-sans border border-transparent hover:border-red-500/20"
+                      title="Delete Comment"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>{deletingId === item.id ? 'Deleting...' : 'Delete'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-[var(--text-primary)] font-serif text-sm leading-relaxed whitespace-pre-wrap pt-1">
                 {item.content}

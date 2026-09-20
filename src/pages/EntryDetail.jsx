@@ -7,7 +7,7 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { supabase, safeApiFetch } from '../supabase';
+import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
 import { Clock, MapPin, Cloud, Smile, Lock, Share2, Eye, Quote } from 'lucide-react';
 
 function formatDate(dateStr) {
@@ -28,10 +28,27 @@ function calcReadingTime(text) {
 
 export default function EntryDetail() {
   const { slug } = useParams();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cachedInitial = getCachedEntry(slug);
+
+  const [data, setData] = useState(() => {
+    if (!cachedInitial) return null;
+    const hasPasscode = Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
+    return {
+      entry: {
+        ...cachedInitial,
+        has_passcode: hasPasscode,
+        content: hasPasscode ? '🔒 This entry is passcode-protected.' : cachedInitial.content
+      },
+      prev: null,
+      next: null
+    };
+  });
+  const [loading, setLoading] = useState(!cachedInitial);
   const [error, setError] = useState(null);
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    if (!cachedInitial) return false;
+    return !Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
+  });
 
   // Lightbox State
   const [lightbox, setLightbox] = useState({ isOpen: false, src: '', caption: '' });
@@ -42,61 +59,85 @@ export default function EntryDetail() {
   const [floatingBtnPos, setFloatingBtnPos] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
+    let isMounted = true;
+    const cached = getCachedEntry(slug);
+
+    if (!cached) {
+      setLoading(true);
+      setIsUnlocked(false);
+    }
     setError(null);
-    setIsUnlocked(false);
 
     const loadEntry = async () => {
-      let postData = null;
+      let postData = cached || null;
       let prev = null;
       let next = null;
 
-      // 1. Try API server first
-      const resData = await safeApiFetch(`/api/posts/${slug}`);
-      if (resData && typeof resData === 'object') {
-        postData = resData.entry || resData;
-        prev = resData.prev || null;
-        next = resData.next || null;
-      } else {
-        // 2. Direct Supabase fallback
-        try {
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-          let query = supabase.from('entries').select('*').neq('status', 'draft');
-          if (isUuid) {
-            query = query.eq('id', slug);
-          } else {
-            query = query.eq('slug', slug);
-          }
-
-          const { data: posts, error: supaErr } = await query;
-          if (supaErr || !posts || posts.length === 0) {
-            throw new Error('Entry not found.');
-          }
-          postData = posts[0];
-        } catch (err) {
-          setError(err.message || 'Entry not found.');
-          setLoading(false);
-          return;
+      // 1. Blazing fast direct Supabase query (~50ms)
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+        let query = supabase.from('entries').select('*').neq('status', 'draft');
+        if (isUuid) {
+          query = query.eq('id', slug);
+        } else {
+          query = query.eq('slug', slug);
         }
+
+        const { data: posts } = await query;
+        if (posts && posts[0]) {
+          postData = posts[0];
+          cacheEntry(postData);
+        }
+      } catch (err) {}
+
+      // 2. Background API fetch for prev/next context links
+      safeApiFetch(`/api/posts/${slug}`).then(resData => {
+        if (resData && isMounted) {
+          if (resData.prev) prev = resData.prev;
+          if (resData.next) next = resData.next;
+          if (resData.entry) {
+            postData = resData.entry;
+            cacheEntry(postData);
+          }
+          if (postData) {
+            const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
+            setData({
+              entry: {
+                ...postData,
+                has_passcode: hasPasscode,
+                content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
+              },
+              prev: resData.prev || prev,
+              next: resData.next || next
+            });
+          }
+        }
+      }).catch(() => {});
+
+      if (!postData) {
+        if (isMounted) {
+          setError('Entry not found.');
+          setLoading(false);
+        }
+        return;
       }
 
-      if (postData) {
-        // Increment view count
-        const updatedViews = (postData.views || 0) + 1;
-        postData.views = updatedViews;
+      // Increment view count
+      const updatedViews = (postData.views || 0) + 1;
+      postData.views = updatedViews;
 
-        // Persist incremented view count to Supabase
-        if (postData.id) {
-          supabase
-            .from('entries')
-            .update({ views: updatedViews })
-            .eq('id', postData.id)
-            .then(() => {})
-            .catch(() => {});
-        }
+      if (postData.id) {
+        supabase
+          .from('entries')
+          .update({ views: updatedViews })
+          .eq('id', postData.id)
+          .then(() => {})
+          .catch(() => {});
+      }
 
-        const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
+      const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 
+      if (isMounted) {
         setData({
           entry: {
             ...postData,
@@ -110,12 +151,12 @@ export default function EntryDetail() {
         if (!hasPasscode) {
           setIsUnlocked(true);
         }
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     loadEntry();
+    return () => { isMounted = false; };
   }, [slug]);
 
   // Listen for text selection to show Floating "Quote Card" pill

@@ -14,13 +14,32 @@ try {
 
 export const supabase = client;
 
+// In-memory SWR cache for zero-delay instant page navigation
+const entriesCache = new Map();
+const feedsCache = new Map();
+
+export function getCachedEntry(slugOrId) {
+  if (!slugOrId) return null;
+  return entriesCache.get(slugOrId) || null;
+}
+
+export function getCachedFeed(typeKey = 'all') {
+  return feedsCache.get(typeKey) || null;
+}
+
+export function cacheEntry(entry) {
+  if (!entry) return;
+  if (entry.id) entriesCache.set(entry.id, entry);
+  if (entry.slug) entriesCache.set(entry.slug, entry);
+}
+
 /**
  * Helper to safely fetch from API endpoints, returning null if 404/non-JSON
  */
 export async function safeApiFetch(url, options = {}) {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    const timer = setTimeout(() => controller.abort(), 1000);
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
@@ -50,10 +69,17 @@ export async function fetchPublishedEntries({ type, limit, tag, category } = {})
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    const list = data || [];
+    
+    // Cache entries and feed list for instant UI rendering
+    list.forEach(item => cacheEntry(item));
+    const cacheKey = type || 'all';
+    feedsCache.set(cacheKey, list);
+
+    return list;
   } catch (e) {
     console.error('Supabase fetch entries error:', e);
-    return [];
+    return feedsCache.get(type || 'all') || [];
   }
 }
 

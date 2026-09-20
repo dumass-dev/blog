@@ -13,9 +13,8 @@ export default function Footer() {
           © {new Date().getFullYear()} q04ti. Built for quiet reading.
         </div>
 
-        <div className="flex items-center space-x-6">
-          {/* Admin link */}
-          {isAdmin ? (
+        {isAdmin && (
+          <div className="flex items-center space-x-6">
             <Link
               to="/admin"
               className="flex items-center space-x-1.5 text-[var(--text-primary)] hover:underline py-2 px-1 text-xs font-medium"
@@ -23,17 +22,8 @@ export default function Footer() {
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span>Admin Studio</span>
             </Link>
-          ) : (
-            <Link
-              to="/admin/login"
-              className="hover:text-[var(--text-secondary)] transition-colors flex items-center space-x-1 py-2 px-1 text-xs"
-              title="Owner access"
-            >
-              <Lock className="w-3 h-3 opacity-60" />
-              <span>Admin Login</span>
-            </Link>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </footer>
   );
