@@ -121,7 +121,7 @@ export default function Reactions({ postId }) {
         Leave a quiet reaction
       </div>
 
-      <div className="flex flex-wrap justify-center items-center gap-3">
+      <div className="reaction-pills-container">
         {reactionButtons.map(item => {
           const Icon = item.icon;
           const count = counts[item.key] || 0;
@@ -131,7 +131,7 @@ export default function Reactions({ postId }) {
               key={item.key}
               onClick={() => handleReact(item.key)}
               disabled={hasReacted}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-sans transition-all cursor-pointer ${
+              className={`reaction-pill flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border text-xs font-sans transition-all cursor-pointer ${
                 hasReacted
                   ? 'font-medium scale-105 shadow-sm'
                   : 'border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--accent-warm)] hover:text-[var(--accent-warm)] bg-[var(--code-bg)]'
