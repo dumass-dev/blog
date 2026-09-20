@@ -1,3 +1,7 @@
+import React, { useState, useEffect } from 'react';
+import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
+import { formatDate } from '../utils/date';
+import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 
 export default function Photos() {
