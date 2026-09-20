@@ -255,9 +255,17 @@ body {
 .h-10 { height: 2.5rem; }
 .h-fit { height: fit-content; }
 
-.max-w-md { max-width: 28rem; }
+.max-w-xs { max-width: 20rem; }
 .max-w-sm { max-width: 24rem; }
+.max-w-md { max-width: 28rem; }
+.max-w-lg { max-width: 32rem; }
+.max-w-xl { max-width: 36rem; }
 .max-w-2xl { max-width: 44rem; }
+.max-w-3xl { max-width: 48rem; }
+.max-w-4xl { max-width: 56rem; }
+.max-w-5xl { max-width: 64rem; }
+.max-w-6xl { max-width: 72rem; }
+.max-w-7xl { max-width: 80rem; }
 .max-h-\[400px\] { max-height: 400px; }
 .max-h-\[440px\] { max-height: 440px; }
 .max-h-\[85vh\] { max-height: 85vh; }
