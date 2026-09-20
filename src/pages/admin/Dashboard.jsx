@@ -237,38 +237,39 @@ export default function Dashboard() {
           <h1 className="text-2xl sm:text-3xl font-serif font-medium tracking-tight">
             Author Studio
           </h1>
-          <p className="text-xs font-sans text-[var(--text-secondary)] mt-1">
-            Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.email || user?.username || 'Admin'}</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <p className="text-xs font-sans text-[var(--text-secondary)]">
+              Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.email || user?.username || 'Admin'}</span>
+            </p>
+            {statusMessage && (
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] font-medium border border-[var(--border-subtle)] whitespace-nowrap">
+                {statusMessage}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {statusMessage && (
-            <span className="text-xs font-sans text-[var(--accent-warm)] font-medium">
-              {statusMessage}
-            </span>
-          )}
-
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={() => loadData(true)}
             disabled={refreshing}
-            className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer"
+            className="quiet-button-secondary text-xs flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
             title="Force update latest admin data"
           >
             <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
           </button>
 
-          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5" target="_blank" rel="noopener noreferrer">
+          <Link to="/" className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View Public Site</span>
           </Link>
 
-          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
+          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
             <ThemeToggle />
           </div>
 
-          <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5">
+          <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
           </button>

@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { supabase, getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
-import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured } from './b2.js';
+import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured, refreshB2Url } from './b2.js';
 
 dotenv.config();
 
@@ -561,14 +561,22 @@ app.get('/api/posts', async (req, res) => {
 
     if (error) throw error;
 
-    // Process posts: Redact passcode-protected posts ONLY for non-admins
-    const processed = (posts || []).map(post => {
+    // Process posts: Redact passcode-protected posts ONLY for non-admins & refresh B2 presigned URLs
+    const processed = await Promise.all((posts || []).map(async post => {
       const isPhoto = Boolean(
         post.type === 'photo' ||
         (post.category && post.category.toLowerCase() === 'photos')
       );
       const effectiveType = isPhoto ? 'photo' : post.type;
       const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
+
+      let freshCover = post.cover_image;
+      if (!freshCover || !freshCover.trim()) {
+        const imgMatch = post.content && post.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+        if (imgMatch) freshCover = imgMatch[0];
+      }
+      freshCover = await refreshB2Url(freshCover);
+      const freshContent = await refreshB2Url(post.content);
 
       if (!isAdmin && has_passcode) {
         return {
@@ -584,10 +592,12 @@ app.get('/api/posts', async (req, res) => {
       return {
         ...post,
         type: effectiveType,
+        cover_image: freshCover || post.cover_image || '',
+        content: freshContent || post.content || '',
         has_passcode: has_passcode,
         passcode: isAdmin ? (post.passcode || '') : undefined
       };
-    });
+    }));
 
     res.json(processed);
   } catch (err) {
@@ -669,6 +679,14 @@ app.get('/api/posts/:identifier', async (req, res) => {
     const effectiveType = isPhoto ? 'photo' : post.type;
     const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
 
+    let freshCover = post.cover_image;
+    if (!freshCover || !freshCover.trim()) {
+      const imgMatch = post.content && post.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+      if (imgMatch) freshCover = imgMatch[0];
+    }
+    freshCover = await refreshB2Url(freshCover);
+    const freshContent = await refreshB2Url(post.content);
+
     // For non-admins, redact protected content
     if (!isAdmin && has_passcode) {
       return res.json({
@@ -686,6 +704,8 @@ app.get('/api/posts/:identifier', async (req, res) => {
     res.json({
       ...post,
       type: effectiveType,
+      cover_image: freshCover || post.cover_image || '',
+      content: freshContent || post.content || '',
       has_passcode: has_passcode,
       passcode: isAdmin ? (post.passcode || '') : undefined
     });
@@ -766,6 +786,12 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
     const dbType = isPhotoType ? 'journal' : (['journal', 'writing', 'update'].includes(type) ? type : 'journal');
     const dbCategory = isPhotoType ? (category && category.trim() ? category.trim() : 'Photos') : (category ? category.trim() : 'General');
 
+    let finalCoverImage = cover_image ? cover_image.trim() : '';
+    if (!finalCoverImage && content) {
+      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+      if (imgMatch) finalCoverImage = imgMatch[1] || imgMatch[0];
+    }
+
     const entryData = {
       title: finalTitle,
       slug: finalSlug,
@@ -774,7 +800,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       status: ['published', 'draft', 'unlisted'].includes(status) ? status : 'published',
       category: dbCategory,
       tags: tags ? tags.trim() : '',
-      cover_image: cover_image ? cover_image.trim() : '',
+      cover_image: finalCoverImage,
       excerpt: stripMarkdown(excerpt || content, 150),
       date: date || new Date().toISOString(),
       location: location ? location.trim() : null,

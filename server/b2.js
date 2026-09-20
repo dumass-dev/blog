@@ -120,6 +120,30 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 3600) {
 }
 
 /**
+ * Extract storage key from Backblaze B2 URL or raw storage key
+ */
+export function extractB2StorageKey(urlOrKey) {
+  if (!urlOrKey || typeof urlOrKey !== 'string') return null;
+  const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+/i);
+  return match ? match[0] : null;
+}
+
+/**
+ * Refresh expired presigned Backblaze B2 URL in string if present
+ */
+export async function refreshB2Url(urlOrText) {
+  if (!urlOrText || typeof urlOrText !== 'string') return urlOrText;
+  const key = extractB2StorageKey(urlOrText);
+  if (!key) return urlOrText;
+
+  const freshUrl = await getB2SignedUrl(key, 86400); // 24 hours valid
+  if (!freshUrl) return urlOrText;
+
+  if (urlOrText === key) return freshUrl;
+  return urlOrText.replace(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/gi, freshUrl);
+}
+
+/**
  * Delete an object from Backblaze B2
  */
 export async function deleteFromB2(storageKey) {

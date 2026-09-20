@@ -572,6 +572,8 @@ a.quiet-button {
   align-items: center;
   justify-content: center;
   text-decoration: none !important;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .quiet-button:hover,
@@ -604,6 +606,8 @@ a.quiet-button-secondary {
   align-items: center;
   justify-content: center;
   text-decoration: none !important;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .quiet-button-secondary:hover,

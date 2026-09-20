@@ -22,7 +22,11 @@ export default function Journal() {
     const loadJournalEntries = async () => {
       const data = await fetchPublishedEntries({ type: 'journal' });
       if (isMounted) {
-        setEntries(Array.isArray(data) ? data : []);
+        const journalOnly = (Array.isArray(data) ? data : []).filter(item => 
+          item.type !== 'photo' && 
+          (!item.category || item.category.toLowerCase() !== 'photos')
+        );
+        setEntries(journalOnly);
         setLoading(false);
       }
     };

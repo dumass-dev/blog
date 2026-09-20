@@ -143,13 +143,23 @@ export default function Photos() {
   };
 
   const getPhotoSrc = (item) => {
+    if (!item) return null;
     if (item.cover_image && item.cover_image.trim()) {
       return item.cover_image;
     }
-    // Extract first image src from content markdown/HTML if present
-    const imgMatch = item.content && item.content.match(/!\[.*?\]\((.*?)\)/);
-    if (imgMatch && imgMatch[1]) return imgMatch[1];
+    if (!item.content) return null;
+    const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+    if (imgMatch) return imgMatch[1] || imgMatch[0];
     return null;
+  };
+
+  const getCleanCaption = (item) => {
+    if (!item || !item.content) return '';
+    const clean = item.content.replace(/!\[.*?\]\(.*?\)/g, '').trim();
+    if (clean && !clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return clean;
+    }
+    return '';
   };
 
   return (
@@ -322,9 +332,9 @@ export default function Photos() {
                     </button>
                   </div>
 
-                  {item.content && (
+                  {getCleanCaption(item) && (
                     <p className="font-sans text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed">
-                      {item.content}
+                      {getCleanCaption(item)}
                     </p>
                   )}
 
@@ -413,9 +423,9 @@ export default function Photos() {
 
               {/* Caption & Comments List */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans">
-                {activePhoto.content && (
+                {getCleanCaption(activePhoto) && (
                   <div className="pb-3 border-b border-[var(--border-subtle)] text-[var(--text-primary)] leading-relaxed">
-                    {activePhoto.content}
+                    {getCleanCaption(activePhoto)}
                   </div>
                 )}
 
