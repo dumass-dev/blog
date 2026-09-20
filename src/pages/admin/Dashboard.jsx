@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import Modal from '../../components/Modal';
+import ThemeToggle from '../../components/ThemeToggle';
 import {
   Plus,
   FileText,
@@ -262,6 +263,10 @@ export default function Dashboard() {
             <ExternalLink className="w-3.5 h-3.5" />
             <span>View Public Site</span>
           </Link>
+
+          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
+            <ThemeToggle />
+          </div>
 
           <button onClick={logout} className="quiet-button-secondary text-xs flex items-center gap-1.5">
             <LogOut className="w-3.5 h-3.5" />

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
+import ThemeToggle from '../../components/ThemeToggle';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -145,6 +146,10 @@ export default function Media() {
             <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span>{refreshing ? 'Syncing...' : 'Refresh'}</span>
           </button>
+
+          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
+            <ThemeToggle />
+          </div>
 
           <label className="quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />

@@ -331,9 +331,14 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
         <h1 class="title">q04ti API</h1>
         <p class="subtitle">Personal Journal, Essays & Backblaze Media Backend</p>
       </div>
-      <div class="status-badge">
-        <div class="dot"></div>
-        <span>Active</span>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <button id="theme-toggle-btn" class="status-badge" style="cursor: pointer; background: var(--card-bg);" title="Toggle Dark/Light Mode">
+          <span id="theme-toggle-text">☀️ Light</span>
+        </button>
+        <div class="status-badge">
+          <div class="dot"></div>
+          <span>Active</span>
+        </div>
       </div>
     </div>
 
@@ -388,6 +393,33 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
       </a>
     </div>
   </div>
+
+  <script>
+    const btn = document.getElementById('theme-toggle-btn');
+    const txt = document.getElementById('theme-toggle-text');
+
+    function updateTheme(t) {
+      if (t === 'light') {
+        document.documentElement.classList.add('light-theme');
+        if (txt) txt.textContent = '🌙 Dark';
+      } else {
+        document.documentElement.classList.remove('light-theme');
+        if (txt) txt.textContent = '☀️ Light';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('diary-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    updateTheme(savedTheme);
+
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const isCurrentlyLight = document.documentElement.classList.contains('light-theme');
+        const nextTheme = isCurrentlyLight ? 'dark' : 'light';
+        localStorage.setItem('diary-theme', nextTheme);
+        updateTheme(nextTheme);
+      });
+    }
+  </script>
 </body>
 </html>`;
 

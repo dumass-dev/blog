@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabase';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
+import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
 import {
   Save,
@@ -392,6 +393,10 @@ export default function Editor() {
               <Eye className="w-3.5 h-3.5" />
               <span>Preview</span>
             </button>
+          </div>
+
+          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
+            <ThemeToggle />
           </div>
 
           <button

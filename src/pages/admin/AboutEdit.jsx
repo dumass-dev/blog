@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import ThemeToggle from '../../components/ThemeToggle';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export default function AboutEdit() {
@@ -131,15 +132,21 @@ export default function AboutEdit() {
           <h1 className="text-xl font-serif font-medium">Edit About Page</h1>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={saving}
-          className="quiet-button text-xs flex items-center gap-1.5"
-        >
-          <Save className="w-3.5 h-3.5" />
-          <span>{saving ? 'Saving...' : 'Save Settings'}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
+            <ThemeToggle />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="quiet-button text-xs flex items-center gap-1.5"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? 'Saving...' : 'Save Settings'}</span>
+          </button>
+        </div>
       </div>
 
       {message && (
