@@ -75,7 +75,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
 
     if (type) {
       if (type === 'photo') {
-        query = query.or('category.ilike.%photos%,type.eq.photo');
+        query = query.or('type.eq.photo,category.ilike.*photos*');
       } else {
         query = query.eq('type', type);
       }
@@ -84,8 +84,30 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (tag) query = query.ilike('tags', `%${tag}%`);
     if (limit) query = query.limit(limit);
 
-    const { data, error } = await query;
-    if (error) throw error;
+    let { data, error } = await query;
+    
+    if (error || !data || (type === 'photo' && data.length === 0)) {
+      try {
+        const { data: allData } = await supabase
+          .from('entries')
+          .select('*')
+          .neq('status', 'draft')
+          .order('date', { ascending: false });
+
+        if (allData && allData.length > 0) {
+          if (type === 'photo') {
+            data = allData.filter(item => 
+              item.type === 'photo' || 
+              (item.category && item.category.toLowerCase().includes('photos')) ||
+              (item.cover_image && item.cover_image.trim() !== '')
+            );
+          } else {
+            data = allData;
+          }
+        }
+      } catch (fallbackErr) {}
+    }
+
     let rawList = data || [];
     if (forHomeFeed) {
       rawList = rawList.filter(item => item.show_in_feed !== false);

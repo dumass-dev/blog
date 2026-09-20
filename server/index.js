@@ -540,7 +540,7 @@ app.get('/api/posts', async (req, res) => {
 
     if (type) {
       if (type === 'photo') {
-        query = query.or('category.ilike.%photos%,type.eq.photo');
+        query = query.or('type.eq.photo,category.ilike.*photos*');
       } else {
         query = query.eq('type', type);
       }
@@ -558,9 +558,29 @@ app.get('/api/posts', async (req, res) => {
       query = query.limit(parseInt(limit, 10));
     }
 
-    const { data: posts, error } = await query;
+    let { data: posts, error } = await query;
 
-    if (error) throw error;
+    if (error || !posts || (type === 'photo' && posts.length === 0)) {
+      try {
+        const { data: fallbackPosts } = await getSupabaseClient(req)
+          .from('entries')
+          .select('*')
+          .eq('status', 'published')
+          .order('date', { ascending: false });
+
+        if (fallbackPosts && fallbackPosts.length > 0) {
+          if (type === 'photo') {
+            posts = fallbackPosts.filter(item => 
+              item.type === 'photo' || 
+              (item.category && item.category.toLowerCase().includes('photos')) ||
+              (item.cover_image && item.cover_image.trim() !== '')
+            );
+          } else {
+            posts = fallbackPosts;
+          }
+        }
+      } catch (fbErr) {}
+    }
 
     // Process posts: Redact passcode-protected posts ONLY for non-admins & refresh B2 presigned URLs
     const processed = await Promise.all((posts || []).map(async post => {

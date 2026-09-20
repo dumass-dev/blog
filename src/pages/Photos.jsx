@@ -29,11 +29,25 @@ export default function Photos() {
           const res = await fetch('/api/posts?type=photo');
           if (res.ok) {
             const data = await res.json();
-            photoEntries = data.filter(item => 
+            photoEntries = Array.isArray(data) ? data.filter(item => 
               item.type === 'photo' || 
-              (item.category && item.category.toLowerCase() === 'photos') ||
+              (item.category && item.category.toLowerCase().includes('photos')) ||
               (item.cover_image && item.cover_image.trim() !== '')
-            );
+            ) : [];
+          }
+        } catch {}
+      }
+
+      if (!photoEntries || photoEntries.length === 0) {
+        try {
+          const res = await fetch('/api/posts');
+          if (res.ok) {
+            const data = await res.json();
+            photoEntries = Array.isArray(data) ? data.filter(item => 
+              item.type === 'photo' || 
+              (item.category && item.category.toLowerCase().includes('photos')) ||
+              (item.cover_image && item.cover_image.trim() !== '')
+            ) : [];
           }
         } catch {}
       }
