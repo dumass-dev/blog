@@ -37,14 +37,13 @@ const serverStartTime = Date.now();
 
 /**
  * Strict Server-Side Admin Authentication Middleware (Fail Closed)
- * Verifies Supabase JWT token server-side and checks against ADMIN_USER_ID or ADMIN_EMAIL
+ * Verifies Supabase JWT token server-side and checks against ADMIN_USER_ID
  */
 async function requireAdminAuth(req, res, next) {
   const adminUserId = process.env.ADMIN_USER_ID;
-  const adminEmail = process.env.ADMIN_EMAIL;
 
-  if (!adminUserId && !adminEmail) {
-    console.error('SECURITY ERROR: Neither ADMIN_USER_ID nor ADMIN_EMAIL env var is configured on server. Denying access (Fail Closed).');
+  if (!adminUserId || adminUserId.trim() === '') {
+    console.error('SECURITY ERROR: ADMIN_USER_ID environment variable is missing. Access denied (Fail Closed).');
     return res.status(403).json({ error: 'Server authentication unconfigured. Access denied.' });
   }
 
@@ -59,26 +58,36 @@ async function requireAdminAuth(req, res, next) {
   }
 
   let user = null;
+  let authError = null;
+
   try {
     const client = getSupabaseClient(req);
     const authPromise = client.auth.getUser(token);
-    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: new Error('Auth timeout') }), 1000));
-    const res = await Promise.race([authPromise, timeoutPromise]);
-    if (res && !res.error && res.data && res.data.user) {
-      user = res.data.user;
+    const timeoutPromise = new Promise(resolve => 
+      setTimeout(() => resolve({ data: null, error: { message: 'Auth timeout', isTimeout: true } }), 5000)
+    );
+    const result = await Promise.race([authPromise, timeoutPromise]);
+    if (result) {
+      if (result.error) {
+        authError = result.error;
+      }
+      if (result.data && result.data.user) {
+        user = result.data.user;
+      }
     }
   } catch (err) {
-    user = null;
+    authError = err;
+  }
+
+  if (authError && (authError.isTimeout || authError.message === 'Auth timeout' || authError.status >= 500)) {
+    return res.status(503).json({ error: 'Authentication service unavailable. Fail closed.' });
   }
 
   if (!user) {
     return res.status(401).json({ error: 'Invalid, revoked, or expired authentication token.' });
   }
 
-  const matchesId = adminUserId && user.id === adminUserId;
-  const matchesEmail = adminEmail && user.email && user.email.toLowerCase() === adminEmail.toLowerCase();
-
-  if (!matchesId && !matchesEmail) {
+  if (user.id !== adminUserId) {
     return res.status(403).json({ error: 'Forbidden: Authenticated user is not authorized as owner/admin.' });
   }
 
@@ -899,7 +908,7 @@ app.delete('/api/comments/:id', requireAdminAuth, async (req, res) => {
     // Validate UUID format
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      return res.status(404).json({ error: 'Comment not found.' });
+      return res.status(400).json({ error: 'Invalid UUID format.' });
     }
 
     const client = getSupabaseClient(req);
