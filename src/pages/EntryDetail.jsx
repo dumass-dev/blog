@@ -238,25 +238,18 @@ export default function EntryDetail() {
 
       {/* Header */}
       <header className="mb-8">
-        <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
+        <div className="entry-meta-row text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-3 flex flex-wrap items-center min-w-0 max-w-full">
+          <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
             <time dateTime={entry.date}>{formatDate(entry.date)}</time>
-            <span className="opacity-40 font-normal">·</span>
           </span>
 
-          <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
+          <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
             <span>{entry.type}</span>
-            {(entry.category || entry.type !== 'update' || entry.views !== undefined) && (
-              <span className="opacity-40 font-normal">·</span>
-            )}
           </span>
 
           {entry.category && (
-            <span className="meta-item inline-flex items-center gap-2 whitespace-nowrap">
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
               <span>{entry.category}</span>
-              {(entry.type !== 'update' || entry.views !== undefined) && (
-                <span className="opacity-40 font-normal">·</span>
-              )}
             </span>
           )}
 
@@ -267,17 +260,14 @@ export default function EntryDetail() {
           )}
 
           {entry.type !== 'update' && (
-            <span className="meta-item inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
               <Clock className="w-3 h-3 opacity-60 shrink-0" />
               <span>{calcReadingTime(entry.content)}</span>
-              {entry.views !== undefined && entry.views !== null && (
-                <span className="opacity-40 font-normal ml-0.5">·</span>
-              )}
             </span>
           )}
 
           {entry.views !== undefined && entry.views !== null && (
-            <span className="meta-item inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
               <Eye className="w-3 h-3 opacity-60 shrink-0" />
               <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
             </span>

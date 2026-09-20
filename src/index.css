@@ -57,7 +57,7 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
   min-height: 100vh;
   overflow-wrap: break-word;
-  word-break: normal;
+  word-break: break-word;
 }
 
 /* Typography utilities */
