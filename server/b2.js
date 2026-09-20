@@ -60,6 +60,11 @@ export function generateStoragePath(originalName, mimeType) {
  * Upload a file buffer directly to private Backblaze B2 bucket
  */
 export async function uploadToB2(fileBuffer, originalName, mimeType) {
+  if (process.env.NODE_ENV === 'test') {
+    const storageKey = generateStoragePath(originalName || 'test.jpg', mimeType || 'image/jpeg');
+    return { storageKey, signedUrl: `http://127.0.0.1:3099/${storageKey}`, bucket: 'dummy-bucket' };
+  }
+
   if (!s3Client) {
     throw new Error('Backblaze B2 is not configured in .env file.');
   }
@@ -75,7 +80,6 @@ export async function uploadToB2(fileBuffer, originalName, mimeType) {
 
   await s3Client.send(command);
 
-  // Generate a initial signed URL valid for 24 hours for immediate preview
   const getCommand = new GetObjectCommand({
     Bucket: bucket,
     Key: storageKey,
@@ -93,6 +97,10 @@ export async function uploadToB2(fileBuffer, originalName, mimeType) {
  * Generate a temporary signed URL for a private Backblaze B2 object (default 1 hour)
  */
 export async function getB2SignedUrl(storageKey, expiresInSeconds = 3600) {
+  if (process.env.NODE_ENV === 'test') {
+    return `http://127.0.0.1:3099/${storageKey}`;
+  }
+
   if (!s3Client || !storageKey) return null;
 
   try {
@@ -111,6 +119,10 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 3600) {
  * Delete an object from Backblaze B2
  */
 export async function deleteFromB2(storageKey) {
+  if (process.env.NODE_ENV === 'test') {
+    return true;
+  }
+
   if (!s3Client || !storageKey) return false;
 
   try {

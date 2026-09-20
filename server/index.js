@@ -40,10 +40,11 @@ const serverStartTime = Date.now();
  * Verifies Supabase JWT token server-side and checks against ADMIN_USER_ID
  */
 async function requireAdminAuth(req, res, next) {
-  const adminUserId = process.env.ADMIN_USER_ID;
+  const rawAdminId = process.env.ADMIN_USER_ID || '';
+  const cleanAdminId = rawAdminId.trim().toLowerCase();
 
-  if (!adminUserId || adminUserId.trim() === '') {
-    console.error('SECURITY ERROR: ADMIN_USER_ID environment variable is missing. Access denied (Fail Closed).');
+  if (!cleanAdminId) {
+    console.error('SECURITY ERROR: ADMIN_USER_ID environment variable is missing or whitespace-only. Access denied (Fail Closed).');
     return res.status(403).json({ error: 'Server authentication unconfigured. Access denied.' });
   }
 
@@ -87,7 +88,9 @@ async function requireAdminAuth(req, res, next) {
     return res.status(401).json({ error: 'Invalid, revoked, or expired authentication token.' });
   }
 
-  if (user.id !== adminUserId) {
+  const cleanUserId = (user.id || '').trim().toLowerCase();
+
+  if (!cleanUserId || cleanUserId !== cleanAdminId) {
     return res.status(403).json({ error: 'Forbidden: Authenticated user is not authorized as owner/admin.' });
   }
 
@@ -435,9 +438,30 @@ app.get('/api/posts', async (req, res) => {
 
     let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false });
 
-    if (status && status !== 'all') {
-      query = query.eq('status', status);
-    } else if (!status) {
+    // Restrict status=all or status=draft to authenticated admin only
+    if (status === 'all' || status === 'draft') {
+      const authHeader = req.headers.authorization;
+      let isAdmin = false;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        const cleanAdminId = (process.env.ADMIN_USER_ID || '').trim().toLowerCase();
+        if (token && cleanAdminId) {
+          try {
+            const client = getSupabaseClient(req);
+            const { data } = await client.auth.getUser(token);
+            if (data && data.user && (data.user.id || '').trim().toLowerCase() === cleanAdminId) {
+              isAdmin = true;
+            }
+          } catch {}
+        }
+      }
+
+      if (!isAdmin) {
+        query = query.eq('status', 'published');
+      } else if (status === 'draft') {
+        query = query.eq('status', 'draft');
+      }
+    } else {
       // By default, public only sees published entries
       query = query.eq('status', 'published');
     }
@@ -912,20 +936,19 @@ app.delete('/api/comments/:id', requireAdminAuth, async (req, res) => {
     }
 
     const client = getSupabaseClient(req);
-    const { data: existing, error: findErr } = await client
+    const { data, error } = await client
       .from('comments')
-      .select('id')
+      .delete()
       .eq('id', id)
-      .maybeSingle();
+      .select('id');
 
-    if (findErr || !existing) {
-      return res.status(404).json({ error: 'Comment not found.' });
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Comment not found or delete not permitted.' });
     }
 
-    const { error: delErr } = await client.from('comments').delete().eq('id', id);
-    if (delErr) throw delErr;
-
-    res.json({ success: true });
+    res.json({ success: true, deleted_id: data[0].id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
