@@ -9,6 +9,47 @@ export default function Header() {
   const location = useLocation();
   const dropdownRef = useRef(null);
 
+  const [visible, setVisible] = useState(true);
+  const lastScrollYRef = useRef(0);
+  const rAFRef = useRef(null);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      if (rAFRef.current) return;
+
+      rAFRef.current = requestAnimationFrame(() => {
+        rAFRef.current = null;
+        const currentScrollY = window.scrollY;
+        const diff = currentScrollY - lastScrollYRef.current;
+
+        if (menuOpen) {
+          setVisible(true);
+        } else if (currentScrollY < 10) {
+          setVisible(true);
+        } else if (Math.abs(diff) >= 6) {
+          if (diff > 0 && currentScrollY > 80) {
+            setVisible(false);
+          } else if (diff < 0) {
+            setVisible(true);
+          }
+        }
+
+        lastScrollYRef.current = currentScrollY;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rAFRef.current) {
+        cancelAnimationFrame(rAFRef.current);
+      }
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     fetch('/api/about')
       .then(res => res.json())
@@ -49,8 +90,8 @@ export default function Header() {
   ];
 
   return (
-    <header className="notebook-container pt-8 pb-4 mb-10 border-b border-[var(--border-subtle)] relative">
-      <div className="flex justify-between items-baseline">
+    <header className={`sticky-header-wrapper mb-10 ${visible ? 'header-visible' : 'header-hidden'}`}>
+      <div className="notebook-container py-4 flex justify-between items-baseline relative">
         {/* Left: Serif Wordmark & Inline Text Links */}
         <div className="flex items-baseline space-x-6 sm:space-x-8">
           <Link

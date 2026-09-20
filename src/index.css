@@ -368,6 +368,44 @@ body {
   padding-right: 1.5rem;
 }
 
+/* Z-Index Token System */
+:root {
+  --z-header: 40;
+  --z-dropdown: 50;
+  --z-modal: 1000;
+}
+
+/* Scroll padding for sticky header anchor navigation */
+html {
+  scroll-padding-top: 5rem;
+}
+
+/* Sticky Header Wrapper */
+.sticky-header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background-color: var(--bg-main);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: transform 200ms ease, background-color 200ms ease;
+  will-change: transform;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.sticky-header-wrapper.header-hidden {
+  transform: translateY(-100%);
+}
+
+.sticky-header-wrapper.header-visible {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-header-wrapper {
+    transition: none !important;
+  }
+}
+
 /* Markdown and Rich Content Viewer - Minimal Big */
 .prose-editorial {
   font-family: var(--font-serif);
