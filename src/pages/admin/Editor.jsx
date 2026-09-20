@@ -292,20 +292,36 @@ export default function Editor() {
         };
 
         if (id) {
-          const { data: supaUpdated, error: supaErr } = await supabase
+          let { data: supaUpdated, error: supaErr } = await supabase
             .from('entries')
             .update(supaPayload)
             .eq('id', id)
             .select('*')
             .single();
+
+          if (supaErr && (supaErr.message.includes('show_in_feed') || supaErr.message.includes('schema cache'))) {
+            delete supaPayload.show_in_feed;
+            const retry = await supabase.from('entries').update(supaPayload).eq('id', id).select('*').single();
+            supaUpdated = retry.data;
+            supaErr = retry.error;
+          }
+
           if (supaErr) throw supaErr;
           savedData = supaUpdated;
         } else {
-          const { data: supaInserted, error: supaErr } = await supabase
+          let { data: supaInserted, error: supaErr } = await supabase
             .from('entries')
             .insert([supaPayload])
             .select('*')
             .single();
+
+          if (supaErr && (supaErr.message.includes('show_in_feed') || supaErr.message.includes('schema cache'))) {
+            delete supaPayload.show_in_feed;
+            const retry = await supabase.from('entries').insert([supaPayload]).select('*').single();
+            supaInserted = retry.data;
+            supaErr = retry.error;
+          }
+
           if (supaErr) throw supaErr;
           savedData = supaInserted;
         }

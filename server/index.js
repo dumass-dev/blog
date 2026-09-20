@@ -811,7 +811,14 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       show_in_feed: req.body.show_in_feed !== undefined ? Boolean(req.body.show_in_feed) : (type !== 'photo')
     };
 
-    const { data, error } = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
+    let { data, error } = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
+
+    if (error && (error.message.includes('show_in_feed') || error.message.includes('schema cache'))) {
+      delete entryData.show_in_feed;
+      const retry = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 
@@ -872,7 +879,14 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (passcode !== undefined) updates.passcode = passcode && passcode.trim() !== '' ? passcode.trim() : null;
     if (req.body.show_in_feed !== undefined) updates.show_in_feed = Boolean(req.body.show_in_feed);
 
-    const { data, error } = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
+    let { data, error } = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
+
+    if (error && (error.message.includes('show_in_feed') || error.message.includes('schema cache'))) {
+      delete updates.show_in_feed;
+      const retry = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 
