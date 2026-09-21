@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
-import bcrypt from 'bcryptjs';
 import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured, refreshB2Url } from './b2.js';
@@ -649,9 +648,8 @@ app.get('/api/posts/on-this-day', async (req, res) => {
     const day = String(today.getDate()).padStart(2, '0');
 
     const { data: posts, error } = await getSupabaseClient(req)
-      .from('entries')
+      .from('public_published_entries')
       .select('*')
-      .eq('status', 'published')
       .order('date', { ascending: false });
 
     if (error) throw error;
@@ -675,10 +673,11 @@ app.get('/api/posts/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     const isAdmin = await checkIsAdmin(req);
+    const table = isAdmin ? 'entries' : 'public_published_entries';
 
-    let query = getSupabaseClient(req).from('entries').select('*');
+    let query = getSupabaseClient(req).from(table).select('*');
 
-    // Non-admin requests only fetch published entries
+    // Non-admin requests only fetch published entries (redundant on view, but clean)
     if (!isAdmin) {
       query = query.eq('status', 'published');
     }
@@ -699,11 +698,9 @@ app.get('/api/posts/:identifier', async (req, res) => {
       return res.status(404).json({ error: 'Entry not found.' });
     }
 
-    // Increment view count in background
+    // Increment view count in background via RPC
     getSupabaseClient(req)
-      .from('entries')
-      .update({ views: (post.views || 0) + 1 })
-      .eq('id', post.id)
+      .rpc('increment_views', { target_slug: post.slug || post.id })
       .then(() => {})
       .catch(() => {});
 
@@ -720,31 +717,45 @@ app.get('/api/posts/:identifier', async (req, res) => {
       if (imgMatch) freshCover = imgMatch[0];
     }
     freshCover = await refreshB2Url(freshCover);
-    const freshContent = await refreshB2Url(post.content);
 
-    // For non-admins, redact protected content
-    if (!isAdmin && has_passcode) {
+    const isUnlocked = !has_passcode || (req.query.unlocked === 'true');
+
+    if (!isUnlocked) {
       return res.json({
-        ...post,
+        id: post.id,
+        slug: post.slug,
+        title: post.title,
+        date: post.date,
         type: effectiveType,
+        category: post.category,
+        tags: post.tags,
+        read_time: post.read_time,
+        location: post.location,
+        weather: post.weather,
+        mood: post.mood,
+        is_pinned: post.is_pinned,
+        views: post.views,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
         has_passcode: true,
-        passcode: undefined,
-        content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
+        is_protected: true,
         excerpt: '🔒 Protected entry',
-        cover_image: ''
+        cover_image: '',
+        content: '🔒 This entry is passcode-protected.'
       });
     }
 
-    // For admins or non-protected entries, return full unredacted post
+    const freshContent = await refreshB2Url(post.content);
+
     res.json({
       ...post,
       type: effectiveType,
       cover_image: freshCover || post.cover_image || '',
       content: freshContent || post.content || '',
-      has_passcode: has_passcode,
-      passcode: isAdmin ? (post.passcode || '') : undefined
+      has_passcode
     });
   } catch (err) {
+    console.error('Error fetching post:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -755,37 +766,33 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
     const { id } = req.params;
     const { passcode } = req.body;
 
-    let query = getSupabaseClient(req).from('entries').select('*');
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUuid) {
-      query = query.eq('id', id);
-    } else {
-      query = query.eq('slug', id);
+    if (!passcode || typeof passcode !== 'string') {
+      return res.status(400).json({ error: 'Passcode is required.' });
     }
 
-    const { data: posts, error } = await query;
-    if (error) throw error;
+    const { data, error } = await getSupabaseClient(req).rpc('get_protected_entry', {
+      target_identifier: id,
+      code: passcode.trim()
+    });
 
-    const post = posts && posts[0];
-    if (!post) return res.status(404).json({ error: 'Entry not found.' });
-
-    const cleanInput = String(passcode).trim();
-    const storedPasscode = (post.passcode || '').trim();
-    const isBcrypt = storedPasscode.startsWith('$2a$') || storedPasscode.startsWith('$2b$');
-    const isMatch = isBcrypt
-      ? bcrypt.compareSync(cleanInput, storedPasscode)
-      : storedPasscode === cleanInput;
-
-    if (isMatch) {
-      return res.json({
-        unlocked: true,
-        content: post.content,
-        cover_image: post.cover_image,
-        excerpt: post.excerpt
-      });
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
 
-    res.status(401).json({ unlocked: false, error: 'Incorrect passcode.' });
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || !result.unlocked) {
+      return res.status(401).json({ error: result?.error_message || 'Incorrect passcode.' });
+    }
+
+    const freshContent = await refreshB2Url(result.content);
+    const freshCover = await refreshB2Url(result.cover_image);
+
+    return res.json({
+      unlocked: true,
+      content: freshContent,
+      cover_image: freshCover,
+      excerpt: result.excerpt
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -848,9 +855,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       location: location ? location.trim() : null,
       weather: weather ? weather.trim() : null,
       mood: mood ? mood.trim() : null,
-      passcode: passcode && passcode.trim() !== '' 
-        ? (passcode.trim().startsWith('$2a$') || passcode.trim().startsWith('$2b$') ? passcode.trim() : bcrypt.hashSync(passcode.trim(), 10))
-        : null,
+      passcode: (passcode && passcode.trim() !== '') ? passcode.trim() : null,
       show_in_feed: req.body.show_in_feed !== undefined ? Boolean(req.body.show_in_feed) : (type !== 'photo')
     };
 
@@ -921,8 +926,7 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (mood !== undefined) updates.mood = mood;
     if (passcode !== undefined) {
       if (passcode && passcode.trim() !== '') {
-        const p = passcode.trim();
-        updates.passcode = (p.startsWith('$2a$') || p.startsWith('$2b$')) ? p : bcrypt.hashSync(p, 10);
+        updates.passcode = passcode.trim();
       } else {
         updates.passcode = null;
       }
@@ -1077,7 +1081,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
       if (posts && posts[0]) postId = posts[0].id;
     }
 
@@ -1108,7 +1112,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
       if (!posts || !posts[0]) return res.status(404).json({ error: 'Entry not found.' });
       postId = posts[0].id;
     }
@@ -1167,7 +1171,7 @@ app.get('/api/posts/:id/reactions', async (req, res) => {
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
       if (posts && posts[0]) postId = posts[0].id;
     }
 
@@ -1208,7 +1212,7 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
       if (!posts || !posts[0]) return res.status(404).json({ error: 'Post not found.' });
       postId = posts[0].id;
     }

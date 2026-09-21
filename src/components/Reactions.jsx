@@ -15,7 +15,7 @@ export default function Reactions({ postId }) {
         let realPostId = postId;
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
         if (!isUuid) {
-          const { data: posts } = await supabase.from('entries').select('id').eq('slug', postId);
+          const { data: posts } = await supabase.from('public_published_entries').select('id').eq('slug', postId);
           if (posts && posts[0]) realPostId = posts[0].id;
         }
 

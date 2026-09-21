@@ -123,18 +123,14 @@ export default function EntryDetail() {
         return;
       }
 
-      // Increment view count
+      // Increment view count via RPC
       const updatedViews = (postData.views || 0) + 1;
       postData.views = updatedViews;
 
-      if (postData.id) {
-        supabase
-          .from('entries')
-          .update({ views: updatedViews })
-          .eq('id', postData.id)
-          .then(() => {})
-          .catch(() => {});
-      }
+      supabase
+        .rpc('increment_views', { target_slug: slug || postData.slug || postData.id })
+        .then(() => {})
+        .catch(() => {});
 
       const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 

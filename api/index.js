@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcryptjs';
 import { getSupabaseClient } from '../server/supabase.js';
 import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
@@ -27,8 +26,15 @@ app.get('/api/b2/refresh', async (req, res) => {
       try {
         const parsed = new URL(url);
         const host = parsed.hostname.toLowerCase();
-        const configuredEndpoint = (process.env.BACKBLAZE_ENDPOINT || '').toLowerCase();
-        const isValidHost = host.includes('backblazeb2.com') || (configuredEndpoint && host.includes(configuredEndpoint));
+        const endpointHost = (process.env.BACKBLAZE_ENDPOINT || '').replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+        const bucket = (process.env.BACKBLAZE_BUCKET || '').toLowerCase();
+        const bucketHost = (bucket && endpointHost) ? `${bucket}.${endpointHost}` : '';
+
+        let isValidHost = false;
+        if (endpointHost && host === endpointHost) isValidHost = true;
+        if (bucketHost && host === bucketHost) isValidHost = true;
+        if (process.env.NODE_ENV === 'test' && (host === '127.0.0.1' || host === 'localhost')) isValidHost = true;
+
         if (!isValidHost) {
           return res.status(400).json({ error: 'Invalid or unpermitted media host domain.' });
         }
@@ -111,7 +117,7 @@ app.get('/api/posts/on-this-day', async (req, res) => {
 
     res.json(matched);
   } catch (_err) {
-    res.json([]);
+    res.status(500).json({ error: _err.message });
   }
 });
 
@@ -127,7 +133,8 @@ app.get('/api/posts', async (req, res) => {
       ? '*'
       : 'id, slug, title, date, category, tags, read_time, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
 
-    let query = getSupabaseClient(req).from('entries').select(fields).order('date', { ascending: false });
+    const table = isAdmin ? 'entries' : 'public_published_entries';
+    let query = getSupabaseClient(req).from(table).select(fields).order('date', { ascending: false });
 
     if (status === 'all' || status === 'draft') {
       if (!isAdmin) {
@@ -187,7 +194,7 @@ app.get('/api/posts', async (req, res) => {
 
     res.json(processed);
   } catch (_err) {
-    res.json([]);
+    res.status(500).json({ error: _err.message });
   }
 });
 
@@ -242,8 +249,11 @@ app.get('/api/posts/:slug', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=120');
     const { slug } = req.params;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+    const auth = await verifyAdminUser(req);
+    const isAdmin = auth.authorized;
+    const table = isAdmin ? 'entries' : 'public_published_entries';
 
-    let query = getSupabaseClient(req).from('entries').select('*');
+    let query = getSupabaseClient(req).from(table).select('*');
     if (isUuid) {
       query = query.eq('id', slug);
     } else {
@@ -293,8 +303,6 @@ app.get('/api/posts/:slug', async (req, res) => {
     }
 
     const post = data[0];
-    const auth = await verifyAdminUser(req);
-    const isAdmin = auth.authorized;
 
     if (post.status === 'draft' && !isAdmin) {
       return res.status(404).json({ error: 'Entry not found' });
@@ -315,9 +323,8 @@ app.get('/api/posts/:slug', async (req, res) => {
     const freshContent = await refreshB2Url(post.content);
 
     const { data: prevNextData } = await getSupabaseClient(req)
-      .from('entries')
+      .from('public_published_entries')
       .select('id, slug, title, date, type')
-      .eq('status', 'published')
       .order('date', { ascending: false });
 
     let prev = null;

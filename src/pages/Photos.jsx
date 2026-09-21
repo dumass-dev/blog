@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
@@ -52,7 +52,15 @@ export default function Photos() {
         if (Array.isArray(data)) setComments(data);
       })
       .catch(() => {});
-  }, [activePhoto?.id]);
+  }, [activePhoto]);
+
+  const navigatePhoto = useCallback((direction) => {
+    if (selectedPhotoIndex === null) return;
+    const newIdx = selectedPhotoIndex + direction;
+    if (newIdx >= 0 && newIdx < photos.length) {
+      setSelectedPhotoIndex(newIdx);
+    }
+  }, [selectedPhotoIndex, photos.length]);
 
   // Handle keypress for lightbox navigation
   useEffect(() => {
@@ -64,15 +72,7 @@ export default function Photos() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPhotoIndex, photos.length]);
-
-  const navigatePhoto = (direction) => {
-    if (selectedPhotoIndex === null) return;
-    const newIdx = selectedPhotoIndex + direction;
-    if (newIdx >= 0 && newIdx < photos.length) {
-      setSelectedPhotoIndex(newIdx);
-    }
-  };
+  }, [selectedPhotoIndex, photos.length, navigatePhoto]);
 
   const handleLike = async (photoId, e) => {
     if (e) e.stopPropagation();

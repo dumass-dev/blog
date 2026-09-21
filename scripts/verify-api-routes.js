@@ -19,13 +19,17 @@ async function runApiVerification() {
     { name: 'List Posts', path: '/api/posts', method: 'GET', expectedStatus: 200 },
     { name: 'On This Day Posts', path: '/api/posts/on-this-day', method: 'GET', expectedStatus: 200 },
     { name: 'About Metadata', path: '/api/about', method: 'GET', expectedStatus: 200 },
-    { name: 'B2 URL Refresh (Valid Storage Key)', path: `/api/b2/refresh?url=${encodeURIComponent('images/2026/09/12345678-1234-1234-1234-1234567890ab.jpg')}`, method: 'GET', expectedStatus: 200 },
+    { name: 'B2 URL Refresh (Valid Storage Key)', path: `/api/b2/refresh?url=${encodeURIComponent('https://s3.us-east-005.backblazeb2.com/images/2026/09/12345678-1234-1234-1234-1234567890ab.jpg')}`, method: 'GET', expectedStatus: 200 },
     { name: 'B2 URL Refresh (Disallowed Domain)', path: '/api/b2/refresh?url=http://example.com', method: 'GET', expectedStatus: 400 },
-    { name: 'Admin Stats (Anon)', path: '/api/stats', method: 'GET', expectedStatus: 401 },
+    { name: 'Admin Stats (No token)', path: '/api/stats', method: 'GET', expectedStatus: 401 },
+    { name: 'Admin Stats (Invalid token)', path: '/api/stats', method: 'GET', headers: { Authorization: 'Bearer invalid_token_xyz' }, expectedStatus: 401 },
     { name: 'Verify Passcode (Missing passcode)', path: '/api/posts/sample-slug/verify-passcode', method: 'POST', body: {}, expectedStatus: 400 },
-    { name: 'B2 Upload Presign (Anon)', path: '/api/b2-upload', method: 'POST', body: { filename: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
-    { name: 'Media Confirm (Anon)', path: '/api/media/confirm', method: 'POST', body: { storageKey: 'images/2026/09/test.jpg', originalName: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
-    { name: 'Media Library (Anon)', path: '/api/media', method: 'GET', expectedStatus: 401 }
+    { name: 'B2 Upload Presign (No token)', path: '/api/b2-upload', method: 'POST', body: { filename: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
+    { name: 'B2 Upload Presign (Invalid token)', path: '/api/b2-upload', method: 'POST', headers: { Authorization: 'Bearer invalid_token_xyz' }, body: { filename: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
+    { name: 'Media Confirm (No token)', path: '/api/media/confirm', method: 'POST', body: { storageKey: 'images/2026/09/test.jpg', originalName: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
+    { name: 'Media Confirm (Invalid token)', path: '/api/media/confirm', method: 'POST', headers: { Authorization: 'Bearer invalid_token_xyz' }, body: { storageKey: 'images/2026/09/test.jpg', originalName: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
+    { name: 'Media Library (No token)', path: '/api/media', method: 'GET', expectedStatus: 401 },
+    { name: 'Media Library (Invalid token)', path: '/api/media', method: 'GET', headers: { Authorization: 'Bearer invalid_token_xyz' }, expectedStatus: 401 }
   ];
 
   console.log('\n=============================================================');
@@ -43,7 +47,8 @@ async function runApiVerification() {
         path: ep.path,
         method: ep.method,
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(ep.headers || {})
         }
       };
 

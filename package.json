@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "lint": "eslint src api server scripts tests"
+    "lint": "eslint src api server scripts tests --max-warnings 0"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1136.0",

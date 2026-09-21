@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, CloudRain, Disc, Waves, Coffee } from 'lucide-react';
 
 export default function AmbientSound() {
@@ -28,7 +28,7 @@ export default function AmbientSound() {
     }
   };
 
-  const startAudio = (type) => {
+  const startAudio = useCallback((type) => {
     stopAudio();
 
     if (!audioCtxRef.current) {
@@ -104,7 +104,7 @@ export default function AmbientSound() {
     whiteNoise.start();
 
     sourceNodesRef.current.push(whiteNoise);
-  };
+  }, [volume]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -113,7 +113,7 @@ export default function AmbientSound() {
       stopAudio();
     }
     return () => stopAudio();
-  }, [isPlaying, soundType]);
+  }, [isPlaying, soundType, startAudio]);
 
   useEffect(() => {
     if (gainNodeRef.current && audioCtxRef.current) {

@@ -42,7 +42,16 @@ async function runPlaywrightAudit() {
   console.log('PLAYWRIGHT RESPONSIVE AUDIT (375px, 768px, 1280px)');
   console.log('=============================================================\n');
 
-  const server = await startStaticServer();
+  const baseUrl = process.env.BASE_URL ? process.env.BASE_URL.replace(/\/+$/, '') : null;
+  let server = null;
+
+  if (baseUrl) {
+    console.log(`Running audit in BASE_URL mode targeting: ${baseUrl}`);
+    console.log('(Skipping local static server, NO Supabase route mocking)\n');
+  } else {
+    server = await startStaticServer();
+  }
+
   const artifactsDir = path.join(projectRoot, 'scratch', 'playwright_screenshots');
   if (!fs.existsSync(artifactsDir)) {
     fs.mkdirSync(artifactsDir, { recursive: true });
@@ -87,14 +96,16 @@ async function runPlaywrightAudit() {
       const consoleErrors = [];
       const failedRequests = [];
 
-      // Route mock for un-migrated remote Supabase REST queries during local static testing
-      await page.route('**/*.supabase.co/rest/**', route => {
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([])
+      // Only mock remote Supabase REST queries when running in local static preview mode
+      if (!baseUrl) {
+        await page.route('**/*.supabase.co/rest/**', route => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([])
+          });
         });
-      });
+      }
 
       page.on('console', msg => {
         if (msg.type() === 'error') {
@@ -108,7 +119,7 @@ async function runPlaywrightAudit() {
         }
       });
 
-      const url = `http://127.0.0.1:${PORT}${route.path}`;
+      const url = baseUrl ? `${baseUrl}${route.path}` : `http://127.0.0.1:${PORT}${route.path}`;
 
       try {
         await page.goto(url, { waitUntil: 'networkidle', timeout: 10000 });
@@ -160,7 +171,7 @@ async function runPlaywrightAudit() {
   }
 
   await browser.close();
-  server.close();
+  if (server) server.close();
 
   console.log('\n-------------------------------------------------------------');
   console.log(`Playwright Audit Summary: ${passed}/${totalTests} Passed, ${failed} Failed.`);

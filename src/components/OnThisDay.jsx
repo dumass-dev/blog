@@ -28,9 +28,8 @@ export default function OnThisDay() {
         const day = String(today.getDate()).padStart(2, '0');
 
         const { data: supaPosts } = await supabase
-          .from('entries')
+          .from('public_published_entries')
           .select('*')
-          .neq('status', 'draft')
           .order('date', { ascending: false });
 
         const matched = (supaPosts || []).filter(post => {

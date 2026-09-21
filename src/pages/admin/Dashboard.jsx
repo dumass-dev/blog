@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
@@ -57,10 +57,15 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
 
-  const loadData = async (isManual = false) => {
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
+
+  const loadData = useCallback(async (isManual = false) => {
     if (isManual) {
       setRefreshing(true);
-    } else if (!entries.length) {
+    } else if (!entriesRef.current.length) {
       setLoading(true);
     }
 
@@ -125,7 +130,7 @@ export default function Dashboard() {
     setStats(currentStats);
 
     // 3. Fetch Reader Comments for Admin Moderation
-    let fetchedComments = comments;
+    let fetchedComments = commentsRef.current;
     try {
       const { data: supaComments } = await supabase
         .from('comments')
@@ -150,11 +155,11 @@ export default function Dashboard() {
       setStatusMessage('Refreshed just now');
       setTimeout(() => setStatusMessage(null), 3000);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, [token, loadData]);
 
   const handleDelete = async (id) => {
     let deleted = false;

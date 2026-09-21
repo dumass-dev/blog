@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 
@@ -11,7 +11,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchMedia = () => {
+  const fetchMedia = useCallback(() => {
     setLoading(true);
     fetch('/api/media', {
       headers: { Authorization: `Bearer ${token}` }
@@ -20,13 +20,13 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
       .then(data => setMediaList(Array.isArray(data) ? data : []))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  };
+  }, [token]);
 
   useEffect(() => {
     if (isOpen) {
       fetchMedia();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchMedia]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
@@ -23,17 +23,20 @@ function getPersistedMediaCache() {
 
 export default function Media() {
   const { token } = useAuth();
-  const [cachedMedia] = useState(() => getPersistedMediaCache());
-  const [mediaList, setMediaList] = useState(() => cachedMedia);
-  const [loading, setLoading] = useState(() => !cachedMedia.length);
+  const cachedInitial = getPersistedMediaCache();
+  const [mediaList, setMediaList] = useState(cachedInitial);
+  const [loading, setLoading] = useState(() => !cachedInitial.length);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [error, setError] = useState(null);
 
-  const fetchMedia = async (isManual = false) => {
+  const mediaListRef = useRef(mediaList);
+  mediaListRef.current = mediaList;
+
+  const fetchMedia = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
-    else if (!mediaList.length) setLoading(true);
+    else if (!mediaListRef.current.length) setLoading(true);
     setError(null);
 
     let list = [];
@@ -66,11 +69,11 @@ export default function Media() {
 
     setLoading(false);
     setRefreshing(false);
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchMedia();
-  }, [token]);
+  }, [token, fetchMedia]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
