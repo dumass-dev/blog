@@ -1,11 +1,18 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { getSupabaseClient } from '../server/supabase.js';
-import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey } from '../server/b2.js';
+import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 
 const app = express();
+
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -504,6 +511,52 @@ app.post('/api/media/presign', async (req, res) => {
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
+});
+
+// Multipart Media Upload Endpoint (Admin Only)
+app.post('/api/media/upload', async (req, res) => {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+      const file = req.file;
+
+      if (isB2Configured()) {
+        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype);
+        const mediaRow = {
+          storage_key: b2Result.storageKey,
+          original_name: file.originalname,
+          mime_type: file.mimetype,
+          size_bytes: file.size,
+          url: b2Result.signedUrl || b2Result.storageKey
+        };
+
+        const { data, error } = await getSupabaseClient(req)
+          .from('media')
+          .insert([mediaRow])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+
+        return res.status(201).json({
+          ...data,
+          signed_url: b2Result.signedUrl
+        });
+      } else {
+        return res.status(500).json({ error: 'Backblaze B2 credentials missing in server environment.' });
+      }
+    } catch (uploadErr) {
+      res.status(500).json({ error: uploadErr.message });
+    }
+  });
 });
 
 // Confirm Media Upload (Validates magic bytes & records DB row - Admin Only)

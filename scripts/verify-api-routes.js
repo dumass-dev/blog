@@ -28,6 +28,8 @@ async function runApiVerification() {
     { name: 'B2 Upload Presign (Invalid token)', path: '/api/b2-upload', method: 'POST', headers: { Authorization: 'Bearer invalid_token_xyz' }, body: { filename: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
     { name: 'Media Confirm (No token)', path: '/api/media/confirm', method: 'POST', body: { storageKey: 'images/2026/09/test.jpg', originalName: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
     { name: 'Media Confirm (Invalid token)', path: '/api/media/confirm', method: 'POST', headers: { Authorization: 'Bearer invalid_token_xyz' }, body: { storageKey: 'images/2026/09/test.jpg', originalName: 'test.jpg', mimeType: 'image/jpeg' }, expectedStatus: 401 },
+    { name: 'Media Upload (No token)', path: '/api/media/upload', method: 'POST', body: {}, expectedStatus: 401 },
+    { name: 'Media Upload (Invalid token)', path: '/api/media/upload', method: 'POST', headers: { Authorization: 'Bearer invalid_token_xyz' }, body: {}, expectedStatus: 401 },
     { name: 'Media Library (No token)', path: '/api/media', method: 'GET', expectedStatus: 401 },
     { name: 'Media Library (Invalid token)', path: '/api/media', method: 'GET', headers: { Authorization: 'Bearer invalid_token_xyz' }, expectedStatus: 401 }
   ];
