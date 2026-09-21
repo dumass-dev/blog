@@ -432,9 +432,9 @@ export default function EntryDetail() {
 
       {/* Next & Previous navigation */}
       <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-sans">
-        <div>
+        <div className="w-full sm:w-auto text-left">
           {prev ? (
-            <Link to={`/entry/${prev.slug}`} className="group block text-left">
+            <Link to={`/entry/${prev.slug}`} className="group block text-left min-h-[44px] py-1.5">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">← Previous</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
                 {prev.title}
@@ -443,9 +443,9 @@ export default function EntryDetail() {
           ) : null}
         </div>
 
-        <div className="text-right sm:text-right">
+        <div className="w-full sm:w-auto text-left sm:text-right">
           {next ? (
-            <Link to={`/entry/${next.slug}`} className="group block text-right">
+            <Link to={`/entry/${next.slug}`} className="group block text-left sm:text-right min-h-[44px] py-1.5">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">Next →</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
                 {next.title}
