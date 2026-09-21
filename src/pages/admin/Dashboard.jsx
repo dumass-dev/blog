@@ -55,6 +55,8 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
 
   const entriesRef = useRef(entries);
@@ -69,91 +71,93 @@ export default function Dashboard() {
       setLoading(true);
     }
 
-    // 1. Fetch Posts
-    let postsList = [];
-    try {
-      const apiPosts = await safeApiFetch('/api/posts?status=all', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (Array.isArray(apiPosts)) {
-        postsList = apiPosts;
-      }
-    } catch {}
-
-    if (postsList.length === 0) {
-      try {
-        const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
-        postsList = supaPosts || [];
-      } catch {}
-    }
-
-    const processedPosts = postsList.map(item => {
-      const isPhoto = Boolean(
-        item.type === 'photo' ||
-        (item.category && item.category.toLowerCase() === 'photos')
-      );
-      return {
-        ...item,
-        type: isPhoto ? 'photo' : item.type
-      };
-    });
-
-    setEntries(processedPosts);
-
-    // 2. Fetch Stats
-    let currentStats = null;
-    try {
-      const apiStats = await safeApiFetch('/api/stats', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
-        currentStats = apiStats;
-      }
-    } catch {}
-
-    if (!currentStats) {
-      const published = postsList.filter(e => e.status !== 'draft').length;
-      const drafts = postsList.filter(e => e.status === 'draft').length;
-      const updates = postsList.filter(e => e.type === 'update').length;
-      const totalViews = postsList.reduce((acc, curr) => acc + (curr.views || 0), 0);
-
-      currentStats = {
-        total: postsList.length,
-        published,
-        drafts,
-        updates,
-        mediaCount: 0,
-        totalViews,
-        topPosts: []
-      };
-    }
-    setStats(currentStats);
-
-    // 3. Fetch Reader Comments for Admin Moderation
     let fetchedComments = commentsRef.current;
+    let postsList = [];
+    let currentStats = null;
+
     try {
-      const { data: supaComments } = await supabase
-        .from('comments')
-        .select('*, entries(title, slug)')
-        .order('created_at', { ascending: false });
-      if (supaComments) {
-        fetchedComments = supaComments;
-        setComments(supaComments);
+      // 1. Fetch Posts
+      try {
+        const apiPosts = await safeApiFetch('/api/posts?status=all', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (Array.isArray(apiPosts)) {
+          postsList = apiPosts;
+        }
+      } catch {}
+
+      if (postsList.length === 0) {
+        try {
+          const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
+          postsList = supaPosts || [];
+        } catch {}
       }
-    } catch {}
 
-    setPersistedCache({
-      entries: postsList,
-      stats: currentStats,
-      comments: fetchedComments
-    });
+      const processedPosts = postsList.map(item => {
+        const isPhoto = Boolean(
+          item.type === 'photo' ||
+          (item.category && item.category.toLowerCase() === 'photos')
+        );
+        return {
+          ...item,
+          type: isPhoto ? 'photo' : item.type
+        };
+      });
 
-    setLoading(false);
-    setRefreshing(false);
+      setEntries(processedPosts);
 
-    if (isManual) {
-      setStatusMessage('Refreshed just now');
-      setTimeout(() => setStatusMessage(null), 3000);
+      // 2. Fetch Stats
+      try {
+        const apiStats = await safeApiFetch('/api/stats', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
+          currentStats = apiStats;
+        }
+      } catch {}
+
+      if (!currentStats) {
+        const published = postsList.filter(e => e.status !== 'draft').length;
+        const drafts = postsList.filter(e => e.status === 'draft').length;
+        const updates = postsList.filter(e => e.type === 'update').length;
+        const totalViews = postsList.reduce((acc, curr) => acc + (curr.views || 0), 0);
+
+        currentStats = {
+          total: postsList.length,
+          published,
+          drafts,
+          updates,
+          mediaCount: 0,
+          totalViews,
+          topPosts: []
+        };
+      }
+      setStats(currentStats);
+
+      try {
+        const { data: supaComments } = await supabase
+          .from('comments')
+          .select('*, entries(title, slug)')
+          .order('created_at', { ascending: false });
+        if (supaComments) {
+          fetchedComments = supaComments;
+          setComments(supaComments);
+        }
+      } catch {}
+
+      setPersistedCache({
+        entries: postsList,
+        stats: currentStats,
+        comments: fetchedComments
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+
+      if (isManual) {
+        setStatusMessage('Refreshed just now');
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
     }
   }, [token]);
 
@@ -162,32 +166,57 @@ export default function Dashboard() {
   }, [token, loadData]);
 
   const handleDelete = async (id) => {
+    if (!id || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+
     let deleted = false;
+    let errorMessage = null;
+
     try {
       const res = await fetch(`/api/posts/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) deleted = true;
-    } catch {}
+      
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.success) {
+        deleted = true;
+      } else {
+        errorMessage = body.error || `Server error (${res.status})`;
+      }
+    } catch (err) {
+      errorMessage = err.message || 'Network request failed';
+    }
 
-    if (!deleted && token) {
+    if (!deleted && token && !errorMessage) {
       try {
         const { error } = await supabase.from('entries').delete().eq('id', id);
-        if (!error) deleted = true;
-      } catch {}
+        if (!error) {
+          deleted = true;
+        } else {
+          errorMessage = error.message;
+        }
+      } catch (err) {
+        errorMessage = err.message;
+      }
     }
 
     if (deleted) {
       setDeleteTarget(null);
+      setDeleteError(null);
       setEntries(prev => {
         const updated = prev.filter(e => e.id !== id);
         setPersistedCache({ entries: updated, stats, comments });
         return updated;
       });
+      try {
+        localStorage.removeItem('cached_feed_posts_v2');
+      } catch {}
     } else {
-      alert('Failed to delete entry.');
+      setDeleteError(errorMessage || 'Failed to delete entry.');
     }
+    setIsDeleting(false);
   };
 
   const handleDeleteComment = async (commentId) => {
@@ -615,26 +644,35 @@ export default function Dashboard() {
       </div>
 
       {/* Delete Confirmation Modal using Portal */}
-      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirm Deletion">
+      <Modal isOpen={!!deleteTarget} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(null); } }} title="Confirm Deletion">
         <div className="flex flex-col space-y-4">
           <h3 className="text-lg font-serif font-medium text-[var(--text-primary)]">Confirm Deletion</h3>
           <p className="text-xs font-sans text-[var(--text-secondary)] leading-relaxed">
             Are you sure you want to permanently delete <strong className="text-[var(--text-primary)]">"{deleteTarget?.title || 'this entry'}"</strong>? This action cannot be undone.
           </p>
+
+          {deleteError && (
+            <div className="p-3 rounded bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-sans">
+              {deleteError}
+            </div>
+          )}
+
           <div className="flex justify-end space-x-3 pt-2 border-t border-[var(--border-subtle)]">
             <button
               type="button"
-              onClick={() => setDeleteTarget(null)}
-              className="quiet-button-secondary text-xs cursor-pointer select-none"
+              disabled={isDeleting}
+              onClick={() => { setDeleteTarget(null); setDeleteError(null); }}
+              className="quiet-button-secondary text-xs cursor-pointer select-none min-h-[44px] px-4 py-2.5 flex items-center justify-center"
             >
               Cancel
             </button>
             <button
               type="button"
+              disabled={isDeleting}
               onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
-              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)] cursor-pointer select-none"
+              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)] cursor-pointer select-none min-h-[44px] px-4 py-2.5 flex items-center justify-center font-medium"
             >
-              Delete Entry
+              {isDeleting ? 'Deleting...' : 'Delete Entry'}
             </button>
           </div>
         </div>

@@ -957,11 +957,19 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
 app.delete('/api/posts/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await getSupabaseClient(req).from('entries').delete().eq('id', id);
+
+    // Delete dependent comments & reactions first if DB lacks ON DELETE CASCADE
+    await getSupabaseClient(req).from('comments').delete().eq('post_id', id);
+    await getSupabaseClient(req).from('reactions').delete().eq('post_id', id);
+
+    const { data, error } = await getSupabaseClient(req).from('entries').delete().eq('id', id).select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Entry not found or deletion not allowed.' });
+    }
 
-    res.json({ success: true });
+    res.json({ success: true, message: 'Entry deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
