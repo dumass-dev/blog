@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
+import { useFeedData } from '../hooks/useFeedData';
+import useDocumentMeta from '../hooks/useDocumentMeta';
+import FeedSkeleton from '../components/FeedSkeleton';
 import { stripMarkdown } from '../utils/excerpt';
 
 function formatShortDate(dateStr) {
@@ -21,40 +23,15 @@ function calcReadingTimeText(text) {
 }
 
 export default function Journal() {
-  const cached = getCachedFeed('journal');
-  const [entries, setEntries] = useState(() => {
-    if (!Array.isArray(cached)) return [];
-    return cached.filter(item => 
-      item.type !== 'photo' && 
-      (!item.category || item.category.toLowerCase() !== 'photos')
-    );
+  useDocumentMeta({
+    title: 'Journal',
+    description: 'Personal thoughts, daily notebook entries, and life logs.'
   });
-  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadJournalEntries = async () => {
-      const data = await fetchPublishedEntries({ type: 'journal' });
-      if (isMounted) {
-        const journalOnly = (Array.isArray(data) ? data : []).filter(item => 
-          item.type !== 'photo' && 
-          (!item.category || item.category.toLowerCase() !== 'photos')
-        );
-        setEntries(journalOnly);
-        setLoading(false);
-      }
-    };
-
-    loadJournalEntries();
-    const unsubscribe = subscribeToEntries(() => {
-      loadJournalEntries();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
+  const { displayedEntries, loading, entries, hasMore, loadMore } = useFeedData({
+    type: 'journal',
+    pageSize: 8
+  });
 
   return (
     <div className="notebook-container">
@@ -66,26 +43,24 @@ export default function Journal() {
       </header>
 
       {loading ? (
-        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
-          Loading journal entries...
-        </div>
+        <FeedSkeleton count={4} />
       ) : entries.length === 0 ? (
         <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No journal entries published yet.
         </div>
       ) : (
         <div className="space-y-12">
-          {entries.map((item, idx) => {
+          {displayedEntries.map((item, idx) => {
             const itemDate = formatShortDate(item.date);
-            const prevItem = entries[idx - 1];
-            const nextItem = entries[idx + 1];
+            const prevItem = displayedEntries[idx - 1];
+            const nextItem = displayedEntries[idx + 1];
             const prevDate = prevItem ? formatShortDate(prevItem.date) : null;
             const nextDate = nextItem ? formatShortDate(nextItem.date) : null;
 
             const isGrouped = (prevDate === itemDate || nextDate === itemDate);
             const isFirstInGroup = isGrouped && (prevDate !== itemDate);
             const categoryLabel = (item.category || 'JOURNAL').toUpperCase();
-            const readTimeText = calcReadingTimeText(item.content);
+            const readTimeText = calcReadingTimeText(item.excerpt || item.content);
 
             return (
               <React.Fragment key={item.id || idx}>
@@ -125,11 +100,11 @@ export default function Journal() {
                   </h2>
 
                   <p className="text-[var(--text-secondary)] font-serif text-sm sm:text-base leading-relaxed mb-4 italic opacity-90 line-clamp-2">
-                    {stripMarkdown(item.excerpt || (item.content.length > 200 ? item.content.substring(0, 200) + '...' : item.content))}
+                    {stripMarkdown(item.excerpt || item.title)}
                   </p>
 
                   {item.tags && (
-                    <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-3 min-w-0 max-w-full">
+                    <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-1 min-w-0 max-w-full">
                       {item.tags.split(',').map((tag, i) => (
                         <span key={`${tag.trim()}-${i}`} className="hover:text-[var(--text-primary)] inline-block max-w-full truncate">
                           #{tag.trim()}
@@ -137,17 +112,21 @@ export default function Journal() {
                       ))}
                     </div>
                   )}
-
-                  <Link
-                    to={`/entry/${item.slug}`}
-                    className="text-xs font-sans tracking-wider text-[var(--text-primary)] uppercase underline underline-offset-4 decoration-[var(--border-subtle)] hover:decoration-[var(--accent-warm)] transition-colors"
-                  >
-                    Read entry →
-                  </Link>
                 </article>
               </React.Fragment>
             );
           })}
+
+          {hasMore && (
+            <div className="pt-6 text-center">
+              <button
+                onClick={loadMore}
+                className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+              >
+                Load more journal entries ↓
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

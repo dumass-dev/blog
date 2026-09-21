@@ -21,8 +21,8 @@ export default function AmbientSound() {
   const stopAudio = () => {
     if (sourceNodesRef.current.length) {
       sourceNodesRef.current.forEach(node => {
-        try { node.stop(); } catch (e) {}
-        try { node.disconnect(); } catch (e) {}
+        try { node.stop(); } catch (_e) {}
+        try { node.disconnect(); } catch (_e) {}
       });
       sourceNodesRef.current = [];
     }

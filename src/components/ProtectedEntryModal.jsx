@@ -46,32 +46,27 @@ export default function ProtectedEntryModal({ postId, entry, onUnlock, onSuccess
       // API call failed, continue to Supabase fallback
     }
 
-    // Direct Supabase fallback
+    // Direct Supabase RPC fallback (never queries raw passcode column)
     try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      let query = supabase.from('entries').select('*');
-      if (isUuid) {
-        query = query.eq('id', targetId);
-      } else {
-        query = query.eq('slug', targetId);
-      }
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('get_protected_entry', {
+        target_identifier: String(targetId),
+        code: passcode.trim()
+      });
 
-      const { data: posts } = await query;
-      const post = posts && posts[0];
+      if (rpcErr) throw rpcErr;
 
-      if (!post) throw new Error('Entry not found.');
-
-      if (post.passcode && post.passcode.trim() === passcode.trim()) {
+      const resObj = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
+      if (resObj && resObj.unlocked) {
         handleSuccess({
           unlocked: true,
-          content: post.content,
-          cover_image: post.cover_image,
-          excerpt: post.excerpt
+          content: resObj.content,
+          cover_image: resObj.cover_image,
+          excerpt: resObj.excerpt
         });
         return;
       }
 
-      throw new Error('Incorrect passcode.');
+      throw new Error(resObj?.error_message || 'Incorrect passcode.');
     } catch (err) {
       setError(err.message || 'Incorrect passcode.');
     } finally {

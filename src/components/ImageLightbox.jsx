@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ZoomIn, ZoomOut, Camera, Sliders } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, Camera } from 'lucide-react';
 import Modal from './Modal';
 
 export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {

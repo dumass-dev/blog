@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
+import useDocumentMeta from '../hooks/useDocumentMeta';
+import { useFeedData } from '../hooks/useFeedData';
+import FeedSkeleton from '../components/FeedSkeleton';
 
 function formatUpdateTimestamp(dateStr) {
   const d = new Date(dateStr);
@@ -29,30 +31,15 @@ function formatUpdateTimestamp(dateStr) {
 }
 
 export default function Updates() {
-  const cached = getCachedFeed('update');
-  const [updates, setUpdates] = useState(() => (Array.isArray(cached) ? cached : []));
-  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
+  useDocumentMeta({
+    title: 'Updates',
+    description: 'Lightweight micro-stream of notes, moments, and daily thoughts.'
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadUpdates = async () => {
-      const data = await fetchPublishedEntries({ type: 'update' });
-      if (isMounted) {
-        setUpdates(data);
-        setLoading(false);
-      }
-    };
-
-    loadUpdates();
-    const unsubscribe = subscribeToEntries(() => {
-      loadUpdates();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
+  const { displayedEntries: updates, loading, entries, hasMore, loadMore } = useFeedData({
+    type: 'update',
+    pageSize: 10
+  });
 
   return (
     <div className="notebook-container">
@@ -64,10 +51,8 @@ export default function Updates() {
       </header>
 
       {loading ? (
-        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
-          Loading updates...
-        </div>
-      ) : updates.length === 0 ? (
+        <FeedSkeleton type="update" count={4} />
+      ) : entries.length === 0 ? (
         <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No updates posted yet.
         </div>
@@ -85,7 +70,7 @@ export default function Updates() {
 
               {/* Content blockquote / text */}
               <blockquote className="font-serif text-lg text-[var(--text-primary)] leading-relaxed italic border-l-0 pl-0 my-0">
-                "{item.content}"
+                "{item.excerpt || item.title}"
               </blockquote>
 
               <div className="mt-1">
@@ -98,6 +83,17 @@ export default function Updates() {
               </div>
             </div>
           ))}
+
+          {hasMore && (
+            <div className="pt-6 text-center">
+              <button
+                onClick={loadMore}
+                className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+              >
+                Load more updates ↓
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

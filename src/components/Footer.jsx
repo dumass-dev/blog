@@ -1,7 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Lock, LayoutDashboard } from 'lucide-react';
 
 export default function Footer() {
   return (

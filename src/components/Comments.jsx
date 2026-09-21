@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSquare, Send, User, Trash2 } from 'lucide-react';
-import { supabase, safeApiFetch, subscribeToComments } from '../supabase';
+import { supabase, subscribeToComments } from '../supabase';
 import { useAuth } from '../context/AuthContext';
 
 function formatDate(dateStr) {
@@ -79,7 +79,7 @@ export default function Comments({ postId }) {
       // Fallback
     }
 
-    if (!deleted) {
+    if (!deleted && isAdmin) {
       try {
         const { error: supaErr } = await supabase.from('comments').delete().eq('id', commentId);
         if (supaErr) throw supaErr;
@@ -95,12 +95,21 @@ export default function Comments({ postId }) {
     setDeletingId(null);
   };
 
+  const [honeypot, setHoneypot] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!content.trim()) return;
+    if (honeypot) {
+      // Bot detected via honeypot field fill
+      setContent('');
+      setMessage('Your comment has been received.');
+      return;
+    }
 
     setError(null);
     setMessage(null);
+    setSubmitting(true);
 
     const name = authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader';
     const trimmedContent = content.trim();
@@ -157,6 +166,7 @@ export default function Comments({ postId }) {
         // Revert optimistic comment if server insert fails
         setComments(prev => prev.filter(c => c.id !== tempId));
         setError(err.message || 'Failed posting comment.');
+        setSubmitting(false);
         return;
       }
     }
@@ -164,6 +174,7 @@ export default function Comments({ postId }) {
     if (realComment) {
       setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
     }
+    setSubmitting(false);
   };
 
   return (
@@ -234,6 +245,18 @@ export default function Comments({ postId }) {
             {error}
           </div>
         )}
+
+        {/* Bot Honeypot field (hidden from real users) */}
+        <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
+          <input
+            type="text"
+            name="hp_website"
+            value={honeypot}
+            onChange={e => setHoneypot(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+          />
+        </div>
 
         <div>
           <input

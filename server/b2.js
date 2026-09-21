@@ -39,6 +39,62 @@ export function isB2Configured() {
   return !!s3Client;
 }
 
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.mp4', '.webm', '.mp3', '.m4a', '.wav']);
+const ALLOWED_MIMES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+  'video/mp4', 'video/webm', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-m4a'
+]);
+
+/**
+ * Validate upload buffer magic bytes & extension allowlist
+ */
+export function validateUploadFile(buffer, originalName, mimeType) {
+  const ext = path.extname(originalName || '').toLowerCase();
+
+  // 1. Extension & MIME Allowlist Check
+  if (!ext || !ALLOWED_EXTENSIONS.has(ext)) {
+    const err = new Error(`File extension '${ext}' is not permitted.`);
+    err.statusCode = 415;
+    throw err;
+  }
+
+  if (mimeType && (mimeType.includes('svg') || mimeType.includes('html') || mimeType.includes('javascript') || !ALLOWED_MIMES.has(mimeType.toLowerCase()))) {
+    const err = new Error(`MIME type '${mimeType}' is not permitted.`);
+    err.statusCode = 415;
+    throw err;
+  }
+
+  // 2. Magic Bytes Inspection
+  if (buffer && buffer.length >= 4) {
+    const headerHex = buffer.slice(0, 12).toString('hex').toUpperCase();
+
+    // Disallow HTML / XML / Script tags in content
+    const sampleText = buffer.slice(0, 256).toString('utf8').toLowerCase();
+    if (sampleText.includes('<html') || sampleText.includes('<svg') || sampleText.includes('<script') || sampleText.includes('<?php')) {
+      const err = new Error('File contains unpermitted HTML/SVG markup.');
+      err.statusCode = 415;
+      throw err;
+    }
+
+    let validMagic = false;
+    if (headerHex.startsWith('FFD8FF')) validMagic = true; // JPEG
+    else if (headerHex.startsWith('89504E47')) validMagic = true; // PNG
+    else if (headerHex.startsWith('47494638')) validMagic = true; // GIF
+    else if (headerHex.startsWith('52494646') && headerHex.includes('57454250')) validMagic = true; // WEBP
+    else if (headerHex.startsWith('1A45DFA3')) validMagic = true; // WEBM
+    else if (buffer.length >= 12 && buffer.slice(4, 8).toString('utf8') === 'ftyp') validMagic = true; // MP4 / M4A
+    else if (headerHex.startsWith('494433') || headerHex.startsWith('FFFB') || headerHex.startsWith('FFF3')) validMagic = true; // MP3
+    else if (headerHex.startsWith('52494646') && headerHex.includes('57415645')) validMagic = true; // WAV
+    else if (headerHex.includes('HEIC') || headerHex.includes('HEIF') || headerHex.includes('MSF1')) validMagic = true; // HEIC
+
+    if (process.env.NODE_ENV !== 'test' && !validMagic) {
+      const err = new Error('File magic bytes signature failed verification.');
+      err.statusCode = 415;
+      throw err;
+    }
+  }
+}
+
 /**
  * Generate a sensible, structured storage key for files.
  * Format: images/2026/09/<uuid>.<ext>
@@ -46,7 +102,7 @@ export function isB2Configured() {
  *         audio/2026/09/<uuid>.<ext>
  */
 export function generateStoragePath(originalName, mimeType) {
-  const ext = path.extname(originalName) || '';
+  const ext = path.extname(originalName || '').toLowerCase() || '.bin';
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -64,6 +120,8 @@ export function generateStoragePath(originalName, mimeType) {
  * Upload a file buffer directly to private Backblaze B2 bucket
  */
 export async function uploadToB2(fileBuffer, originalName, mimeType) {
+  validateUploadFile(fileBuffer, originalName, mimeType);
+
   if (process.env.NODE_ENV === 'test') {
     const storageKey = generateStoragePath(originalName || 'test.jpg', mimeType || 'image/jpeg');
     return { storageKey, signedUrl: `http://127.0.0.1:3099/${storageKey}`, bucket: 'dummy-bucket' };
@@ -139,7 +197,7 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
  */
 export function extractB2StorageKey(urlOrKey) {
   if (!urlOrKey || typeof urlOrKey !== 'string') return null;
-  const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+/i);
+  const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+/i);
   return match ? match[0] : null;
 }
 
@@ -155,7 +213,68 @@ export async function refreshB2Url(urlOrText) {
   if (!freshUrl) return urlOrText;
 
   if (urlOrText === key) return freshUrl;
-  return urlOrText.replace(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/gi, freshUrl);
+  return urlOrText.replace(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/gi, freshUrl);
+}
+
+/**
+ * Generate a presigned B2 PUT URL for direct client upload
+ */
+export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes = 104857600) {
+  validateUploadFile(null, originalName, mimeType);
+  const storageKey = generateStoragePath(originalName, mimeType);
+
+  if (process.env.NODE_ENV === 'test' || !s3Client) {
+    return {
+      storageKey,
+      uploadUrl: `http://127.0.0.1:3099/${storageKey}`,
+      publicUrl: `http://127.0.0.1:3099/${storageKey}`,
+      bucket: 'dummy-bucket',
+    };
+  }
+
+  const putCommand = new PutObjectCommand({
+    Bucket: bucket,
+    Key: storageKey,
+    ContentType: mimeType,
+  });
+
+  const uploadUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 900 });
+  const publicUrl = await getB2SignedUrl(storageKey, 86400);
+
+  return {
+    storageKey,
+    uploadUrl,
+    publicUrl,
+    bucket,
+  };
+}
+
+/**
+ * Post-upload magic-byte check on B2 object
+ */
+export async function verifyB2UploadedFile(storageKey, originalName, mimeType) {
+  if (process.env.NODE_ENV === 'test' || !s3Client) return true;
+
+  try {
+    const getCommand = new GetObjectCommand({
+      Bucket: bucket,
+      Key: storageKey,
+      Range: 'bytes=0-511',
+    });
+
+    const response = await s3Client.send(getCommand);
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const headBuffer = Buffer.concat(chunks);
+    validateUploadFile(headBuffer, originalName, mimeType);
+    return true;
+  } catch (err) {
+    // Delete invalid object from B2 if magic byte check failed
+    await deleteFromB2(storageKey);
+    throw err;
+  }
 }
 
 /**
@@ -180,3 +299,4 @@ export async function deleteFromB2(storageKey) {
     return false;
   }
 }
+

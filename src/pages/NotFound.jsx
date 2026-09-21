@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 export default function NotFound() {
+  useDocumentMeta({ title: '404 Page Not Found' });
   return (
     <div className="notebook-container py-24 text-center">
       <h1 className="text-4xl font-serif font-medium mb-3">404</h1>

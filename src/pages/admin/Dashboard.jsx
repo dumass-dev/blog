@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import Modal from '../../components/Modal';
@@ -15,9 +15,7 @@ import {
   Search,
   UserCheck,
   LogOut,
-  FolderArchive,
   Eye,
-  TrendingUp,
   RotateCw,
   Lock
 } from 'lucide-react';
@@ -45,7 +43,6 @@ function setPersistedCache(data) {
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
-  const navigate = useNavigate();
 
   const [cachedData] = useState(() => getPersistedCache());
 
@@ -169,7 +166,7 @@ export default function Dashboard() {
       if (res.ok) deleted = true;
     } catch {}
 
-    if (!deleted) {
+    if (!deleted && token) {
       try {
         const { error } = await supabase.from('entries').delete().eq('id', id);
         if (!error) deleted = true;
@@ -201,7 +198,7 @@ export default function Dashboard() {
       if (res.ok) deleted = true;
     } catch {}
 
-    if (!deleted) {
+    if (!deleted && token) {
       try {
         const { error } = await supabase.from('comments').delete().eq('id', commentId);
         if (!error) deleted = true;

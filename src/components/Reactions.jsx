@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Lightbulb, Coffee, Heart, Sparkles } from 'lucide-react';
-import { supabase, safeApiFetch, subscribeToReactions } from '../supabase';
+import { supabase, subscribeToReactions } from '../supabase';
 
 export default function Reactions({ postId }) {
   const [counts, setCounts] = useState({ thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 });
   const [userReacted, setUserReacted] = useState({});
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!postId) return;
@@ -34,12 +33,9 @@ export default function Reactions({ postId }) {
 
         if (isMounted) {
           setCounts(newCounts);
-          setLoading(false);
         }
       } catch {
         // Keep default counts
-      } finally {
-        if (isMounted) setLoading(false);
       }
 
       try {
@@ -47,7 +43,7 @@ export default function Reactions({ postId }) {
         if (stored && isMounted) {
           setUserReacted(JSON.parse(stored));
         }
-      } catch (e) {}
+      } catch (_e) {}
     };
 
     loadReactions();
@@ -71,7 +67,7 @@ export default function Reactions({ postId }) {
 
     try {
       localStorage.setItem(`reacted_${postId}`, JSON.stringify(newReacted));
-    } catch (e) {}
+    } catch (_e) {}
 
     let updatedCounts = null;
 

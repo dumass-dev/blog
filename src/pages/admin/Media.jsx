@@ -56,7 +56,7 @@ export default function Media() {
         if (!supaErr && Array.isArray(supaMedia)) {
           list = supaMedia;
         }
-      } catch (e) {}
+      } catch (_e) {}
     }
 
     setMediaList(list);

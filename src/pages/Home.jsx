@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Cloud, Smile, Lock } from 'lucide-react';
-import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
+import { MapPin, Cloud, Smile } from 'lucide-react';
+import { useFeedData } from '../hooks/useFeedData';
+import useDocumentMeta from '../hooks/useDocumentMeta';
+import FeedSkeleton from '../components/FeedSkeleton';
 import { stripMarkdown } from '../utils/excerpt';
 import { handleImageError } from '../utils/image';
 
@@ -26,37 +28,21 @@ function getPhotoSrc(item) {
   if (!item) return null;
   if (item.cover_image && item.cover_image.trim()) return item.cover_image;
   if (!item.content) return null;
-  const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+  const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
   if (imgMatch) return imgMatch[1] || imgMatch[0];
   return null;
 }
 
 export default function Home() {
-  const cached = getCachedFeed('home');
-  const [entries, setEntries] = useState(() => (Array.isArray(cached) ? cached.filter(item => item.show_in_feed !== false) : []));
-  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
+  useDocumentMeta({
+    title: 'Chronological Feed',
+    description: 'A stream of essays, notes, thoughts, photos, and recent updates.'
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadHomeEntries = async () => {
-      const data = await fetchPublishedEntries({ limit: 15, forHomeFeed: true });
-      if (isMounted) {
-        const feed = (Array.isArray(data) ? data : []).filter(item => item.show_in_feed !== false);
-        setEntries(feed);
-        setLoading(false);
-      }
-    };
-
-    loadHomeEntries();
-    const unsubscribe = subscribeToEntries(() => {
-      loadHomeEntries();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
+  const { displayedEntries, loading, entries, hasMore, loadMore } = useFeedData({
+    forHomeFeed: true,
+    pageSize: 10
+  });
 
   return (
     <div className="notebook-container">
@@ -70,19 +56,17 @@ export default function Home() {
       </header>
 
       {loading ? (
-        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
-          Loading entries...
-        </div>
+        <FeedSkeleton count={4} />
       ) : entries.length === 0 ? (
         <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No published entries yet.
         </div>
       ) : (
         <div className="space-y-8 sm:space-y-12">
-          {entries.map((item, idx) => {
+          {displayedEntries.map((item, idx) => {
             const itemDate = formatShortDate(item.date);
-            const prevItem = entries[idx - 1];
-            const nextItem = entries[idx + 1];
+            const prevItem = displayedEntries[idx - 1];
+            const nextItem = displayedEntries[idx + 1];
             const prevDate = prevItem ? formatShortDate(prevItem.date) : null;
             const nextDate = nextItem ? formatShortDate(nextItem.date) : null;
 
@@ -95,13 +79,12 @@ export default function Home() {
             );
             const effectiveType = isPhoto ? 'photo' : item.type;
             const categoryLabel = (item.category || effectiveType || 'journal').toUpperCase();
-            const readTimeText = calcReadingTimeText(item.content);
+            const readTimeText = calcReadingTimeText(item.excerpt || item.content);
             const photoSrc = isPhoto || item.cover_image ? getPhotoSrc(item) : null;
             const isLockedPasscode = item.has_passcode && item.content && item.content.includes('🔒');
 
             return (
               <React.Fragment key={item.id || idx}>
-                {/* Date Header for grouped date entries */}
                 {isFirstInGroup && (
                   <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-wider uppercase pt-2 pb-1 mb-2 border-b border-[var(--border-subtle)]/50">
                     {itemDate}
@@ -109,7 +92,6 @@ export default function Home() {
                 )}
 
                 <article className="group pb-8 sm:pb-10 border-b border-[var(--border-subtle)]/70 last:border-0">
-                  {/* Simplified Meta Line: JOURNAL · 20 Sep 2026 (or JOURNAL if in date group) */}
                   <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-1.5">
                     <span>{categoryLabel}</span>
                     {!isGrouped && itemDate && (
@@ -132,7 +114,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Title if present */}
                   {effectiveType !== 'update' ? (
                     <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
                       <Link
@@ -144,7 +125,6 @@ export default function Home() {
                     </h2>
                   ) : null}
 
-                  {/* Context Badges (Location, Weather, Mood) */}
                   {(item.location || item.weather || item.mood) && (
                     <div className="flex flex-wrap gap-3 text-xs font-sans text-[var(--text-secondary)] mb-3 italic">
                       {item.location && (
@@ -168,7 +148,6 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Photo Thumbnail Preview for Photo entries */}
                   {effectiveType === 'photo' && photoSrc && !isLockedPasscode && (
                     <div className="my-3.5 rounded-lg overflow-hidden border border-[var(--border-subtle)] max-w-md bg-black/5">
                       <Link to="/photos">
@@ -183,37 +162,24 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Preview Content / Excerpt - Smaller than currently, muted gray, clamped to 2 lines */}
                   <div className="text-[var(--text-secondary)] font-serif leading-relaxed italic text-sm sm:text-base opacity-90 line-clamp-2">
-                    {stripMarkdown(item.excerpt || (item.content.length > 220 ? item.content.substring(0, 220) + '...' : item.content))}
+                    {stripMarkdown(item.excerpt || item.title)}
                   </div>
-
-                  {/* Action Link */}
-                  {effectiveType === 'photo' ? (
-                    <div className="mt-3.5">
-                      <Link
-                        to="/photos"
-                        className="text-xs font-sans tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] uppercase underline decoration-[var(--border-subtle)] underline-offset-4 transition-colors inline-flex items-center gap-1"
-                      >
-                        <span>View photo</span>
-                        <span>→</span>
-                      </Link>
-                    </div>
-                  ) : effectiveType !== 'update' ? (
-                    <div className="mt-3.5">
-                      <Link
-                        to={`/entry/${item.slug}`}
-                        className="text-xs font-sans tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] uppercase underline decoration-[var(--border-subtle)] underline-offset-4 transition-colors inline-flex items-center gap-1"
-                      >
-                        <span>Read entry</span>
-                        <span>→</span>
-                      </Link>
-                    </div>
-                  ) : null}
                 </article>
               </React.Fragment>
             );
           })}
+
+          {hasMore && (
+            <div className="pt-6 text-center">
+              <button
+                onClick={loadMore}
+                className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+              >
+                Load more feed entries ↓
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

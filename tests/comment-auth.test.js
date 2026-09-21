@@ -34,7 +34,7 @@ async function runTests() {
   let fetchBlocked = false;
   try {
     await fetch('https://example.com');
-  } catch (e) {
+  } catch (_e) {
     fetchBlocked = true;
   }
   assert(fetchBlocked && global.__outboundAttemptsBlocked > 0, 'Outbound fetch to https://example.com was blocked by network guard');
@@ -46,7 +46,7 @@ async function runTests() {
     const realClient = getSupabaseClient({});
     const res = await realClient.from('entries').select('*');
     if (res.error || !res.data) supaQueryBlocked = true;
-  } catch (e) {
+  } catch (_e) {
     supaQueryBlocked = true;
   }
   assert(supaQueryBlocked, 'Real un-mocked Supabase query call in production mode is blocked/refused');
@@ -58,7 +58,7 @@ async function runTests() {
   try {
     const { uploadToB2 } = await import('../server/b2.js');
     await uploadToB2(Buffer.from('test'), 'test.jpg', 'image/jpeg');
-  } catch (e) {
+  } catch (_e) {
     b2Blocked = true;
   }
   assert(b2Blocked, 'Real un-mocked Backblaze B2 upload call in production mode was blocked by network guard');
@@ -98,7 +98,7 @@ async function runTests() {
     mockClient.from = (tableName) => {
       if (tableName === 'comments') {
         return {
-          select: (cols) => ({
+          select: (_cols) => ({
             eq: (field, val) => ({
               maybeSingle: async () => {
                 const found = mockComments.find(c => c[field] === val);

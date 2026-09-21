@@ -130,7 +130,7 @@ export default function Editor() {
           const data = await res.json();
           entryData = data.entry || (data.id || data.title || data.content ? data : null);
         }
-      } catch (e) {}
+      } catch (_e) {}
 
       // 2. Direct Supabase fallback if API fetch didn't return entry
       if (!entryData) {
@@ -141,7 +141,7 @@ export default function Editor() {
             .eq('id', id)
             .single();
           if (supaPost) entryData = supaPost;
-        } catch (e) {}
+        } catch (_e) {}
       }
 
       if (isMounted) {
@@ -164,7 +164,7 @@ export default function Editor() {
             location: entryData.location || '',
             weather: entryData.weather || '',
             mood: entryData.mood || '',
-            passcode: entryData.passcode || '',
+            passcode: '',
             show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : (entryData.type !== 'photo'),
             date: formattedDate
           });

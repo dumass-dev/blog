@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export default function AboutEdit() {
   const { token } = useAuth();
-  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     author_name: '',
@@ -33,7 +32,7 @@ export default function AboutEdit() {
           links: Array.isArray(data.links) ? data.links : []
         });
       })
-      .catch(err => setError('Failed loading settings.'))
+      .catch(_err => setError('Failed loading settings.'))
       .finally(() => setLoading(false));
   }, []);
 

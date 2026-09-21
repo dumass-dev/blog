@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import RichViewer from '../components/RichViewer';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 export default function About() {
+  useDocumentMeta({
+    title: 'About',
+    description: 'Thoughts, things I make, places I go, and everything in between.'
+  });
+
   const [aboutData, setAboutData] = useState(() => {
     try {
       const cached = localStorage.getItem('cached_about_data');
@@ -25,8 +31,14 @@ export default function About() {
 
   useEffect(() => {
     fetch('/api/about')
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) return null;
+        const text = await res.text();
+        if (!text || text.trim().startsWith('<')) return null;
+        return JSON.parse(text);
+      })
       .then(data => {
+        if (!data) return;
         const updated = {
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',

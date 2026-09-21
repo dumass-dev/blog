@@ -3,7 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
-import { supabase, getSupabaseClient } from './supabase.js';
+import bcrypt from 'bcryptjs';
+import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured, refreshB2Url } from './b2.js';
 
@@ -122,15 +123,15 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
   // Fetch quick metrics for browser dashboard
   let postCount = 0;
   let mediaCount = 0;
-  let dbStatus = 'Connected';
+  let _dbStatus = 'Connected';
 
   try {
     const { count: posts } = await getSupabaseClient(req).from('entries').select('*', { count: 'exact', head: true });
     const { count: media } = await getSupabaseClient(req).from('media').select('*', { count: 'exact', head: true });
     postCount = posts || 0;
     mediaCount = media || 0;
-  } catch (e) {
-    dbStatus = 'Degraded / Error';
+  } catch (_e) {
+    _dbStatus = 'Degraded / Error';
   }
 
   const uptimeSec = Math.floor((Date.now() - serverStartTime) / 1000);
@@ -592,7 +593,7 @@ app.get('/api/posts', async (req, res) => {
             posts = fallbackPosts;
           }
         }
-      } catch (fbErr) {}
+      } catch (_fbErr) {}
     }
 
     // Process posts: Redact passcode-protected posts ONLY for non-admins & refresh B2 presigned URLs
@@ -606,7 +607,7 @@ app.get('/api/posts', async (req, res) => {
 
       let freshCover = post.cover_image;
       if (!freshCover || !freshCover.trim()) {
-        const imgMatch = post.content && post.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+        const imgMatch = post.content && post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
         if (imgMatch) freshCover = imgMatch[0];
       }
       freshCover = await refreshB2Url(freshCover);
@@ -715,7 +716,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     let freshCover = post.cover_image;
     if (!freshCover || !freshCover.trim()) {
-      const imgMatch = post.content && post.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+      const imgMatch = post.content && post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
       if (imgMatch) freshCover = imgMatch[0];
     }
     freshCover = await refreshB2Url(freshCover);
@@ -768,7 +769,14 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
     const post = posts && posts[0];
     if (!post) return res.status(404).json({ error: 'Entry not found.' });
 
-    if (post.passcode && post.passcode.trim() === String(passcode).trim()) {
+    const cleanInput = String(passcode).trim();
+    const storedPasscode = (post.passcode || '').trim();
+    const isBcrypt = storedPasscode.startsWith('$2a$') || storedPasscode.startsWith('$2b$');
+    const isMatch = isBcrypt
+      ? bcrypt.compareSync(cleanInput, storedPasscode)
+      : storedPasscode === cleanInput;
+
+    if (isMatch) {
       return res.json({
         unlocked: true,
         content: post.content,
@@ -822,7 +830,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
 
     let finalCoverImage = cover_image ? cover_image.trim() : '';
     if (!finalCoverImage && content) {
-      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
       if (imgMatch) finalCoverImage = imgMatch[1] || imgMatch[0];
     }
 
@@ -840,7 +848,9 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       location: location ? location.trim() : null,
       weather: weather ? weather.trim() : null,
       mood: mood ? mood.trim() : null,
-      passcode: passcode && passcode.trim() !== '' ? passcode.trim() : null,
+      passcode: passcode && passcode.trim() !== '' 
+        ? (passcode.trim().startsWith('$2a$') || passcode.trim().startsWith('$2b$') ? passcode.trim() : bcrypt.hashSync(passcode.trim(), 10))
+        : null,
       show_in_feed: req.body.show_in_feed !== undefined ? Boolean(req.body.show_in_feed) : (type !== 'photo')
     };
 
@@ -909,7 +919,14 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (location !== undefined) updates.location = location;
     if (weather !== undefined) updates.weather = weather;
     if (mood !== undefined) updates.mood = mood;
-    if (passcode !== undefined) updates.passcode = passcode && passcode.trim() !== '' ? passcode.trim() : null;
+    if (passcode !== undefined) {
+      if (passcode && passcode.trim() !== '') {
+        const p = passcode.trim();
+        updates.passcode = (p.startsWith('$2a$') || p.startsWith('$2b$')) ? p : bcrypt.hashSync(p, 10);
+      } else {
+        updates.passcode = null;
+      }
+    }
     if (req.body.show_in_feed !== undefined) updates.show_in_feed = Boolean(req.body.show_in_feed);
 
     let { data, error } = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
