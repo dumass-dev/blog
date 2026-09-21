@@ -2,7 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 
 const defaultUrl = 'https://aidajlxmfxhmsctmciaq.supabase.co';
 
-export function getSupabaseServerClient(_req) {
+export function getSupabaseServerClient(req) {
+  if (process.env.NODE_ENV === 'test' && global.__mockSupabaseClient) {
+    return global.__mockSupabaseClient(req);
+  }
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || defaultUrl;
   const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
   return createClient(url, key || 'placeholder-anon-key');

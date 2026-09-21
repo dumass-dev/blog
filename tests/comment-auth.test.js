@@ -146,7 +146,7 @@ async function runTests() {
         };
       }
 
-      if (tableName === 'entries') {
+      if (tableName === 'entries' || tableName === 'public_published_entries') {
         const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', content: 'Real secret body content', views: 5, status: 'published', passcode: '1234' };
         const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', content: 'Draft content', views: 0, status: 'draft' };
 

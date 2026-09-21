@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
-import { uploadToB2, getB2SignedUrl, deleteFromB2, isB2Configured, refreshB2Url } from './b2.js';
+import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey } from './b2.js';
 
 dotenv.config();
 
@@ -718,7 +718,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
     }
     freshCover = await refreshB2Url(freshCover);
 
-    const isUnlocked = !has_passcode || (req.query.unlocked === 'true');
+    const isUnlocked = isAdmin || !has_passcode || (req.query.unlocked === 'true');
 
     if (!isUnlocked) {
       return res.json({
@@ -1023,14 +1023,13 @@ app.get('/api/media', requireAdminAuth, async (req, res) => {
     // Attach temporary pre-signed B2 retrieval URLs for each private asset
     const listWithSignedUrls = await Promise.all(
       (mediaList || []).map(async item => {
-        let signedUrl = item.url;
-        if (isB2Configured() && item.url && !item.url.startsWith('http')) {
-          const freshSignedUrl = await getB2SignedUrl(item.url, 7200); // 2 hour expiration
-          if (freshSignedUrl) signedUrl = freshSignedUrl;
-        }
+        const rawUrl = item.url || '';
+        const key = extractB2StorageKey(rawUrl) || rawUrl;
+        const freshUrl = await refreshB2Url(key);
         return {
           ...item,
-          signed_url: signedUrl
+          url: freshUrl || rawUrl,
+          signed_url: freshUrl || rawUrl
         };
       })
     );
@@ -1054,8 +1053,9 @@ app.delete('/api/media/:id', requireAdminAuth, async (req, res) => {
     }
 
     // Delete from Backblaze B2 if storage key
-    if (isB2Configured() && media.url && !media.url.startsWith('http')) {
-      await deleteFromB2(media.url);
+    if (isB2Configured() && media.url) {
+      const key = extractB2StorageKey(media.url) || media.url;
+      await deleteFromB2(key);
     }
 
     // Delete row from Supabase

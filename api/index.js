@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
+import path from 'path';
 import { getSupabaseClient } from '../server/supabase.js';
 import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
@@ -531,11 +532,11 @@ app.post('/api/media/upload', async (req, res) => {
       if (isB2Configured()) {
         const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype);
         const mediaRow = {
-          storage_key: b2Result.storageKey,
+          filename: path.basename(b2Result.storageKey),
           original_name: file.originalname,
           mime_type: file.mimetype,
-          size_bytes: file.size,
-          url: b2Result.signedUrl || b2Result.storageKey
+          size: file.size,
+          url: b2Result.storageKey
         };
 
         const { data, error } = await getSupabaseClient(req)
@@ -578,11 +579,11 @@ app.post('/api/media/confirm', async (req, res) => {
     const signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
 
     const mediaData = {
-      storage_key: storageKey,
+      filename: path.basename(storageKey),
       original_name: originalName,
       mime_type: mimeType,
-      size_bytes: sizeBytes || 0,
-      url: signedUrl
+      size: sizeBytes || 0,
+      url: storageKey
     };
 
     const { data, error } = await getSupabaseClient(req)
@@ -592,7 +593,7 @@ app.post('/api/media/confirm', async (req, res) => {
       .single();
 
     if (error) throw error;
-    res.status(201).json({ success: true, media: data });
+    res.status(201).json({ success: true, media: data, signed_url: signedUrl });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -613,10 +614,16 @@ app.get('/api/media', async (req, res) => {
 
     if (error) throw error;
 
-    const refreshed = await Promise.all((data || []).map(async item => ({
-      ...item,
-      url: await refreshB2Url(item.url || item.storage_key)
-    })));
+    const refreshed = await Promise.all((data || []).map(async item => {
+      const rawUrl = item.url || '';
+      const key = extractB2StorageKey(rawUrl) || rawUrl;
+      const freshUrl = await refreshB2Url(key);
+      return {
+        ...item,
+        url: freshUrl || rawUrl,
+        signed_url: freshUrl || rawUrl
+      };
+    }));
 
     res.json(refreshed);
   } catch (err) {
@@ -639,8 +646,9 @@ app.delete('/api/media/:id', async (req, res) => {
       .eq('id', id)
       .single();
 
-    if (item && item.storage_key) {
-      await deleteFromB2(item.storage_key);
+    if (item && item.url) {
+      const key = extractB2StorageKey(item.url) || item.url;
+      await deleteFromB2(key);
     }
 
     const { error } = await getSupabaseClient(req)
