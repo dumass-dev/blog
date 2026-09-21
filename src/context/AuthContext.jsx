@@ -11,31 +11,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Check active Supabase auth session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSession(session);
-        setUser(session?.user ?? null);
-      } else {
-        const storedToken = localStorage.getItem('auth_token');
-        const storedUser = localStorage.getItem('user');
-        if (storedToken && storedUser) {
-          try {
-            const u = JSON.parse(storedUser);
-            setSession({ access_token: storedToken, user: u });
-            setUser(u);
-          } catch {}
-        }
-      }
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
     }).catch(() => {
-      const storedToken = localStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('user');
-      if (storedToken && storedUser) {
-        try {
-          const u = JSON.parse(storedUser);
-          setSession({ access_token: storedToken, user: u });
-          setUser(u);
-        } catch {}
-      }
       setLoading(false);
     });
 
@@ -74,7 +53,7 @@ export function AuthProvider({ children }) {
 
   const token = session?.access_token || '';
   const adminUserId = (import.meta.env.VITE_ADMIN_USER_ID || '').trim().toLowerCase();
-  const isAdmin = Boolean(user && user.id && (!adminUserId || (user.id || '').trim().toLowerCase() === adminUserId));
+  const isAdmin = Boolean(user && user.id && adminUserId && (user.id || '').trim().toLowerCase() === adminUserId);
 
   return (
     <AuthContext.Provider value={{ user, session, token, loading, isAdmin, login, logout }}>
