@@ -602,7 +602,7 @@ app.get('/api/posts', async (req, res) => {
         (post.category && post.category.toLowerCase() === 'photos')
       );
       const effectiveType = isPhoto ? 'photo' : post.type;
-      const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
+      const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
 
       let freshCover = post.cover_image;
       if (!freshCover || !freshCover.trim()) {
@@ -709,7 +709,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
       (post.category && post.category.toLowerCase() === 'photos')
     );
     const effectiveType = isPhoto ? 'photo' : post.type;
-    const has_passcode = Boolean(post.passcode && post.passcode.trim() !== '');
+    const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
 
     let freshCover = post.cover_image;
     if (!freshCover || !freshCover.trim()) {
