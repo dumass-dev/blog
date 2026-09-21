@@ -18,12 +18,17 @@ export default function Modal({
   const previousActiveElement = useRef(null);
   const location = useLocation();
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   // Route change cleanup
   useEffect(() => {
-    if (isOpen && onClose) {
-      onClose();
+    if (isOpen && onCloseRef.current) {
+      onCloseRef.current();
     }
-  }, [location.pathname]);
+  }, [location.pathname, isOpen]);
 
   // Scroll lock & Focus trap management
   useEffect(() => {
@@ -101,7 +106,7 @@ export default function Modal({
         previousActiveElement.current.focus();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

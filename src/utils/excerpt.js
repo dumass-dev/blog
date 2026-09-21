@@ -15,11 +15,11 @@ export function stripMarkdown(text, maxLength = null) {
   cleaned = cleaned.replace(/`([^`]*?)(?:`|$)/g, ' $1 ');
 
   // 3. Remove image syntax ![alt](url) OR unclosed ![alt... or ![alt](url...
-  cleaned = cleaned.replace(/!\[[^\]]*?\]\([^\)]*?(?:\)|$)/g, ' ');
+  cleaned = cleaned.replace(/!\[[^\]]*?\]\([^)]*?(?:\)|$)/g, ' ');
   cleaned = cleaned.replace(/!\[[^\]]*?$/g, ' ');
 
   // 4. Handle links [anchor](url) -> keep anchor. Handle unclosed links like [anchor](url... or [anchor...
-  cleaned = cleaned.replace(/\[([^\]]+)\]\([^\)]*?(?:\)|$)/g, '$1');
+  cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]*?(?:\)|$)/g, '$1');
   cleaned = cleaned.replace(/\[([^\]]+)$/g, '$1');
 
   // 5. Remove bare URLs (http:// or https://...)

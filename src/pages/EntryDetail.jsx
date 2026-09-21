@@ -9,8 +9,7 @@ import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
 import { handleImageError } from '../utils/image';
-import { useAuth } from '../context/AuthContext';
-import { Clock, MapPin, Cloud, Smile, Lock, Share2, Eye, Quote } from 'lucide-react';
+import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -27,6 +26,8 @@ function calcReadingTime(text) {
   const mins = Math.ceil(words / 200);
   return `${mins} min read`;
 }
+
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 export default function EntryDetail() {
   const { slug } = useParams();
@@ -45,11 +46,18 @@ export default function EntryDetail() {
       next: null
     };
   });
+
+  useDocumentMeta({
+    title: data?.entry?.title || 'Entry',
+    description: data?.entry?.excerpt || data?.entry?.title,
+    image: data?.entry?.cover_image,
+    type: 'article'
+  });
   const [loading, setLoading] = useState(!cachedInitial);
   const [error, setError] = useState(null);
   const [isUnlocked, setIsUnlocked] = useState(() => {
     if (!cachedInitial) return false;
-    return !Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
+    return !(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
   });
 
   // Lightbox State
@@ -86,13 +94,13 @@ export default function EntryDetail() {
             cacheEntry(postData);
           }
         }
-      } catch (err) {}
+      } catch (_err) {}
 
       // 2. Secondary fallback: Direct Supabase query if API server endpoint is not reachable
       if (!postData) {
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-          let query = supabase.from('entries').select('*').neq('status', 'draft');
+          let query = supabase.from('public_published_entries').select('*');
           if (isUuid) {
             query = query.eq('id', slug);
           } else {
@@ -104,7 +112,7 @@ export default function EntryDetail() {
             postData = posts[0];
             cacheEntry(postData);
           }
-        } catch (err) {}
+        } catch (_err) {}
       }
 
       if (!postData) {
@@ -115,18 +123,14 @@ export default function EntryDetail() {
         return;
       }
 
-      // Increment view count
+      // Increment view count via RPC
       const updatedViews = (postData.views || 0) + 1;
       postData.views = updatedViews;
 
-      if (postData.id) {
-        supabase
-          .from('entries')
-          .update({ views: updatedViews })
-          .eq('id', postData.id)
-          .then(() => {})
-          .catch(() => {});
-      }
+      supabase
+        .rpc('increment_views', { target_slug: slug || postData.slug || postData.id })
+        .then(() => {})
+        .catch(() => {});
 
       const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 
@@ -173,7 +177,7 @@ export default function EntryDetail() {
             });
             return;
           }
-        } catch (e) {}
+        } catch (_e) {}
       }
       setFloatingBtnPos(null);
     };
@@ -236,7 +240,7 @@ export default function EntryDetail() {
     entry.content && (
       (entry.cover_image && entry.content.includes(entry.cover_image)) ||
       /!\[.*?\]\((.*?)\)/.test(entry.content) ||
-      /https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+/i.test(entry.content)
+      /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+/i.test(entry.content)
     )
   );
 

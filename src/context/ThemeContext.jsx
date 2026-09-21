@@ -21,7 +21,7 @@ export function ThemeProvider({ children }) {
     try {
       localStorage.setItem('diary-theme', theme);
       localStorage.setItem('theme', theme);
-    } catch (e) {}
+    } catch (_e) {}
   }, [theme]);
 
   const toggleTheme = () => {

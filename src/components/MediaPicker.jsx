@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Upload, X, Check, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon } from 'lucide-react';
 
 import Modal from './Modal';
 
@@ -11,7 +11,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchMedia = () => {
+  const fetchMedia = useCallback(() => {
     setLoading(true);
     fetch('/api/media', {
       headers: { Authorization: `Bearer ${token}` }
@@ -20,13 +20,13 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
       .then(data => setMediaList(Array.isArray(data) ? data : []))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  };
+  }, [token]);
 
   useEffect(() => {
     if (isOpen) {
       fetchMedia();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchMedia]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -35,19 +35,60 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
     setUploading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/media/upload', {
+      // Step 1: Request presigned B2 PUT URL
+      const presignRes = await fetch('/api/b2-upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size
+        })
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Upload failed.');
+      if (!presignRes.ok) {
+        const data = await presignRes.json();
+        throw new Error(data.error || 'Failed to get upload authorization.');
+      }
+
+      const presignData = await presignRes.json();
+
+      // Step 2: Directly upload file to Backblaze B2 via presigned URL
+      const b2Res = await fetch(presignData.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream'
+        },
+        body: file
+      });
+
+      if (!b2Res.ok) {
+        throw new Error('Direct upload to B2 storage failed.');
+      }
+
+      // Step 3: Confirm upload, verify magic bytes, and record database row
+      const confirmRes = await fetch('/api/media/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          storageKey: presignData.storageKey,
+          originalName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+          publicUrl: presignData.publicUrl
+        })
+      });
+
+      if (!confirmRes.ok) {
+        const data = await confirmRes.json();
+        throw new Error(data.error || 'Media confirmation failed magic byte check.');
       }
 
       fetchMedia();

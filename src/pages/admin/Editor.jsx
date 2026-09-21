@@ -63,6 +63,8 @@ export default function Editor() {
   const [error, setError] = useState(null);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
+  const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
   const recognitionRef = React.useRef(null);
 
   // Speech Recognition Setup
@@ -130,7 +132,7 @@ export default function Editor() {
           const data = await res.json();
           entryData = data.entry || (data.id || data.title || data.content ? data : null);
         }
-      } catch (e) {}
+      } catch (_e) {}
 
       // 2. Direct Supabase fallback if API fetch didn't return entry
       if (!entryData) {
@@ -141,7 +143,7 @@ export default function Editor() {
             .eq('id', id)
             .single();
           if (supaPost) entryData = supaPost;
-        } catch (e) {}
+        } catch (_e) {}
       }
 
       if (isMounted) {
@@ -150,6 +152,9 @@ export default function Editor() {
           try {
             formattedDate = new Date(entryData.date).toISOString().slice(0, 16);
           } catch {}
+
+          const passcodeExists = Boolean(entryData.has_passcode || (entryData.passcode && entryData.passcode.trim() !== ''));
+          setHasExistingPasscode(passcodeExists);
 
           setFormData({
             title: entryData.title || '',
@@ -164,7 +169,7 @@ export default function Editor() {
             location: entryData.location || '',
             weather: entryData.weather || '',
             mood: entryData.mood || '',
-            passcode: entryData.passcode || '',
+            passcode: '',
             show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : (entryData.type !== 'photo'),
             date: formattedDate
           });
@@ -246,6 +251,16 @@ export default function Editor() {
       date: new Date(formData.date).toISOString()
     };
 
+    if (removePasscodeFlag) {
+      payload.passcode = null;
+    } else if (formData.passcode && formData.passcode.trim() !== '') {
+      payload.passcode = formData.passcode.trim();
+    } else if (id) {
+      delete payload.passcode;
+    } else {
+      payload.passcode = null;
+    }
+
     const url = id ? `/api/posts/${id}` : '/api/posts';
     const method = id ? 'PUT' : 'POST';
 
@@ -287,9 +302,11 @@ export default function Editor() {
           location: payload.location || null,
           weather: payload.weather || null,
           mood: payload.mood || null,
-          passcode: payload.passcode || null,
           show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : (payload.type !== 'photo')
         };
+        if (payload.passcode !== undefined) {
+          supaPayload.passcode = payload.passcode;
+        }
 
         if (id) {
           let { data: supaUpdated, error: supaErr } = await supabase
@@ -728,20 +745,36 @@ export default function Editor() {
                   <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
                   <span>Passcode Lock (Optional)</span>
                 </span>
-                {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
-                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">🔒 active</span>
+                {hasExistingPasscode && !removePasscodeFlag && (
+                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">🔒 passcode set</span>
                 )}
               </label>
               <input
                 type="password"
                 name="passcode"
                 value={formData.passcode}
-                onChange={handleChange}
-                placeholder="Leave blank for public"
+                onChange={(e) => {
+                  handleChange(e);
+                  if (removePasscodeFlag) setRemovePasscodeFlag(false);
+                }}
+                placeholder={hasExistingPasscode && !removePasscodeFlag ? "•••• (passcode set — type to change)" : "Leave blank for public"}
                 className="quiet-input text-xs font-mono"
               />
+              {hasExistingPasscode && !removePasscodeFlag && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasExistingPasscode(false);
+                    setRemovePasscodeFlag(true);
+                    setFormData(prev => ({ ...prev, passcode: '' }));
+                  }}
+                  className="text-[11px] text-red-500 hover:underline mt-1 block font-sans"
+                >
+                  Remove passcode protection
+                </button>
+              )}
               <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
-                Public readers must enter passcode to read. In Admin studio, you can edit directly.
+                Public readers must enter passcode to read. Passcodes are hashed securely by the database.
               </p>
             </div>
 

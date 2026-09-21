@@ -57,7 +57,7 @@ export async function safeApiFetch(url, options = {}) {
     const text = await res.text();
     if (!text || text.trim().startsWith('<')) return null;
     return JSON.parse(text);
-  } catch (err) {
+  } catch (_err) {
     return null;
   }
 }
@@ -78,7 +78,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     const apiUrl = `/api/posts${queryStr ? `?${queryStr}` : ''}`;
     const apiData = await safeApiFetch(apiUrl);
 
-    if (Array.isArray(apiData) && apiData.length > 0) {
+    if (Array.isArray(apiData)) {
       let list = apiData;
       if (forHomeFeed) {
         list = list.filter(item => item.show_in_feed !== false);
@@ -100,14 +100,13 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
 
       return list;
     }
-  } catch (apiErr) {}
+  } catch (_apiErr) {}
 
-  // 2. Secondary fallback: Direct Supabase query if API server endpoint is offline
+  // 2. Secondary fallback: Query safe public_published_entries view if API server endpoint is offline
   try {
     let query = supabase
-      .from('entries')
+      .from('public_published_entries')
       .select('*')
-      .neq('status', 'draft')
       .order('date', { ascending: false });
 
     if (type) {
@@ -126,9 +125,8 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (error || !data || (type === 'photo' && data.length === 0)) {
       try {
         const { data: allData } = await supabase
-          .from('entries')
+          .from('public_published_entries')
           .select('*')
-          .neq('status', 'draft')
           .order('date', { ascending: false });
 
         if (allData && allData.length > 0) {
@@ -142,7 +140,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
             data = allData;
           }
         }
-      } catch (fallbackErr) {}
+      } catch (_fallbackErr) {}
     }
 
     let rawList = data || [];
@@ -180,7 +178,6 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
           type: isPhoto ? 'photo' : item.type,
           has_passcode: true,
           passcode: undefined,
-          content: '🔒 This entry is passcode-protected.',
           excerpt: '🔒 Protected entry',
           cover_image: ''
         };
@@ -209,19 +206,10 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
 }
 
 /**
- * Realtime subscription to entries table
+ * No-op subscription for entries (Anon readers do not listen to Supabase realtime DB after Phase 1 RLS)
  */
-export function subscribeToEntries(onDataChange) {
-  const channel = supabase
-    .channel('public:entries')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, () => {
-      onDataChange();
-    })
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
+export function subscribeToEntries() {
+  return () => {};
 }
 
 /**

@@ -1,14 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { fetchPublishedEntries, getCachedFeed, subscribeToEntries } from '../supabase';
 import { handleImageError } from '../utils/image';
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+import { useFeedData } from '../hooks/useFeedData';
+import FeedSkeleton from '../components/FeedSkeleton';
+
 export default function Photos() {
-  const cached = getCachedFeed('photo');
-  const [photos, setPhotos] = useState(() => (Array.isArray(cached) ? cached : []));
-  const [loading, setLoading] = useState(() => !cached || cached.length === 0);
+  useDocumentMeta({
+    title: 'Photos',
+    description: 'Visual journal, moments & Backblaze film archives.'
+  });
+
+  const { displayedEntries: photos, loading, refetch } = useFeedData({
+    type: 'photo',
+    pageSize: 12
+  });
+
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'feed'
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   
@@ -20,55 +30,6 @@ export default function Photos() {
   
   // Passcode modal state
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadPhotos = async () => {
-      let photoEntries = await fetchPublishedEntries({ type: 'photo' });
-      if (!photoEntries || photoEntries.length === 0) {
-        try {
-          const res = await fetch('/api/posts?type=photo');
-          if (res.ok) {
-            const data = await res.json();
-            photoEntries = Array.isArray(data) ? data.filter(item => 
-              item.type === 'photo' || 
-              (item.category && item.category.toLowerCase().includes('photos')) ||
-              (item.cover_image && item.cover_image.trim() !== '')
-            ) : [];
-          }
-        } catch {}
-      }
-
-      if (!photoEntries || photoEntries.length === 0) {
-        try {
-          const res = await fetch('/api/posts');
-          if (res.ok) {
-            const data = await res.json();
-            photoEntries = Array.isArray(data) ? data.filter(item => 
-              item.type === 'photo' || 
-              (item.category && item.category.toLowerCase().includes('photos')) ||
-              (item.cover_image && item.cover_image.trim() !== '')
-            ) : [];
-          }
-        } catch {}
-      }
-
-      if (isMounted) {
-        setPhotos(Array.isArray(photoEntries) ? photoEntries : []);
-        setLoading(false);
-      }
-    };
-
-    loadPhotos();
-    const unsubscribe = subscribeToEntries(() => {
-      loadPhotos();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
 
   const activePhoto = selectedPhotoIndex !== null ? photos[selectedPhotoIndex] : null;
 
@@ -91,7 +52,15 @@ export default function Photos() {
         if (Array.isArray(data)) setComments(data);
       })
       .catch(() => {});
-  }, [activePhoto?.id]);
+  }, [activePhoto]);
+
+  const navigatePhoto = useCallback((direction) => {
+    if (selectedPhotoIndex === null) return;
+    const newIdx = selectedPhotoIndex + direction;
+    if (newIdx >= 0 && newIdx < photos.length) {
+      setSelectedPhotoIndex(newIdx);
+    }
+  }, [selectedPhotoIndex, photos.length]);
 
   // Handle keypress for lightbox navigation
   useEffect(() => {
@@ -103,15 +72,7 @@ export default function Photos() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPhotoIndex, photos.length]);
-
-  const navigatePhoto = (direction) => {
-    if (selectedPhotoIndex === null) return;
-    const newIdx = selectedPhotoIndex + direction;
-    if (newIdx >= 0 && newIdx < photos.length) {
-      setSelectedPhotoIndex(newIdx);
-    }
-  };
+  }, [selectedPhotoIndex, photos.length, navigatePhoto]);
 
   const handleLike = async (photoId, e) => {
     if (e) e.stopPropagation();
@@ -182,7 +143,7 @@ export default function Photos() {
       return item.cover_image;
     }
     if (!item.content) return null;
-    const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s\)\"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9\-]+\.[a-z0-9]+[^\s\)\"]*/i);
+    const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
     if (imgMatch) return imgMatch[1] || imgMatch[0];
     return null;
   };
@@ -243,11 +204,7 @@ export default function Photos() {
 
       {/* Loading Skeleton */}
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 animate-pulse">
-          {[1, 2, 3, 4, 5, 6].map(n => (
-            <div key={n} className="aspect-square bg-[var(--code-bg)] rounded-md border border-[var(--border-subtle)]" />
-          ))}
-        </div>
+        <FeedSkeleton type="photo" count={6} />
       ) : photos.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-[var(--border-subtle)] rounded-lg">
           <ImageIcon className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 opacity-50" />
@@ -570,24 +527,8 @@ export default function Photos() {
       {passcodeModalPhoto && (
         <ProtectedEntryModal
           entry={passcodeModalPhoto}
-          onUnlock={(unlockedData) => {
-            const unlockedId = passcodeModalPhoto.id || passcodeModalPhoto.slug;
-            setPhotos(prev => prev.map(p => {
-              if (p.id === unlockedId || p.slug === unlockedId) {
-                return {
-                  ...p,
-                  has_passcode: false,
-                  content: unlockedData.content || p.content,
-                  cover_image: unlockedData.cover_image || p.cover_image
-                };
-              }
-              return p;
-            }));
-
-            const targetIdx = photos.findIndex(p => p.id === unlockedId || p.slug === unlockedId);
-            if (targetIdx !== -1) {
-              setSelectedPhotoIndex(targetIdx);
-            }
+          onUnlock={(_unlockedData) => {
+            refetch();
             setPasscodeModalPhoto(null);
           }}
           onClose={() => setPasscodeModalPhoto(null)}

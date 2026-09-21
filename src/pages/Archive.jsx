@@ -30,7 +30,14 @@ function buildTree(posts) {
   return tree;
 }
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 export default function Archive() {
+  useDocumentMeta({
+    title: 'Archive',
+    description: 'A full chronological index of everything written and logged.'
+  });
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeYear = searchParams.get('year');
   const activeMonth = searchParams.get('month');

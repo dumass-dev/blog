@@ -52,9 +52,11 @@ export function AuthProvider({ children }) {
   };
 
   const token = session?.access_token || '';
+  const adminUserId = (import.meta.env.VITE_ADMIN_USER_ID || '').trim().toLowerCase();
+  const isAdmin = Boolean(user && user.id && adminUserId && (user.id || '').trim().toLowerCase() === adminUserId);
 
   return (
-    <AuthContext.Provider value={{ user, session, token, loading, isAdmin: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, session, token, loading, isAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

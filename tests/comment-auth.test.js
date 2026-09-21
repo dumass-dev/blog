@@ -34,7 +34,7 @@ async function runTests() {
   let fetchBlocked = false;
   try {
     await fetch('https://example.com');
-  } catch (e) {
+  } catch (_e) {
     fetchBlocked = true;
   }
   assert(fetchBlocked && global.__outboundAttemptsBlocked > 0, 'Outbound fetch to https://example.com was blocked by network guard');
@@ -46,7 +46,7 @@ async function runTests() {
     const realClient = getSupabaseClient({});
     const res = await realClient.from('entries').select('*');
     if (res.error || !res.data) supaQueryBlocked = true;
-  } catch (e) {
+  } catch (_e) {
     supaQueryBlocked = true;
   }
   assert(supaQueryBlocked, 'Real un-mocked Supabase query call in production mode is blocked/refused');
@@ -58,7 +58,7 @@ async function runTests() {
   try {
     const { uploadToB2 } = await import('../server/b2.js');
     await uploadToB2(Buffer.from('test'), 'test.jpg', 'image/jpeg');
-  } catch (e) {
+  } catch (_e) {
     b2Blocked = true;
   }
   assert(b2Blocked, 'Real un-mocked Backblaze B2 upload call in production mode was blocked by network guard');
@@ -98,7 +98,7 @@ async function runTests() {
     mockClient.from = (tableName) => {
       if (tableName === 'comments') {
         return {
-          select: (cols) => ({
+          select: (_cols) => ({
             eq: (field, val) => ({
               maybeSingle: async () => {
                 const found = mockComments.find(c => c[field] === val);
@@ -146,7 +146,7 @@ async function runTests() {
         };
       }
 
-      if (tableName === 'entries') {
+      if (tableName === 'entries' || tableName === 'public_published_entries') {
         const pubEntry = { id: '99999999-9999-9999-9999-999999999999', title: 'Public Entry', slug: 'public-entry', content: 'Real secret body content', views: 5, status: 'published', passcode: '1234' };
         const draftEntry = { id: '88888888-8888-8888-8888-888888888888', title: 'Draft Entry', slug: 'draft-entry', content: 'Draft content', views: 0, status: 'draft' };
 

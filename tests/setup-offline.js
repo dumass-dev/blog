@@ -21,7 +21,7 @@ try {
       }
     });
   }
-} catch (e) {}
+} catch (_e) {}
 
 // Set explicit dummy overrides for all server / vite variants
 process.env.SUPABASE_URL = 'http://127.0.0.1:9999';
