@@ -8,7 +8,7 @@ import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
-import { resolveEntryDetailState } from '../utils/entry';
+import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { handleImageError } from '../utils/image';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 
@@ -394,11 +394,11 @@ export default function EntryDetail() {
             <RichViewer content={entry.content} />
           </div>
 
-          {/* Emoji Reactions Bar */}
-          <Reactions postId={entry.id} />
+          {/* Emoji Reactions Bar (hidden for Photo posts) */}
+          {shouldShowCommentsAndReactions(entry) && <Reactions postId={entry.id} />}
 
-          {/* Reader Comments */}
-          <Comments postId={entry.id} />
+          {/* Reader Comments (hidden for Photo posts) */}
+          {shouldShowCommentsAndReactions(entry) && <Comments postId={entry.id} />}
         </>
       )}
 
