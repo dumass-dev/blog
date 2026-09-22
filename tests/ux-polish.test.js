@@ -344,6 +344,22 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     assert.ok(box.width >= 44, `Close button width (${box.width}px) is at least 44px`);
     assert.ok(box.height >= 44, `Close button height (${box.height}px) is at least 44px`);
 
+    const styles = await closeBtn.evaluate((el) => {
+      const computed = window.getComputedStyle(el);
+      return {
+        backgroundColor: computed.backgroundColor,
+        boxShadow: computed.boxShadow
+      };
+    });
+    assert.ok(
+      styles.backgroundColor === 'rgba(0, 0, 0, 0)' || styles.backgroundColor === 'transparent',
+      `Close button background is transparent (got: ${styles.backgroundColor})`
+    );
+    assert.ok(
+      styles.boxShadow === 'none' || styles.boxShadow === '',
+      `Close button has no box shadow (got: ${styles.boxShadow})`
+    );
+
     await context.close();
   });
 });

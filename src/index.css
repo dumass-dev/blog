@@ -1338,7 +1338,7 @@ html, body {
   display: flex !important;
 }
 
-/* Photo Lightbox Close Button - Fixed Top-Left Position & 44px Tap Target */
+/* Photo Lightbox Close Button - Fixed Top-Left Position & 44px Tap Target (Transparent Box) */
 .lightbox-close-btn {
   position: absolute !important;
   top: 1rem !important;
@@ -1348,19 +1348,30 @@ html, body {
   height: 44px !important;
   min-width: 44px !important;
   min-height: 44px !important;
-  border-radius: 9999px !important;
-  background-color: rgba(15, 15, 15, 0.85) !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+  background: transparent !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
-  transition: transform 0.15s ease, background-color 0.15s ease !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  transition: transform 0.15s ease, opacity 0.15s ease !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7)) !important;
+  opacity: 0.9 !important;
 }
 
 .lightbox-close-btn:hover {
-  background-color: #000000 !important;
-  transform: scale(1.08) !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  transform: scale(1.1) !important;
+  box-shadow: none !important;
+}
+
+.lightbox-close-btn:active {
+  transform: scale(0.95) !important;
 }
