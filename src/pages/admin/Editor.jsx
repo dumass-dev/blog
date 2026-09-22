@@ -67,6 +67,16 @@ export default function Editor() {
   const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
+  const cursorPosRef = React.useRef({ start: null, end: null });
+
+  const updateCursorPos = (e) => {
+    if (e && e.target) {
+      cursorPosRef.current = {
+        start: e.target.selectionStart,
+        end: e.target.selectionEnd
+      };
+    }
+  };
 
   // Speech Recognition Setup
   const toggleDictation = () => {
@@ -216,13 +226,43 @@ export default function Editor() {
   };
 
   const handleSelectMedia = (media) => {
-    if (media.mime_type.startsWith('video/')) {
-      const videoTag = `\n${media.url}\n`;
-      setFormData(prev => ({ ...prev, content: prev.content + videoTag }));
-    } else {
-      const imageMd = `\n![${media.original_name}](${media.url})\n`;
-      setFormData(prev => ({ ...prev, content: prev.content + imageMd }));
+    const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
+      ? `\n${media.url}\n`
+      : `\n![${media.original_name}](${media.url})\n`;
+
+    const textarea = document.getElementById('content-textarea');
+    const currentContent = formData.content || '';
+
+    let start = (cursorPosRef.current.start !== null && cursorPosRef.current.start !== undefined)
+      ? cursorPosRef.current.start
+      : (textarea ? textarea.selectionStart : currentContent.length);
+    let end = (cursorPosRef.current.end !== null && cursorPosRef.current.end !== undefined)
+      ? cursorPosRef.current.end
+      : (textarea ? textarea.selectionEnd : currentContent.length);
+
+    if (start < 0) start = 0;
+    if (start > currentContent.length) start = currentContent.length;
+    if (end < 0) end = 0;
+    if (end > currentContent.length) end = currentContent.length;
+    if (start > end) {
+      const tmp = start;
+      start = end;
+      end = tmp;
     }
+
+    const newContent = currentContent.substring(0, start) + textToInsert + currentContent.substring(end);
+    const newCursorPos = start + textToInsert.length;
+
+    setFormData(prev => ({ ...prev, content: newContent }));
+    cursorPosRef.current = { start: newCursorPos, end: newCursorPos };
+
+    setTimeout(() => {
+      const el = document.getElementById('content-textarea');
+      if (el) {
+        el.focus();
+        el.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 50);
   };
 
   const handleSave = async (e) => {
@@ -586,7 +626,16 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => setShowMediaPicker(true)}
+                onClick={() => {
+                  const textarea = document.getElementById('content-textarea');
+                  if (textarea) {
+                    cursorPosRef.current = {
+                      start: textarea.selectionStart,
+                      end: textarea.selectionEnd
+                    };
+                  }
+                  setShowMediaPicker(true);
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
                 title="Insert Photo/Video"
               >
@@ -640,7 +689,14 @@ export default function Editor() {
                 name="content"
                 rows={16}
                 value={formData.content}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e);
+                  updateCursorPos(e);
+                }}
+                onSelect={updateCursorPos}
+                onClick={updateCursorPos}
+                onKeyUp={updateCursorPos}
+                onBlur={updateCursorPos}
                 placeholder="Write your story, diary entry, or update here..."
                 className="quiet-input font-serif text-lg leading-relaxed p-4"
               />

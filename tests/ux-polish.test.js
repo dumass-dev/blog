@@ -473,4 +473,76 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG G: Add Media inserts markdown tag at current cursor position in content editor', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.route('**/auth/v1/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'fake-admin-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'fake-refresh-token',
+          user: { id: adminId, email: 'admin@example.com' }
+        })
+      });
+    });
+
+    await page.route('**/api/media', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'm-1',
+            filename: 'photo1.jpg',
+            original_name: 'photo1.jpg',
+            mime_type: 'image/jpeg',
+            url: 'https://example.com/photo1.jpg',
+            size: 1024,
+            created_at: new Date().toISOString()
+          }
+        ])
+      });
+    });
+
+    await page.goto(`${baseUrl}/admin/login`);
+    await page.fill('input[type="email"], input[placeholder*="email" i], input[placeholder*="username" i]', 'admin@example.com');
+    await page.fill('input[type="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('**/admin');
+
+    await page.goto(`${baseUrl}/admin/new`);
+    await page.waitForSelector('#content-textarea');
+
+    const textarea = page.locator('#content-textarea');
+    await textarea.fill('Hello world! This is paragraph one. Here is paragraph two.');
+    
+    // Position cursor at index 13 (after 'Hello world! ')
+    await textarea.evaluate((el) => {
+      el.focus();
+      el.setSelectionRange(13, 13);
+    });
+
+    const addMediaBtn = page.locator('button:has-text("Add Media")');
+    await addMediaBtn.click();
+
+    await page.waitForSelector('text=Insert Media from Library');
+
+    const mediaOverlay = page.locator('text=Tap to insert').first();
+    await mediaOverlay.click();
+
+    const finalContent = await textarea.inputValue();
+    assert.strictEqual(
+      finalContent.startsWith('Hello world! \n![photo1.jpg]'),
+      true,
+      'Media markdown tag should be inserted at the cursor position (index 13)'
+    );
+
+    await context.close();
+  });
 });
