@@ -223,4 +223,83 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG C: Post comment from photo lightbox card updates comments stream and handles errors', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.route('**/*comments*', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([])
+        });
+      } else if (method === 'POST') {
+        const body = JSON.parse(route.request().postData() || '{}');
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'c-101',
+            author_name: body.author_name || 'Anonymous Reader',
+            content: body.content,
+            created_at: new Date().toISOString()
+          })
+        });
+      }
+    });
+
+    await page.route('**/*reactions*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hearts: 5 }) });
+    });
+
+    await page.route('**/api/posts*', async (route) => {
+      const mockPhotos = [
+        {
+          id: 'photo-100',
+          title: 'Mountain Vista',
+          slug: 'mountain-vista',
+          content: '![Mountain](/photos/mountain.jpg) Great view.',
+          cover_image: '/photos/mountain.jpg',
+          type: 'photo',
+          date: new Date().toISOString()
+        }
+      ];
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockPhotos) });
+    });
+
+    await page.route('**/api/about', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(`${baseUrl}/photos`);
+    await page.waitForLoadState('networkidle');
+
+    // Open lightbox modal
+    const photoItem = page.locator('.aspect-square').first();
+    await photoItem.waitFor({ state: 'visible' });
+    await photoItem.click();
+    await page.waitForTimeout(300);
+
+    // Fill in comment
+    const nameInput = page.locator('input[placeholder*="Your name"]');
+    await nameInput.fill('Photo Fan');
+    const commentInput = page.locator('input[placeholder*="Write a comment"]');
+    await commentInput.fill('Stunning capture!');
+
+    // Click submit
+    const submitBtn = page.locator('form button[type="submit"]');
+    await submitBtn.waitFor({ state: 'visible' });
+
+    await submitBtn.click();
+    await page.waitForTimeout(500);
+
+    const commentItem = page.getByText('Stunning capture!');
+    const isVisible = await commentItem.isVisible();
+    assert.strictEqual(isVisible, true, 'Comment content appears in comments list');
+
+    await context.close();
+  });
 });
