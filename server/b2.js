@@ -197,7 +197,7 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
  */
 export function extractB2StorageKey(urlOrKey) {
   if (!urlOrKey || typeof urlOrKey !== 'string') return null;
-  const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+/i);
+  const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i);
   return match ? match[0] : null;
 }
 
@@ -213,7 +213,7 @@ export async function refreshB2Url(urlOrText) {
   if (!freshUrl) return urlOrText;
 
   if (urlOrText === key) return freshUrl;
-  return urlOrText.replace(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/gi, freshUrl);
+  return urlOrText.replace(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi, freshUrl);
 }
 
 /**

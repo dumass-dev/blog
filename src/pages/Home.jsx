@@ -28,7 +28,7 @@ function getPhotoSrc(item) {
   if (!item) return null;
   if (item.cover_image && item.cover_image.trim()) return item.cover_image;
   if (!item.content) return null;
-  const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
+  const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i);
   if (imgMatch) return imgMatch[1] || imgMatch[0];
   return null;
 }
