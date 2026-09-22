@@ -8,6 +8,7 @@ import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
+import { resolveEntryDetailState } from '../utils/entry';
 import { handleImageError } from '../utils/image';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 
@@ -32,20 +33,9 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 export default function EntryDetail() {
   const { slug } = useParams();
   const cachedInitial = getCachedEntry(slug);
+  const initialState = resolveEntryDetailState(slug, cachedInitial);
 
-  const [data, setData] = useState(() => {
-    if (!cachedInitial) return null;
-    const hasPasscode = Boolean(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
-    return {
-      entry: {
-        ...cachedInitial,
-        has_passcode: hasPasscode,
-        content: hasPasscode ? '🔒 This entry is passcode-protected.' : cachedInitial.content
-      },
-      prev: null,
-      next: null
-    };
-  });
+  const [data, setData] = useState(initialState.data);
 
   useDocumentMeta({
     title: data?.entry?.title || 'Entry',
@@ -53,12 +43,9 @@ export default function EntryDetail() {
     image: data?.entry?.cover_image,
     type: 'article'
   });
-  const [loading, setLoading] = useState(!cachedInitial);
-  const [error, setError] = useState(null);
-  const [isUnlocked, setIsUnlocked] = useState(() => {
-    if (!cachedInitial) return false;
-    return !(cachedInitial.has_passcode || (cachedInitial.passcode && cachedInitial.passcode.trim() !== ''));
-  });
+  const [loading, setLoading] = useState(initialState.loading);
+  const [error, setError] = useState(initialState.error);
+  const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
 
   // Lightbox State
   const [lightbox, setLightbox] = useState({ isOpen: false, src: '', caption: '' });
@@ -71,15 +58,15 @@ export default function EntryDetail() {
   useEffect(() => {
     let isMounted = true;
     const cached = getCachedEntry(slug);
+    const resolved = resolveEntryDetailState(slug, cached);
 
-    if (!cached) {
-      setLoading(true);
-      setIsUnlocked(false);
-    }
-    setError(null);
+    setData(resolved.data);
+    setLoading(resolved.loading);
+    setError(resolved.error);
+    setIsUnlocked(resolved.isUnlocked);
 
     const loadEntry = async () => {
-      let postData = cached || null;
+      let postData = (cached && typeof cached.content === 'string' && cached.content.trim() !== '') ? cached : null;
       let prev = null;
       let next = null;
 
