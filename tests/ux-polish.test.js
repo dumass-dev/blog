@@ -53,7 +53,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     await page.route('**/api/posts', async (route) => {
       const request = route.request();
       if (request.method() === 'POST') {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 350));
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
