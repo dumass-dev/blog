@@ -445,7 +445,7 @@ export default function Photos() {
               {/* High-visibility Close Button strictly on Photo Container Top-Left */}
               <button
                 onClick={() => setSelectedPhotoIndex(null)}
-                className="absolute top-4 left-4 z-[120] p-2.5 rounded-full bg-stone-900/90 hover:bg-black text-white shadow-2xl border border-white/30 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
+                className="lightbox-close-btn"
                 aria-label="Close photo view"
                 title="Close photo"
               >

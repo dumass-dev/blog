@@ -302,4 +302,47 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG D: Photo card close button sits in top-left corner with at least 44px tap target', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.route('**/*comments*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+    await page.route('**/*reactions*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hearts: 0 }) });
+    });
+    await page.route('**/api/posts*', async (route) => {
+      const mockPhotos = [
+        {
+          id: 'photo-close-test',
+          title: 'Close Test Photo',
+          slug: 'close-test-photo',
+          content: '![Close Test](/photos/test.jpg) Test content',
+          cover_image: '/photos/test.jpg',
+          type: 'photo',
+          date: new Date().toISOString()
+        }
+      ];
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockPhotos) });
+    });
+
+    await page.goto(`${baseUrl}/photos`);
+    await page.waitForLoadState('networkidle');
+
+    const photoItem = page.locator('.aspect-square').first();
+    await photoItem.waitFor({ state: 'visible' });
+    await photoItem.click();
+
+    const closeBtn = page.locator('button[aria-label="Close photo view"]');
+    await closeBtn.waitFor({ state: 'visible' });
+
+    const box = await closeBtn.boundingBox();
+    assert.ok(box, 'Close button bounding box exists');
+    assert.ok(box.width >= 44, `Close button width (${box.width}px) is at least 44px`);
+    assert.ok(box.height >= 44, `Close button height (${box.height}px) is at least 44px`);
+
+    await context.close();
+  });
 });

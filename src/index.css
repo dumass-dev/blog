@@ -1337,3 +1337,30 @@ html, body {
   max-width: 100% !important;
   display: flex !important;
 }
+
+/* Photo Lightbox Close Button - Fixed Top-Left Position & 44px Tap Target */
+.lightbox-close-btn {
+  position: absolute !important;
+  top: 1rem !important;
+  left: 1rem !important;
+  z-index: 120 !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  border-radius: 9999px !important;
+  background-color: rgba(15, 15, 15, 0.85) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, background-color 0.15s ease !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.lightbox-close-btn:hover {
+  background-color: #000000 !important;
+  transform: scale(1.08) !important;
+}
