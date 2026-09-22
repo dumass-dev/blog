@@ -23,10 +23,14 @@ export default function Modal({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Route change cleanup
+  // Route change cleanup (close modal when route changes, but not when modal opens)
+  const prevPathname = useRef(location.pathname);
   useEffect(() => {
-    if (isOpen && onCloseRef.current) {
-      onCloseRef.current();
+    if (prevPathname.current !== location.pathname) {
+      prevPathname.current = location.pathname;
+      if (isOpen && onCloseRef.current) {
+        onCloseRef.current();
+      }
     }
   }, [location.pathname, isOpen]);
 

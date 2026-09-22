@@ -428,4 +428,49 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG F: Clicking inline content image opens lightbox modal and can be closed', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.route('**/api/posts/inline-img-test', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entry: {
+            id: 'post-f1',
+            title: 'Inline Image Test Post',
+            slug: 'inline-img-test',
+            content: 'Inline image test:\n\n![Sample Photo](/photos/sunset.jpg)\n\nEnd text.',
+            type: 'journal',
+            date: new Date().toISOString()
+          }
+        })
+      });
+    });
+
+    await page.route('**/api/about', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(`${baseUrl}/entry/inline-img-test`);
+    await page.waitForLoadState('networkidle');
+
+    const inlineImg = page.locator('article img, .rich-viewer img').first();
+    await inlineImg.waitFor({ state: 'visible' });
+    await inlineImg.click();
+    await page.waitForTimeout(200);
+
+    const dialog = page.locator('[role="dialog"]');
+    assert.strictEqual(await dialog.isVisible(), true, 'Lightbox dialog is open after inline image click');
+
+    const closeBtn = page.locator('button[aria-label="Close photo view"]');
+    await closeBtn.click();
+    await page.waitForTimeout(200);
+
+    assert.strictEqual(await dialog.isVisible(), false, 'Lightbox dialog closes on close button click');
+
+    await context.close();
+  });
 });
