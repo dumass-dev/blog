@@ -349,14 +349,15 @@ export default function Editor() {
       }
     }
 
-    setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
-
-    if (!id && savedData && savedData.id) {
-      setTimeout(() => {
-        navigate(`/admin/edit/${savedData.id}`);
-      }, 600);
+    if (!savedData) {
+      setError('Failed saving entry.');
+      setSaving(false);
+      return;
     }
+
+    setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
     setSaving(false);
+    navigate('/admin');
   };
 
   if (loading) {
@@ -455,7 +456,7 @@ export default function Editor() {
             className="quiet-button text-xs flex items-center gap-1.5"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>{saving ? 'Saving...' : 'Save Post'}</span>
+            <span>{saving ? 'Publishing...' : 'Publish'}</span>
           </button>
         </div>
       </div>
