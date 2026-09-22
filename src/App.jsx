@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, lazy, useLayoutEffect } from 'react';
 import { Routes, Route, useLocation, useNavigationType } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
