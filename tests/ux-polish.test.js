@@ -165,4 +165,62 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG B: Entry page opens at scroll position 0 and Back button restores feed scroll position', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // Mock API for posts
+    await page.route('**/api/posts*', async (route) => {
+      const mockPosts = Array.from({ length: 20 }, (_, i) => ({
+        id: `post-${i}`,
+        title: `Scroll Test Post ${i + 1}`,
+        slug: `scroll-test-post-${i + 1}`,
+        excerpt: `Excerpt for post ${i + 1} ` + 'Sample text '.repeat(30),
+        content: `Full body content for post ${i + 1} ` + 'More content text '.repeat(50),
+        type: 'journal',
+        date: new Date().toISOString()
+      }));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockPosts)
+      });
+    });
+
+    await page.route('**/api/about', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(`${baseUrl}/`);
+    await page.waitForLoadState('networkidle');
+
+    // Scroll down the feed
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(100);
+
+    const feedScrollBefore = await page.evaluate(() => window.scrollY);
+    assert.ok(feedScrollBefore > 0, 'Feed is scrolled down');
+
+    // Click on a post link
+    const postLink = page.locator('a[href*="/entry/"]').nth(4);
+    await postLink.click();
+    await page.waitForURL('**/entry/**');
+    await page.waitForTimeout(100);
+
+    // Verify entry page scroll position is 0
+    const entryScroll = await page.evaluate(() => window.scrollY);
+    assert.strictEqual(entryScroll, 0, 'Entry page opens scrolled at top (scrollY = 0)');
+
+    // Click browser back button
+    await page.goBack();
+    await page.waitForURL(`${baseUrl}/`);
+    await page.waitForTimeout(100);
+
+    // Verify feed scroll position was restored
+    const feedScrollAfter = await page.evaluate(() => window.scrollY);
+    assert.ok(feedScrollAfter > 0, 'Back button restored feed scroll position');
+
+    await context.close();
+  });
 });
