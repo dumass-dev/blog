@@ -167,11 +167,16 @@ export default function Editor() {
           const passcodeExists = Boolean(entryData.has_passcode || (entryData.passcode && entryData.passcode.trim() !== ''));
           setHasExistingPasscode(passcodeExists);
 
+          const isPhotoEntry = Boolean(
+            entryData.type === 'photo' ||
+            (entryData.category && entryData.category.toLowerCase() === 'photos')
+          );
+
           setFormData({
             title: entryData.title || '',
             slug: entryData.slug || '',
             content: entryData.content || '',
-            type: entryData.type || 'journal',
+            type: isPhotoEntry ? 'photo' : (entryData.type || 'journal'),
             status: entryData.status || 'published',
             category: entryData.category || '',
             tags: entryData.tags || '',
@@ -181,7 +186,7 @@ export default function Editor() {
             weather: entryData.weather || '',
             mood: entryData.mood || '',
             passcode: '',
-            show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : (entryData.type !== 'photo'),
+            show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : !isPhotoEntry,
             date: formattedDate
           });
         } else {
@@ -283,15 +288,17 @@ export default function Editor() {
     setError(null);
     setMessage(null);
 
-    const fallbackTitle = formData.type === 'photo' 
+    const isPhotoPost = formData.type === 'photo';
+    const fallbackTitle = isPhotoPost 
       ? `Photo — ${new Date(formData.date).toLocaleDateString()}` 
       : (formData.type === 'update' ? `Update — ${new Date(formData.date).toLocaleDateString()}` : 'Untitled Entry');
 
     const payload = {
       ...formData,
       title: formData.title || fallbackTitle,
-      category: formData.type === 'photo' ? (formData.category || 'Photos') : formData.category,
-      show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : (formData.type !== 'photo'),
+      type: isPhotoPost ? 'journal' : formData.type,
+      category: isPhotoPost ? (formData.category || 'Photos') : formData.category,
+      show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : !isPhotoPost,
       date: new Date(formData.date).toISOString()
     };
 
@@ -336,9 +343,9 @@ export default function Editor() {
           title: finalTitle,
           slug: finalSlug,
           content: payload.content,
-          type: payload.type || 'journal',
+          type: isPhotoPost ? 'journal' : (payload.type || 'journal'),
           status: payload.status || 'published',
-          category: payload.category || 'General',
+          category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
           tags: payload.tags || '',
           cover_image: payload.cover_image || '',
           excerpt: stripMarkdown(payload.excerpt || payload.content, 150),
@@ -346,7 +353,7 @@ export default function Editor() {
           location: payload.location || null,
           weather: payload.weather || null,
           mood: payload.mood || null,
-          show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : (payload.type !== 'photo')
+          show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : !isPhotoPost
         };
         if (payload.passcode !== undefined) {
           supaPayload.passcode = payload.passcode;

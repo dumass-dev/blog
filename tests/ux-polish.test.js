@@ -545,4 +545,110 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('Photo Post save payload has type journal and category Photos, and GET /api/posts?type=photo returns entry', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    let capturedPayload = null;
+    const mockPosts = [];
+
+    await page.route('**/auth/v1/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'fake-admin-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'fake-refresh-token',
+          user: { id: adminId, email: 'admin@example.com' }
+        })
+      });
+    });
+
+    await page.route('**/api/posts*', async (route) => {
+      const req = route.request();
+      if (req.method() === 'POST') {
+        capturedPayload = JSON.parse(req.postData());
+        // Simulate DB check constraint enforcement: reject type === 'photo'
+        if (capturedPayload.type === 'photo') {
+          return route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'new row for relation "entries" violates check constraint "entries_type_check"' })
+          });
+        }
+
+        const newPost = {
+          id: 'photo-post-1',
+          ...capturedPayload,
+          created_at: new Date().toISOString()
+        };
+        mockPosts.push(newPost);
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(newPost)
+        });
+      }
+
+      if (req.method() === 'GET') {
+        const url = new URL(req.url());
+        const typeParam = url.searchParams.get('type');
+        if (typeParam === 'photo') {
+          const photoEntries = mockPosts.filter(p =>
+            p.type === 'photo' || (p.category && p.category.toLowerCase().includes('photos'))
+          );
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(photoEntries)
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockPosts)
+        });
+      }
+
+      route.continue();
+    });
+
+    // Login
+    await page.goto(`${baseUrl}/admin/login`);
+    await page.fill('input[type="email"], input[placeholder*="email" i], input[placeholder*="username" i]', 'admin@example.com');
+    await page.fill('input[type="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('**/admin');
+
+    // Go to New Photo Post
+    await page.goto(`${baseUrl}/admin/new?type=photo`);
+    await page.waitForSelector('#content-textarea');
+
+    await page.fill('input[placeholder*="Title"]', 'Sunset Beach Shot');
+    await page.fill('#content-textarea', '![sunset](https://example.com/sunset.jpg)\nA beautiful sunset view.');
+
+    const publishBtn = page.locator('button').filter({ hasText: /Publish/ });
+    await publishBtn.click();
+
+    await page.waitForURL('**/admin');
+
+    assert.notStrictEqual(capturedPayload, null, 'POST request payload was captured');
+    assert.strictEqual(capturedPayload.type, 'journal', 'Photo Post type sent to API must be "journal" to satisfy DB CHECK constraint');
+    assert.strictEqual(capturedPayload.category, 'Photos', 'Photo Post category sent to API must be "Photos"');
+
+    // Verify GET /api/posts?type=photo returns the photo entry
+    const fetchRes = await page.evaluate(async (url) => {
+      const res = await fetch(`${url}/api/posts?type=photo`);
+      return res.json();
+    }, baseUrl);
+
+    assert.strictEqual(Array.isArray(fetchRes), true);
+    assert.strictEqual(fetchRes.length, 1);
+    assert.strictEqual(fetchRes[0].title, 'Sunset Beach Shot');
+
+    await context.close();
+  });
 });

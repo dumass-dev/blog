@@ -220,13 +220,15 @@ app.post('/api/posts', async (req, res) => {
     const title = payload.title || 'Untitled Entry';
     const slug = payload.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
+    const isPhotoPost = payload.type === 'photo';
+
     const entryData = {
       title,
       slug,
       content: payload.content || '',
-      type: payload.type || 'journal',
+      type: isPhotoPost ? 'journal' : (payload.type || 'journal'),
       status: payload.status || 'published',
-      category: payload.category || 'General',
+      category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
       tags: payload.tags || '',
       cover_image: payload.cover_image || '',
       excerpt: stripMarkdown(payload.excerpt || payload.content || '', 150),
@@ -235,7 +237,7 @@ app.post('/api/posts', async (req, res) => {
       weather: payload.weather || null,
       mood: payload.mood || null,
       passcode: passcodeVal,
-      show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : true
+      show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : !isPhotoPost
     };
 
     let { data, error } = await getSupabaseClient(req)
@@ -439,8 +441,11 @@ app.put('/api/posts/:id', async (req, res) => {
     const { id } = req.params;
     const payload = req.body;
 
+    const isPhotoPost = payload.type === 'photo';
     const updateData = {
       ...payload,
+      type: isPhotoPost ? 'journal' : payload.type,
+      category: isPhotoPost ? 'Photos' : payload.category,
       updated_at: new Date().toISOString()
     };
     if (payload.passcode !== undefined) {
