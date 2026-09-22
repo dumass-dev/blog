@@ -3,6 +3,7 @@ import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, M
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { handleImageError } from '../utils/image';
+import { supabase } from '../supabase';
 
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
@@ -27,6 +28,7 @@ export default function Photos() {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState({ name: '', text: '' });
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState(null);
   
   // Passcode modal state
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
@@ -106,27 +108,68 @@ export default function Photos() {
     e.preventDefault();
     if (!newComment.text.trim() || !activePhoto) return;
 
+    setCommentError(null);
+    setSubmittingComment(true);
+
+    const name = newComment.name.trim() || 'Anonymous Reader';
+    const content = newComment.text.trim();
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment = {
+      id: tempId,
+      post_id: activePhoto.id,
+      author_name: name,
+      content,
+      created_at: new Date().toISOString()
+    };
+
+    setComments(prev => [...prev, optimisticComment]);
+    setNewComment({ name: '', text: '' });
+
+    let realComment = null;
+    let apiErrorMsg = null;
+
     try {
-      setSubmittingComment(true);
       const res = await fetch(`/api/posts/${activePhoto.id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          author_name: newComment.name.trim() || 'Anonymous Reader',
-          content: newComment.text.trim()
+          author_name: name,
+          content
         })
       });
 
       if (res.ok) {
-        const added = await res.json();
-        setComments(prev => [...prev, added]);
-        setNewComment({ name: '', text: '' });
+        realComment = await res.json();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        apiErrorMsg = errJson.error || 'Failed to post comment.';
       }
-    } catch (err) {
-      console.error('Error posting comment:', err);
-    } finally {
-      setSubmittingComment(false);
+    } catch {
+      // API call failed, fallback to direct Supabase client
     }
+
+    if (!realComment) {
+      try {
+        const { data: supaInserted, error: supaErr } = await supabase
+          .from('comments')
+          .insert([{ post_id: activePhoto.id, author_name: name, content }])
+          .select('*')
+          .single();
+
+        if (supaErr) throw supaErr;
+        realComment = supaInserted;
+      } catch (err) {
+        setComments(prev => prev.filter(c => c.id !== tempId));
+        setCommentError(apiErrorMsg || err.message || 'Failed posting comment.');
+        setSubmittingComment(false);
+        return;
+      }
+    }
+
+    if (realComment) {
+      setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
+    }
+    setSubmittingComment(false);
   };
 
   const openPhoto = (photo, index) => {
@@ -402,7 +445,7 @@ export default function Photos() {
               {/* High-visibility Close Button strictly on Photo Container Top-Left */}
               <button
                 onClick={() => setSelectedPhotoIndex(null)}
-                className="absolute top-4 left-4 z-[120] p-2.5 rounded-full bg-stone-900/90 hover:bg-black text-white shadow-2xl border border-white/30 transition-transform hover:scale-110 cursor-pointer flex items-center justify-center"
+                className="lightbox-close-btn"
                 aria-label="Close photo view"
                 title="Close photo"
               >
@@ -517,6 +560,9 @@ export default function Photos() {
                     <Send className="w-3.5 h-3.5" />
                   </button>
                 </div>
+                {commentError && (
+                  <p className="text-red-500 text-[11px] font-sans px-1 pt-0.5">{commentError}</p>
+                )}
               </form>
             </div>
           </div>

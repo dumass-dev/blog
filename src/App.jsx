@@ -1,5 +1,5 @@
-import React, { Suspense, lazy } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy, useLayoutEffect } from 'react';
+import { Routes, Route, useLocation, useNavigationType } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -28,12 +28,47 @@ const PageFallback = () => (
   </div>
 );
 
+function ScrollToTop() {
+  const location = useLocation();
+  const navType = useNavigationType();
+
+  useLayoutEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const key = location.key || location.pathname;
+    if (navType === 'POP') {
+      const savedPos = sessionStorage.getItem(`scroll_${key}`);
+      if (savedPos !== null) {
+        const y = parseInt(savedPos, 10);
+        window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+        document.documentElement.scrollTop = y;
+        document.body.scrollTop = y;
+      }
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+
+    return () => {
+      sessionStorage.setItem(`scroll_${key}`, window.scrollY.toString());
+    };
+  }, [location.key, location.pathname, navType]);
+
+  return null;
+}
+
 export default function App() {
   const location = useLocation();
   const isAdminPath = location.pathname.startsWith('/admin');
 
   return (
     <div className="min-h-screen flex flex-col justify-between">
+      <ScrollToTop />
       <div>
         {/* Render minimalist public header on public pages */}
         {!isAdminPath && <Header />}

@@ -13,11 +13,11 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
           <div className="flex items-center gap-2 text-xs font-sans font-medium">
             <button
               onClick={onClose}
-              className="p-1.5 rounded-full bg-black/70 hover:bg-black text-white shadow border border-white/20 transition-all hover:scale-105 cursor-pointer flex items-center justify-center mr-1"
+              className="lightbox-close-btn"
               aria-label="Close photo view"
               title="Close photo"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5 text-white" />
             </button>
             <Camera className="w-4 h-4 text-[var(--accent-warm)]" />
             <span>Editorial Photo Lightbox</span>
