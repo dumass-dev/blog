@@ -3,6 +3,7 @@ import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, M
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { handleImageError } from '../utils/image';
+import { shouldShowCommentsAndReactions } from '../utils/entry';
 import { supabase } from '../supabase';
 
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -182,13 +183,16 @@ export default function Photos() {
 
   const getPhotoSrc = (item) => {
     if (!item) return null;
-    if (item.cover_image && item.cover_image.trim()) {
-      return item.cover_image;
+    let src = item.cover_image && item.cover_image.trim();
+    if (src && /q04ti-quote|quote-/i.test(src)) {
+      src = null;
     }
-    if (!item.content) return null;
-    const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i);
-    if (imgMatch) return imgMatch[1] || imgMatch[0];
-    return null;
+    if (!src && item.content) {
+      const matches = [...item.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+        .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+      src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
+    }
+    return src;
   };
 
   const getCleanCaption = (item) => {
@@ -374,20 +378,22 @@ export default function Photos() {
 
                 {/* Footer / Caption */}
                 <div className="p-4 space-y-2">
-                  <div className="flex items-center space-x-4 text-[var(--text-secondary)]">
-                    <button
-                      onClick={(e) => handleLike(item.id, e)}
-                      className="flex items-center space-x-1 hover:text-red-500 transition-colors text-xs font-sans"
-                    >
-                      <Heart className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => openPhoto(item, idx)}
-                      className="flex items-center space-x-1 hover:text-[var(--text-primary)] transition-colors text-xs font-sans"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {shouldShowCommentsAndReactions(item) && (
+                    <div className="flex items-center space-x-4 text-[var(--text-secondary)]">
+                      <button
+                        onClick={(e) => handleLike(item.id, e)}
+                        className="flex items-center space-x-1 hover:text-red-500 transition-colors text-xs font-sans"
+                      >
+                        <Heart className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openPhoto(item, idx)}
+                        className="flex items-center space-x-1 hover:text-[var(--text-primary)] transition-colors text-xs font-sans"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
                   {getCleanCaption(item) && (
                     <p className="font-sans text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed">
@@ -490,80 +496,86 @@ export default function Photos() {
               {/* Caption & Comments List */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans">
                 {getCleanCaption(activePhoto) && (
-                  <div className="pb-3 border-b border-[var(--border-subtle)] text-[var(--text-primary)] leading-relaxed break-words">
+                  <div className="pb-3 text-[var(--text-primary)] leading-relaxed break-words">
                     {getCleanCaption(activePhoto)}
                   </div>
                 )}
 
-                {/* Reactions counter */}
-                <div className="flex items-center justify-between py-1 border-b border-[var(--border-subtle)]">
-                  <button
-                    onClick={() => handleLike(activePhoto.id)}
-                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md border text-xs transition-colors cursor-pointer ${
-                      reactions.userLiked
-                        ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:border-red-900/50'
-                        : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${reactions.userLiked ? 'fill-current text-red-500' : ''}`} />
-                    <span>{reactions.hearts} {reactions.hearts === 1 ? 'like' : 'likes'}</span>
-                  </button>
+                {shouldShowCommentsAndReactions(activePhoto) && (
+                  <>
+                    {/* Reactions counter */}
+                    <div className="flex items-center justify-between py-1 border-b border-[var(--border-subtle)]">
+                      <button
+                        onClick={() => handleLike(activePhoto.id)}
+                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md border text-xs transition-colors cursor-pointer ${
+                          reactions.userLiked
+                            ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:border-red-900/50'
+                            : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${reactions.userLiked ? 'fill-current text-red-500' : ''}`} />
+                        <span>{reactions.hearts} {reactions.hearts === 1 ? 'like' : 'likes'}</span>
+                      </button>
 
-                  <span className="text-[11px] text-[var(--text-muted)]">
-                    {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
-                  </span>
-                </div>
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+                      </span>
+                    </div>
 
-                {/* Comments Stream */}
-                <div className="space-y-3 pt-1">
-                  {comments.length === 0 ? (
-                    <p className="text-center text-[var(--text-muted)] italic text-[11px] py-4">
-                      No comments yet. Be the first to comment!
-                    </p>
-                  ) : (
-                    comments.map((c, i) => (
-                      <div key={c.id || i} className="space-y-0.5 bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-[var(--text-primary)] truncate max-w-[120px]">{c.author_name}</span>
-                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{formatDate(c.created_at)}</span>
-                        </div>
-                        <p className="text-[var(--text-secondary)] break-words">{c.content}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
+                    {/* Comments Stream */}
+                    <div className="space-y-3 pt-1">
+                      {comments.length === 0 ? (
+                        <p className="text-center text-[var(--text-muted)] italic text-[11px] py-4">
+                          No comments yet. Be the first to comment!
+                        </p>
+                      ) : (
+                        comments.map((c, i) => (
+                          <div key={c.id || i} className="space-y-0.5 bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border-subtle)]">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-[var(--text-primary)] truncate max-w-[120px]">{c.author_name}</span>
+                              <span className="text-[10px] text-[var(--text-muted)] shrink-0">{formatDate(c.created_at)}</span>
+                            </div>
+                            <p className="text-[var(--text-secondary)] break-words">{c.content}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Add Comment Input Form */}
-              <form onSubmit={handleCommentSubmit} className="p-3 border-t border-[var(--border-subtle)] bg-[var(--card-bg)] space-y-2">
-                <input
-                  type="text"
-                  placeholder="Your name (optional)..."
-                  value={newComment.name}
-                  onChange={e => setNewComment(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
-                />
-                <div className="flex space-x-1.5">
+              {shouldShowCommentsAndReactions(activePhoto) && (
+                <form onSubmit={handleCommentSubmit} className="p-3 border-t border-[var(--border-subtle)] bg-[var(--card-bg)] space-y-2">
                   <input
                     type="text"
-                    placeholder="Write a comment..."
-                    value={newComment.text}
-                    onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
-                    className="flex-1 text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
-                    required
+                    placeholder="Your name (optional)..."
+                    value={newComment.name}
+                    onChange={e => setNewComment(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
                   />
-                  <button
-                    type="submit"
-                    disabled={submittingComment || !newComment.text.trim()}
-                    className="px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-main)] text-xs rounded font-medium disabled:opacity-50 transition-opacity flex items-center justify-center cursor-pointer shrink-0"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {commentError && (
-                  <p className="text-red-500 text-[11px] font-sans px-1 pt-0.5">{commentError}</p>
-                )}
-              </form>
+                  <div className="flex space-x-1.5">
+                    <input
+                      type="text"
+                      placeholder="Write a comment..."
+                      value={newComment.text}
+                      onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
+                      className="flex-1 text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={submittingComment || !newComment.text.trim()}
+                      className="px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-main)] text-xs rounded font-medium disabled:opacity-50 transition-opacity flex items-center justify-center cursor-pointer shrink-0"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {commentError && (
+                    <p className="text-red-500 text-[11px] font-sans px-1 pt-0.5">{commentError}</p>
+                  )}
+                </form>
+              )}
             </div>
           </div>
         </div>

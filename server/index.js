@@ -605,12 +605,17 @@ app.get('/api/posts', async (req, res) => {
       const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
 
       let freshCover = post.cover_image;
-      if (!freshCover || !freshCover.trim()) {
-        const imgMatch = post.content && (
-          post.content.match(/!\[.*?\]\((.*?)\)/) ||
-          post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i)
-        );
-        if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
+      if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
+        const matches = post.content ? (
+          [...post.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+            .concat([...post.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]))
+        ) : [];
+        const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url));
+        if (realImg) {
+          freshCover = realImg;
+        } else if (!freshCover || /q04ti-quote|quote-/i.test(freshCover)) {
+          freshCover = matches[0] || '';
+        }
       }
       freshCover = await refreshB2Url(freshCover);
       const freshContent = await refreshB2Url(post.content);
@@ -715,12 +720,17 @@ app.get('/api/posts/:identifier', async (req, res) => {
     const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
 
     let freshCover = post.cover_image;
-    if (!freshCover || !freshCover.trim()) {
-      const imgMatch = post.content && (
-        post.content.match(/!\[.*?\]\((.*?)\)/) ||
-        post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i)
-      );
-      if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
+    if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
+      const matches = post.content ? (
+        [...post.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+          .concat([...post.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]))
+      ) : [];
+      const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url));
+      if (realImg) {
+        freshCover = realImg;
+      } else if (!freshCover || /q04ti-quote|quote-/i.test(freshCover)) {
+        freshCover = matches[0] || '';
+      }
     }
     freshCover = await refreshB2Url(freshCover);
 

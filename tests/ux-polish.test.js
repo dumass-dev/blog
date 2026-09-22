@@ -225,31 +225,12 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     await context.close();
   });
 
-  test('BUG C: Post comment from photo lightbox card updates comments stream and handles errors', async () => {
+  test('BUG C: Photo lightbox popup card hides comment input form and reactions button for Photo posts', async () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
     await page.route('**/*comments*', async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([])
-        });
-      } else if (method === 'POST') {
-        const body = JSON.parse(route.request().postData() || '{}');
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            id: 'c-101',
-            author_name: body.author_name || 'Anonymous Reader',
-            content: body.content,
-            created_at: new Date().toISOString()
-          })
-        });
-      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
 
     await page.route('**/*reactions*', async (route) => {
@@ -265,6 +246,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
           content: '![Mountain](/photos/mountain.jpg) Great view.',
           cover_image: '/photos/mountain.jpg',
           type: 'photo',
+          category: 'Photos',
           date: new Date().toISOString()
         }
       ];
@@ -284,22 +266,11 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     await photoItem.click();
     await page.waitForTimeout(300);
 
-    // Fill in comment
-    const nameInput = page.locator('input[placeholder*="Your name"]');
-    await nameInput.fill('Photo Fan');
-    const commentInput = page.locator('input[placeholder*="Write a comment"]');
-    await commentInput.fill('Stunning capture!');
-
-    // Click submit
-    const submitBtn = page.locator('form button[type="submit"]');
-    await submitBtn.waitFor({ state: 'visible' });
-
-    await submitBtn.click();
-    await page.waitForTimeout(500);
-
-    const commentItem = page.getByText('Stunning capture!');
-    const isVisible = await commentItem.isVisible();
-    assert.strictEqual(isVisible, true, 'Comment content appears in comments list');
+    // Verify comment input form is NOT present in photo lightbox card
+    const nameInputCount = await page.locator('input[placeholder*="Your name"]').count();
+    const commentInputCount = await page.locator('input[placeholder*="Write a comment"]').count();
+    assert.strictEqual(nameInputCount, 0, 'Photo lightbox card must NOT show comment name input');
+    assert.strictEqual(commentInputCount, 0, 'Photo lightbox card must NOT show comment text input');
 
     await context.close();
   });

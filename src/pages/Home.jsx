@@ -26,11 +26,16 @@ function calcReadingTimeText(text) {
 
 function getPhotoSrc(item) {
   if (!item) return null;
-  if (item.cover_image && item.cover_image.trim()) return item.cover_image;
-  if (!item.content) return null;
-  const imgMatch = item.content.match(/!\[.*?\]\((.*?)\)/) || item.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i);
-  if (imgMatch) return imgMatch[1] || imgMatch[0];
-  return null;
+  let src = item.cover_image && item.cover_image.trim();
+  if (src && /q04ti-quote|quote-/i.test(src)) {
+    src = null;
+  }
+  if (!src && item.content) {
+    const matches = [...item.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+      .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+    src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
+  }
+  return src;
 }
 
 export default function Home() {

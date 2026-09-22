@@ -177,12 +177,17 @@ app.get('/api/posts', async (req, res) => {
       const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
 
       let freshCover = post.cover_image;
-      if (!freshCover || !freshCover.trim()) {
-        const imgMatch = post.content && (
-          post.content.match(/!\[.*?\]\((.*?)\)/) ||
-          post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i)
-        );
-        if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
+      if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
+        const matches = post.content ? (
+          [...post.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+            .concat([...post.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]))
+        ) : [];
+        const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url));
+        if (realImg) {
+          freshCover = realImg;
+        } else if (!freshCover || /q04ti-quote|quote-/i.test(freshCover)) {
+          freshCover = matches[0] || '';
+        }
       }
       if (freshCover) {
         freshCover = await refreshB2Url(freshCover);
@@ -229,16 +234,19 @@ app.post('/api/posts', async (req, res) => {
     const slug = payload.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
     let finalCover = payload.cover_image ? payload.cover_image.trim() : '';
+    if (finalCover && /q04ti-quote|quote-/i.test(finalCover)) {
+      finalCover = '';
+    }
     if (finalCover) {
       const extracted = extractB2StorageKey(finalCover);
       if (extracted) finalCover = extracted;
     }
     if (!finalCover && payload.content) {
-      const imgMatch = payload.content.match(/!\[.*?\]\((.*?)\)/) ||
-        payload.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
-      if (imgMatch) {
-        const rawMatch = imgMatch[1] || imgMatch[0];
-        finalCover = extractB2StorageKey(rawMatch) || rawMatch;
+      const matches = [...payload.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+        .concat([...payload.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+      const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0];
+      if (realImg) {
+        finalCover = extractB2StorageKey(realImg) || realImg;
       }
     }
 
@@ -463,16 +471,19 @@ app.put('/api/posts/:id', async (req, res) => {
 
     const isPhotoPost = payload.type === 'photo';
     let finalCover = payload.cover_image !== undefined ? (payload.cover_image ? payload.cover_image.trim() : '') : undefined;
+    if (finalCover && /q04ti-quote|quote-/i.test(finalCover)) {
+      finalCover = '';
+    }
     if (finalCover) {
       const extracted = extractB2StorageKey(finalCover);
       if (extracted) finalCover = extracted;
     }
     if ((finalCover === '' || finalCover === undefined) && payload.content) {
-      const imgMatch = payload.content.match(/!\[.*?\]\((.*?)\)/) ||
-        payload.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
-      if (imgMatch) {
-        const rawMatch = imgMatch[1] || imgMatch[0];
-        finalCover = extractB2StorageKey(rawMatch) || rawMatch;
+      const matches = [...payload.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+        .concat([...payload.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+      const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0];
+      if (realImg) {
+        finalCover = extractB2StorageKey(realImg) || realImg;
       }
     }
 
