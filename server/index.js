@@ -606,8 +606,11 @@ app.get('/api/posts', async (req, res) => {
 
       let freshCover = post.cover_image;
       if (!freshCover || !freshCover.trim()) {
-        const imgMatch = post.content && post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
-        if (imgMatch) freshCover = imgMatch[0];
+        const imgMatch = post.content && (
+          post.content.match(/!\[.*?\]\((.*?)\)/) ||
+          post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i)
+        );
+        if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
       }
       freshCover = await refreshB2Url(freshCover);
       const freshContent = await refreshB2Url(post.content);

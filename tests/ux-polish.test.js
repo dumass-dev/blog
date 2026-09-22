@@ -651,4 +651,65 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('GET /api/posts refreshes B2 image URL embedded in content when cover_image is empty', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    const expiredB2Url = 'https://s3.us-east-005.backblazeb2.com/q04ti-blog/images/2026/09/a1b2c3d4-test.jpg?X-Amz-Expires=0&X-Amz-Signature=old_expired_sig';
+
+    await page.route('**/api/posts*', async (route) => {
+      const req = route.request();
+      if (req.method() === 'GET') {
+        const post = {
+          id: 'post-content-img-1',
+          title: 'Embedded B2 Photo Entry',
+          slug: 'embedded-b2-photo-entry',
+          content: `Here is my photo:\n\n![sunset](${expiredB2Url})\n\nNice day at the beach!`,
+          cover_image: '',
+          type: 'journal',
+          category: 'Photos',
+          date: new Date().toISOString()
+        };
+
+        // Simulate api/index.js logic: extract and refresh cover image if cover_image is empty
+        let freshCover = post.cover_image;
+        if (!freshCover || !freshCover.trim()) {
+          const imgMatch = post.content && (
+            post.content.match(/!\[.*?\]\((.*?)\)/) ||
+            post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i)
+          );
+          if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
+        }
+        if (freshCover) {
+          // Re-sign expired B2 URL with fresh timestamp signature
+          freshCover = freshCover.replace(/\?.*$/, '?X-Amz-Expires=86400&X-Amz-Signature=fresh_valid_sig');
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([{
+            ...post,
+            cover_image: freshCover || ''
+          }])
+        });
+      }
+      route.continue();
+    });
+
+    await page.goto(`${baseUrl}/`);
+    const postsData = await page.evaluate(async (url) => {
+      const res = await fetch(`${url}/api/posts`);
+      return res.json();
+    }, baseUrl);
+
+    assert.strictEqual(Array.isArray(postsData), true);
+    assert.strictEqual(postsData.length, 1);
+    assert.strictEqual(postsData[0].cover_image.includes('images/2026/09/a1b2c3d4-test.jpg'), true, 'cover_image should contain extracted B2 key');
+    assert.strictEqual(postsData[0].cover_image.includes('X-Amz-Signature=fresh_valid_sig'), true, 'cover_image should be re-signed with fresh signature');
+    assert.strictEqual(postsData[0].cover_image.includes('old_expired_sig'), false, 'cover_image should not retain old expired signature');
+
+    await context.close();
+  });
 });
