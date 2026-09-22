@@ -362,4 +362,70 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     await context.close();
   });
+
+  test('BUG E: Rapid double-clicking Publish button sends only 1 save request', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    let postRequestCount = 0;
+
+    await page.route('**/auth/v1/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'fake-admin-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          refresh_token: 'fake-refresh-token',
+          user: { id: adminId, email: 'admin@example.com' }
+        })
+      });
+    });
+
+    await page.route('**/api/posts', async (route) => {
+      if (route.request().method() === 'POST') {
+        postRequestCount++;
+        await new Promise(r => setTimeout(r, 200));
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'post-double-1', title: 'Double Click Test', slug: 'double-click-test' })
+        });
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      }
+    });
+
+    await page.route('**/api/about', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    // Login
+    await page.goto(`${baseUrl}/admin/login`);
+    await page.fill('input[type="email"], input[placeholder*="email" i], input[placeholder*="username" i]', 'admin@example.com');
+    await page.fill('input[type="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('**/admin');
+
+    await page.goto(`${baseUrl}/admin/new`);
+    await page.waitForLoadState('networkidle');
+
+    await page.fill('input[placeholder*="Title"]', 'Double Click Entry');
+    await page.fill('textarea', 'Content body');
+
+    const publishBtn = page.locator('button').filter({ hasText: /Publish/ });
+
+    // Click twice in rapid succession
+    await Promise.all([
+      publishBtn.click({ force: true }),
+      publishBtn.click({ force: true })
+    ]).catch(() => {});
+
+    await page.waitForURL(`${baseUrl}/admin`);
+
+    assert.strictEqual(postRequestCount, 1, 'Only 1 POST /api/posts request was dispatched despite double clicks');
+
+    await context.close();
+  });
 });

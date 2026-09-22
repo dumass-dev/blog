@@ -238,11 +238,22 @@ app.post('/api/posts', async (req, res) => {
       show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : true
     };
 
-    const { data, error } = await getSupabaseClient(req)
+    let { data, error } = await getSupabaseClient(req)
       .from('entries')
       .insert(entryData)
       .select('*')
       .single();
+
+    if (error && (error.message.includes('entries_slug_key') || error.message.includes('duplicate key'))) {
+      entryData.slug = `${entryData.slug}-${Math.random().toString(36).slice(2, 6)}`;
+      const retry = await getSupabaseClient(req)
+        .from('entries')
+        .insert(entryData)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
     res.status(201).json(data);

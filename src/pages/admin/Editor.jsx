@@ -66,6 +66,7 @@ export default function Editor() {
   const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
   const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
   const recognitionRef = React.useRef(null);
+  const isSavingRef = React.useRef(false);
 
   // Speech Recognition Setup
   const toggleDictation = () => {
@@ -226,6 +227,8 @@ export default function Editor() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isSavingRef.current || saving) return;
+
     if (!formData.title && formData.type !== 'update' && formData.type !== 'photo') {
       setError('Title is required for Journal and Writing entries.');
       return;
@@ -235,6 +238,7 @@ export default function Editor() {
       return;
     }
 
+    isSavingRef.current = true;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -339,12 +343,20 @@ export default function Editor() {
             supaErr = retry.error;
           }
 
+          if (supaErr && (supaErr.message.includes('entries_slug_key') || supaErr.message.includes('duplicate key'))) {
+            supaPayload.slug = `${supaPayload.slug}-${Math.random().toString(36).slice(2, 6)}`;
+            const retry = await supabase.from('entries').insert([supaPayload]).select('*').single();
+            supaInserted = retry.data;
+            supaErr = retry.error;
+          }
+
           if (supaErr) throw supaErr;
           savedData = supaInserted;
         }
       } catch (err) {
         setError(err.message || 'Failed saving entry.');
         setSaving(false);
+        isSavingRef.current = false;
         return;
       }
     }
@@ -352,11 +364,13 @@ export default function Editor() {
     if (!savedData) {
       setError('Failed saving entry.');
       setSaving(false);
+      isSavingRef.current = false;
       return;
     }
 
     setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
     setSaving(false);
+    isSavingRef.current = false;
     navigate('/admin');
   };
 
