@@ -180,7 +180,7 @@ app.get('/api/posts', async (req, res) => {
       if (!freshCover || !freshCover.trim()) {
         const imgMatch = post.content && (
           post.content.match(/!\[.*?\]\((.*?)\)/) ||
-          post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i)
+          post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i)
         );
         if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
       }
@@ -224,10 +224,23 @@ app.post('/api/posts', async (req, res) => {
     const payload = req.body;
     const passcodeVal = (payload.passcode && payload.passcode.trim() !== '') ? payload.passcode.trim() : null;
 
-    const title = payload.title || 'Untitled Entry';
+    const isPhotoPost = payload.type === 'photo';
+    const title = payload.title || (isPhotoPost ? `Photo — ${new Date().toLocaleDateString()}` : 'Untitled Entry');
     const slug = payload.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
-    const isPhotoPost = payload.type === 'photo';
+    let finalCover = payload.cover_image ? payload.cover_image.trim() : '';
+    if (finalCover) {
+      const extracted = extractB2StorageKey(finalCover);
+      if (extracted) finalCover = extracted;
+    }
+    if (!finalCover && payload.content) {
+      const imgMatch = payload.content.match(/!\[.*?\]\((.*?)\)/) ||
+        payload.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
+      if (imgMatch) {
+        const rawMatch = imgMatch[1] || imgMatch[0];
+        finalCover = extractB2StorageKey(rawMatch) || rawMatch;
+      }
+    }
 
     const entryData = {
       title,
@@ -237,7 +250,7 @@ app.post('/api/posts', async (req, res) => {
       status: payload.status || 'published',
       category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
       tags: payload.tags || '',
-      cover_image: payload.cover_image || '',
+      cover_image: finalCover,
       excerpt: stripMarkdown(payload.excerpt || payload.content || '', 150),
       date: payload.date || new Date().toISOString(),
       location: payload.location || null,
@@ -449,10 +462,25 @@ app.put('/api/posts/:id', async (req, res) => {
     const payload = req.body;
 
     const isPhotoPost = payload.type === 'photo';
+    let finalCover = payload.cover_image !== undefined ? (payload.cover_image ? payload.cover_image.trim() : '') : undefined;
+    if (finalCover) {
+      const extracted = extractB2StorageKey(finalCover);
+      if (extracted) finalCover = extracted;
+    }
+    if ((finalCover === '' || finalCover === undefined) && payload.content) {
+      const imgMatch = payload.content.match(/!\[.*?\]\((.*?)\)/) ||
+        payload.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
+      if (imgMatch) {
+        const rawMatch = imgMatch[1] || imgMatch[0];
+        finalCover = extractB2StorageKey(rawMatch) || rawMatch;
+      }
+    }
+
     const updateData = {
       ...payload,
       type: isPhotoPost ? 'journal' : payload.type,
       category: isPhotoPost ? 'Photos' : payload.category,
+      cover_image: finalCover !== undefined ? finalCover : payload.cover_image,
       updated_at: new Date().toISOString()
     };
     if (payload.passcode !== undefined) {

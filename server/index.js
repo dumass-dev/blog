@@ -842,9 +842,16 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
     const dbCategory = isPhotoType ? (category && category.trim() ? category.trim() : 'Photos') : (category ? category.trim() : 'General');
 
     let finalCoverImage = cover_image ? cover_image.trim() : '';
+    if (finalCoverImage) {
+      const extracted = extractB2StorageKey(finalCoverImage);
+      if (extracted) finalCoverImage = extracted;
+    }
     if (!finalCoverImage && content) {
-      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
-      if (imgMatch) finalCoverImage = imgMatch[1] || imgMatch[0];
+      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i);
+      if (imgMatch) {
+        const rawMatch = imgMatch[1] || imgMatch[0];
+        finalCoverImage = extractB2StorageKey(rawMatch) || rawMatch;
+      }
     }
 
     const entryData = {

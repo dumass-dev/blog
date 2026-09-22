@@ -258,7 +258,15 @@ export default function Editor() {
     const newContent = currentContent.substring(0, start) + textToInsert + currentContent.substring(end);
     const newCursorPos = start + textToInsert.length;
 
-    setFormData(prev => ({ ...prev, content: newContent }));
+    const rawUrl = media.url || media.storageKey || media.signed_url || '';
+    const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i);
+    const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
+
+    setFormData(prev => ({
+      ...prev,
+      content: newContent,
+      cover_image: (!prev.cover_image || !prev.cover_image.trim()) && canonicalKey ? canonicalKey : prev.cover_image
+    }));
     cursorPosRef.current = { start: newCursorPos, end: newCursorPos };
 
     setTimeout(() => {

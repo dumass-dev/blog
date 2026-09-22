@@ -76,7 +76,7 @@ describe('B2 Refresh Endpoint Hostname Security Tests', () => {
     if (!freshCover || !freshCover.trim()) {
       const imgMatch = post.content && (
         post.content.match(/!\[.*?\]\((.*?)\)/) ||
-        post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i)
+        post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i)
       );
       if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
     }
@@ -98,7 +98,7 @@ describe('B2 Refresh Endpoint Hostname Security Tests', () => {
     if (!freshCover || !freshCover.trim()) {
       const imgMatch = post.content && (
         post.content.match(/!\[.*?\]\((.*?)\)/) ||
-        post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i)
+        post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i)
       );
       if (imgMatch) freshCover = imgMatch[1] || imgMatch[0];
     }
