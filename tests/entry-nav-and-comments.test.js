@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { cacheEntry, getCachedEntry } from '../src/supabase.js';
+import { cacheEntry, getCachedEntry, getCachedFeed } from '../src/supabase.js';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../src/utils/entry.js';
 
 describe('Fix 1: Entry Detail Content Loading & Navigation Logic', () => {
@@ -81,5 +81,26 @@ describe('Fix 2: Comments and Reactions Removal for Photo Posts Only', () => {
       false,
       'Lowercase photos category entry must NOT show comments/reactions'
     );
+  });
+});
+
+describe('Fix 3: Instant Section Feed Derivation for Zero-Delay Navigation', () => {
+  test('getCachedFeed("journal") derives journal entries from home feed cache when journal cache is empty', () => {
+    const mockHomeFeed = [
+      { id: '1', title: 'Journal Post 1', type: 'journal', category: 'Thoughts' },
+      { id: '2', title: 'Photo Post 1', type: 'photo', category: 'Photos' },
+      { id: '3', title: 'Writing Post 1', type: 'writing', category: 'Essays' }
+    ];
+
+    // Simulate home feed cache present in localStorage
+    globalThis.localStorage = {
+      getItem: (key) => key === 'feed_cache_home' ? JSON.stringify(mockHomeFeed) : null,
+      setItem: () => {}
+    };
+
+    const derivedJournal = getCachedFeed('journal');
+    assert.notStrictEqual(derivedJournal, null, 'Derived journal feed must not be null');
+    assert.strictEqual(derivedJournal.length, 2, 'Must filter out photo posts and keep journal/writing posts');
+    assert.strictEqual(derivedJournal[0].title, 'Journal Post 1');
   });
 });

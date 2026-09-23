@@ -36,6 +36,45 @@ export function getCachedFeed(typeKey = 'all') {
       }
     }
   } catch {}
+
+  // Fallback: If a specific section feed (like 'journal', 'writing', 'photo') is not yet cached independently,
+  // derive it instantly from 'home' or 'all' feed cache for 0ms instant section page navigation
+  if (typeKey !== 'all' && typeKey !== 'home') {
+    const parentCache = feedsCache.get('home') || feedsCache.get('all') || (() => {
+      try {
+        const rawHome = localStorage.getItem('feed_cache_home') || localStorage.getItem('feed_cache_all');
+        return rawHome ? JSON.parse(rawHome) : null;
+      } catch { return null; }
+    })();
+
+    if (Array.isArray(parentCache) && parentCache.length > 0) {
+      let derived = parentCache;
+      if (typeKey === 'journal') {
+        derived = parentCache.filter(item => 
+          item.type !== 'photo' && 
+          (!item.category || item.category.toLowerCase() !== 'photos')
+        );
+      } else if (typeKey === 'writing') {
+        derived = parentCache.filter(item => 
+          item.type === 'writing' || item.type === 'essay' ||
+          (item.category && item.category.toLowerCase() === 'writing')
+        );
+      } else if (typeKey === 'photo') {
+        derived = parentCache.filter(item => 
+          item.type === 'photo' || 
+          (item.category && item.category.toLowerCase() === 'photos')
+        );
+      } else if (typeKey === 'update') {
+        derived = parentCache.filter(item => item.type === 'update');
+      }
+
+      if (Array.isArray(derived) && derived.length > 0) {
+        feedsCache.set(typeKey, derived);
+        return derived;
+      }
+    }
+  }
+
   return null;
 }
 
