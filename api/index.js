@@ -888,6 +888,91 @@ app.put('/api/about', async (req, res) => {
   }
 });
 
+// GET /api/posts/:id/reactions
+app.get('/api/posts/:id/reactions', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let postId = id;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) {
+      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      if (!posts || !posts[0]) {
+        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+        if (rawPosts && rawPosts[0]) posts = rawPosts;
+      }
+      if (posts && posts[0]) postId = posts[0].id;
+    }
+
+    const { data: reactions, error } = await getSupabaseClient(req)
+      .from('reactions')
+      .select('reaction_type')
+      .eq('post_id', postId);
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+    const counts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+    (reactions || []).forEach(r => {
+      if (counts[r.reaction_type] !== undefined) {
+        counts[r.reaction_type]++;
+      }
+    });
+
+    res.json({
+      ...counts,
+      hearts: (reactions || []).length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/posts/:id/reactions
+app.post('/api/posts/:id/reactions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rawType = req.body.reaction_type || req.body.type || 'loved';
+    const reaction_type = rawType === 'heart' ? 'loved' : rawType;
+
+    let postId = id;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) {
+      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      if (!posts || !posts[0]) {
+        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+        if (rawPosts && rawPosts[0]) posts = rawPosts;
+      }
+      if (posts && posts[0]) postId = posts[0].id;
+    }
+
+    const { error } = await getSupabaseClient(req)
+      .from('reactions')
+      .insert([{ post_id: postId, reaction_type }]);
+
+    if (error) throw error;
+
+    const { data: allReactions } = await getSupabaseClient(req)
+      .from('reactions')
+      .select('reaction_type')
+      .eq('post_id', postId);
+
+    const updatedCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+    (allReactions || []).forEach(r => {
+      if (updatedCounts[r.reaction_type] !== undefined) {
+        updatedCounts[r.reaction_type]++;
+      }
+    });
+
+    res.json({
+      success: true,
+      ...updatedCounts,
+      hearts: (allReactions || []).length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SITEMAP & ROBOTS.TXT
 app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
   try {
