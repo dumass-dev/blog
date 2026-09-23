@@ -28,12 +28,21 @@
   ],
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|uploads/|assets/|favicon.ico).*)" ,
+      "source": "/((?!api/|uploads/|assets/|favicon.ico|sitemap\\.xml|robots\\.txt).*)",
       "destination": "/index.html"
     }
   ]
+
 }

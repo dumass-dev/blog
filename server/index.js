@@ -6,8 +6,10 @@ import path from 'path';
 import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey } from './b2.js';
+import { generateSitemapXml, getRobotsTxt } from './sitemap.js';
 
 dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1437,6 +1439,30 @@ app.post('/api/about', requireAdminAuth, async (req, res) => {
   }
 });
 
+// SITEMAP & ROBOTS.TXT
+app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
+  try {
+    const { data: posts } = await getSupabaseClient(req)
+      .from('entries')
+      .select('id, slug, status, has_passcode, is_protected, passcode, show_in_feed, updated_at, date, created_at')
+      .order('date', { ascending: false });
+
+    const xml = generateSitemapXml(posts || []);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.send(xml);
+  } catch (err) {
+    console.error('Error generating sitemap:', err);
+    const xml = generateSitemapXml([]);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.send(xml);
+  }
+});
+
+app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  return res.send(getRobotsTxt());
+});
+
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Backend server active on http://localhost:${PORT} connected to Supabase & Backblaze B2.`);
@@ -1444,4 +1470,5 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+
 
