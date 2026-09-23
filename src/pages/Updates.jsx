@@ -68,10 +68,20 @@ export default function Updates() {
                 {formatUpdateTimestamp(item.date)}
               </div>
 
+              {/* Title heading if present */}
+              {item.title && (
+                <h2 className="text-xl font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)]">
+                  <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+                    {item.title}
+                  </Link>
+                </h2>
+              )}
+
               {/* Content blockquote / text */}
-              <blockquote className="font-serif text-lg text-[var(--text-primary)] leading-relaxed italic border-l-0 pl-0 my-0">
+              <blockquote className="font-serif text-base sm:text-lg text-[var(--text-primary)] leading-relaxed italic border-l-0 pl-0 my-0">
                 "{item.excerpt || item.title}"
               </blockquote>
+
 
               <div className="mt-1">
                 <Link

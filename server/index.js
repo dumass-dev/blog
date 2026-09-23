@@ -5,8 +5,9 @@ import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
-import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey } from './b2.js';
+import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey, getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl } from './b2.js';
 import { generateSitemapXml, getRobotsTxt } from './sitemap.js';
+
 
 dotenv.config();
 
@@ -510,6 +511,153 @@ app.get('/api/stats', requireAdminAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+/* ==========================================================================
+   MEDIA ENDPOINTS (SUPABASE & BACKBLAZE B2)
+   ========================================================================== */
+
+// GET /api/media (Admin Only)
+app.get('/api/media', requireAdminAuth, async (req, res) => {
+  try {
+    const { data, error } = await getSupabaseClient(req)
+      .from('media')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const refreshed = await Promise.all((data || []).map(async item => {
+      const rawUrl = item.url || '';
+      const key = extractB2StorageKey(rawUrl) || rawUrl;
+      const freshUrl = await refreshB2Url(key);
+      return {
+        ...item,
+        url: freshUrl || rawUrl,
+        signed_url: freshUrl || rawUrl
+      };
+    }));
+
+    res.json(refreshed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Multipart Media Upload Endpoint (Admin Only)
+app.post('/api/media/upload', requireAdminAuth, async (req, res) => {
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+      const file = req.file;
+
+      if (isB2Configured()) {
+        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype);
+        const mediaRow = {
+          filename: path.basename(b2Result.storageKey),
+          original_name: file.originalname,
+          mime_type: file.mimetype,
+          size: file.size,
+          url: b2Result.storageKey
+        };
+
+        const { data, error } = await getSupabaseClient(req)
+          .from('media')
+          .insert([mediaRow])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+
+        return res.status(201).json({
+          ...data,
+          signed_url: b2Result.signedUrl
+        });
+      } else {
+        return res.status(500).json({ error: 'Backblaze B2 credentials missing in server environment.' });
+      }
+    } catch (uploadErr) {
+      res.status(500).json({ error: uploadErr.message });
+    }
+  });
+});
+
+// Presigned B2 Upload Endpoint (Admin Only)
+app.post('/api/b2-upload', requireAdminAuth, async (req, res) => {
+  try {
+    const { filename, mimeType, sizeBytes } = req.body;
+    if (!filename || !mimeType) {
+      return res.status(400).json({ error: 'filename and mimeType are required.' });
+    }
+
+    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600);
+    res.json(result);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// Confirm Media Upload (Admin Only)
+app.post('/api/media/confirm', requireAdminAuth, async (req, res) => {
+  try {
+    const { storageKey, originalName, mimeType, sizeBytes, publicUrl } = req.body;
+    if (!storageKey || !originalName || !mimeType) {
+      return res.status(400).json({ error: 'storageKey, originalName, and mimeType required.' });
+    }
+
+    await verifyB2UploadedFile(storageKey, originalName, mimeType);
+    const signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
+
+    const mediaData = {
+      filename: path.basename(storageKey),
+      original_name: originalName,
+      mime_type: mimeType,
+      size: sizeBytes || 0,
+      url: storageKey
+    };
+
+    const { data, error } = await getSupabaseClient(req)
+      .from('media')
+      .insert(mediaData)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ success: true, media: data, signed_url: signedUrl });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/media/:id (Admin Only)
+app.delete('/api/media/:id', requireAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: item } = await getSupabaseClient(req)
+      .from('media')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (item && item.url) {
+      const key = extractB2StorageKey(item.url) || item.url;
+      await deleteFromB2(key);
+    }
+
+    const { error } = await getSupabaseClient(req)
+      .from('media')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 /**
  * Helper: Check if request is authenticated as owner/admin

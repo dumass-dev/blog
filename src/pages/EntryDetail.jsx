@@ -325,11 +325,12 @@ export default function EntryDetail() {
           )}
         </div>
 
-        {entry.type !== 'update' && (
+        {entry.title && (
           <h1 className="text-3xl sm:text-4xl font-serif font-medium tracking-tight leading-tight mb-4">
             {entry.title}
           </h1>
         )}
+
 
         {/* Context Badges (Location, Weather, Mood) */}
         {(entry.location || entry.weather || entry.mood) && (

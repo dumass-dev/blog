@@ -119,7 +119,7 @@ export default function Home() {
                     )}
                   </div>
 
-                  {effectiveType !== 'update' ? (
+                  {item.title ? (
                     <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
                       <Link
                         to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
@@ -129,6 +129,7 @@ export default function Home() {
                       </Link>
                     </h2>
                   ) : null}
+
 
                   {(item.location || item.weather || item.mood) && (
                     <div className="flex flex-wrap gap-3 text-xs font-sans text-[var(--text-secondary)] mb-3 italic">
@@ -168,8 +169,14 @@ export default function Home() {
                   )}
 
                   <div className="text-[var(--text-secondary)] font-serif leading-relaxed italic text-sm sm:text-base opacity-90 line-clamp-2">
-                    {stripMarkdown(item.excerpt || item.title)}
+                    <Link
+                      to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
+                      className="hover:text-[var(--text-primary)] transition-colors text-inherit"
+                    >
+                      {stripMarkdown(item.excerpt || item.title)}
+                    </Link>
                   </div>
+
                 </article>
               </React.Fragment>
             );
