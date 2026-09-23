@@ -34,6 +34,11 @@
   --card-bg: #0C0C0C;
 }
 
+img {
+  display: block;
+  max-width: 100%;
+}
+
 /* Glossy App-Like Shimmer Reflection Animation for Skeletons */
 @keyframes shimmer-sweep {
   0% {

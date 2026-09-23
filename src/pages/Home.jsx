@@ -155,12 +155,12 @@ export default function Home() {
                   )}
 
                   {effectiveType === 'photo' && photoSrc && !isLockedPasscode && (
-                    <div className="my-3.5 rounded-lg overflow-hidden border border-[var(--border-subtle)] max-w-md bg-black/5">
-                      <Link to="/photos">
+                    <div className="my-3.5 rounded-lg overflow-hidden border border-[var(--border-subtle)] max-w-md bg-[var(--code-bg)]">
+                      <Link to="/photos" className="block w-full leading-none">
                         <img
                           src={photoSrc}
                           alt={item.title || 'Photo'}
-                          className="w-full h-auto max-h-80 object-cover group-hover:opacity-95 transition-opacity"
+                          className="block w-full h-auto max-h-[520px] object-cover group-hover:opacity-95 transition-opacity"
                           loading="lazy"
                           onError={(e) => handleImageError(e, photoSrc)}
                         />
@@ -168,14 +168,16 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="text-[var(--text-secondary)] font-serif leading-relaxed italic text-sm sm:text-base opacity-90 line-clamp-2">
-                    <Link
-                      to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
-                      className="hover:text-[var(--text-primary)] transition-colors text-inherit"
-                    >
-                      {stripMarkdown(item.excerpt || item.title)}
-                    </Link>
-                  </div>
+                  {Boolean(stripMarkdown(item.excerpt || '').trim() && stripMarkdown(item.excerpt || '').trim() !== stripMarkdown(item.title || '').trim()) && (
+                    <div className="text-[var(--text-secondary)] font-serif leading-relaxed italic text-sm sm:text-base opacity-90 line-clamp-2">
+                      <Link
+                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
+                        className="hover:text-[var(--text-primary)] transition-colors text-inherit"
+                      >
+                        {stripMarkdown(item.excerpt)}
+                      </Link>
+                    </div>
+                  )}
 
                 </article>
               </React.Fragment>
