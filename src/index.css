@@ -32,6 +32,8 @@
   --accent-warm: #EBE8E3;
   --code-bg: #141413;
   --card-bg: #0C0C0C;
+}
+
 /* Glossy App-Like Shimmer Reflection Animation for Skeletons */
 @keyframes shimmer-sweep {
   0% {
