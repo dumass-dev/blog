@@ -15,6 +15,17 @@ describe('Dynamic XML Sitemap & Robots.txt Route Tests (/sitemap.xml, /robots.tx
     global.__mockSupabaseClient = () => ({
       from: (tableName) => {
         if (tableName === 'entries') {
+          // Direct SELECT on 'entries' is REVOKED for anonymous requests -> returns permission denied error
+          return {
+            select: () => ({
+              order: async () => ({
+                data: null,
+                error: { message: 'permission denied for table entries', code: '42501' }
+              })
+            })
+          };
+        }
+        if (tableName === 'public_published_entries') {
           return {
             select: () => ({
               order: async () => ({
@@ -22,23 +33,13 @@ describe('Dynamic XML Sitemap & Robots.txt Route Tests (/sitemap.xml, /robots.tx
                   {
                     id: 'post-1',
                     slug: 'valid-public-essay',
-                    status: 'published',
                     has_passcode: false,
                     show_in_feed: true,
                     updated_at: '2026-09-20T10:00:00.000Z'
                   },
                   {
-                    id: 'post-2',
-                    slug: 'secret-draft-essay',
-                    status: 'draft',
-                    has_passcode: false,
-                    show_in_feed: true,
-                    updated_at: '2026-09-21T10:00:00.000Z'
-                  },
-                  {
                     id: 'post-3',
                     slug: 'locked-private-diary',
-                    status: 'published',
                     has_passcode: true,
                     show_in_feed: true,
                     updated_at: '2026-09-22T10:00:00.000Z'
@@ -46,7 +47,6 @@ describe('Dynamic XML Sitemap & Robots.txt Route Tests (/sitemap.xml, /robots.tx
                   {
                     id: 'post-4',
                     slug: 'hidden-feed-post',
-                    status: 'published',
                     has_passcode: false,
                     show_in_feed: false,
                     updated_at: '2026-09-23T10:00:00.000Z'
@@ -60,6 +60,7 @@ describe('Dynamic XML Sitemap & Robots.txt Route Tests (/sitemap.xml, /robots.tx
         return { select: () => ({ order: async () => ({ data: [], error: null }) }) };
       }
     });
+
 
     server = http.createServer((req, res) => app(req, res));
     await new Promise(resolve => server.listen(PORT, resolve));

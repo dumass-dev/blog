@@ -884,9 +884,10 @@ app.put('/api/about', async (req, res) => {
 app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
   try {
     const { data: posts } = await getSupabaseClient(req)
-      .from('entries')
-      .select('id, slug, status, has_passcode, is_protected, passcode, show_in_feed, updated_at, date, created_at')
+      .from('public_published_entries')
+      .select('id, slug, has_passcode, is_protected, show_in_feed, updated_at, date, created_at')
       .order('date', { ascending: false });
+
 
     const xml = generateSitemapXml(posts || []);
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
