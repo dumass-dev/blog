@@ -50,9 +50,10 @@ export function cacheEntry(entry) {
  */
 export async function safeApiFetch(url, options = {}) {
   try {
+    const { timeout = 5000, ...fetchOptions } = options;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1000);
-    const res = await fetch(url, { ...options, signal: controller.signal });
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
     const text = await res.text();

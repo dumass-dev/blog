@@ -127,13 +127,18 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         });
 
         if (!b2Res.ok) {
-          throw new Error(`Direct B2 upload returned status ${b2Res.status}`);
+          const errText = await b2Res.text().catch(() => '');
+          throw new Error(`B2 storage returned HTTP ${b2Res.status} ${b2Res.statusText}${errText ? `: ${errText.slice(0, 150)}` : ''}`);
         }
       } catch (b2Err) {
+        console.error('[Direct B2 Upload Detailed Error]:', b2Err);
         if (isSmallFile) {
           return await uploadViaServerFallback(file);
         }
-        throw new Error(`Direct B2 upload failed for large file (${(file.size / 1024 / 1024).toFixed(1)}MB): ${b2Err.message}. Check CORS config on B2 bucket.`, { cause: b2Err });
+        const failureDetails = (b2Err instanceof TypeError || b2Err.message?.includes('fetch'))
+          ? `Network/CORS rejection (${b2Err.message}). Check CORS configuration on B2 bucket.`
+          : b2Err.message;
+        throw new Error(`Direct B2 upload failed for large file (${(file.size / 1024 / 1024).toFixed(1)}MB): ${failureDetails}`, { cause: b2Err });
       }
 
 
@@ -163,6 +168,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
 
       fetchMedia();
     } catch (err) {
+      console.error('[MediaPicker handleFileUpload error]:', err);
       setError(err.message || 'Upload failed.');
     } finally {
       setUploading(false);
