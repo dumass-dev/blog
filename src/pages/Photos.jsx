@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Heart, MessageSquare, LayoutGrid, Rows, X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { handleImageError } from '../utils/image';
@@ -21,7 +21,6 @@ export default function Photos() {
     pageSize: 12
   });
 
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'feed'
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   
   // Interactions for active lightbox photo
@@ -208,45 +207,13 @@ export default function Photos() {
   return (
     <div className="notebook-container pb-20">
       {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-[var(--border-subtle)] pb-6 mb-8 gap-4">
-        <div>
-          <h1 className="font-serif text-3xl sm:text-4xl tracking-tight text-[var(--text-primary)] font-normal">
-            Photos
-          </h1>
-          <p className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1">
-            Visual journal, moments & Backblaze film archives ({photos.length} captures)
-          </p>
-        </div>
-
-        {/* Feed View Controls */}
-        <div className="flex items-center space-x-1 bg-[var(--card-bg)] p-1 rounded-lg border border-[var(--border-subtle)] self-start sm:self-auto">
-          <button
-            onClick={() => setViewMode('grid')}
-            style={viewMode === 'grid' ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' } : {}}
-            className={`px-3 py-1.5 rounded-md text-xs font-sans flex items-center space-x-1.5 transition-colors cursor-pointer ${
-              viewMode === 'grid'
-                ? 'font-medium shadow-sm'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-            title="Grid View"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>Grid</span>
-          </button>
-          <button
-            onClick={() => setViewMode('feed')}
-            style={viewMode === 'feed' ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' } : {}}
-            className={`px-3 py-1.5 rounded-md text-xs font-sans flex items-center space-x-1.5 transition-colors cursor-pointer ${
-              viewMode === 'feed'
-                ? 'font-medium shadow-sm'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-            title="Feed Stream View"
-          >
-            <Rows className="w-3.5 h-3.5" />
-            <span>Stream</span>
-          </button>
-        </div>
+      <div className="border-b border-[var(--border-subtle)] pb-6 mb-8">
+        <h1 className="font-serif text-3xl sm:text-4xl tracking-tight text-[var(--text-primary)] font-normal">
+          Photos
+        </h1>
+        <p className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1">
+          Visual journal, moments & Backblaze film archives ({photos.length} captures)
+        </p>
       </div>
 
       {/* Loading Skeleton */}
@@ -260,7 +227,7 @@ export default function Photos() {
             Upload images in Admin Studio to build your visual stream.
           </p>
         </div>
-      ) : viewMode === 'grid' ? (
+      ) : (
         /* GRID VIEW (3-column Instagram style) */
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">
           {photos.map((item, idx) => {
@@ -299,115 +266,6 @@ export default function Photos() {
                   </p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* FEED / STREAM VIEW (Vertical Instagram style) */
-        <div className="max-w-xl mx-auto space-y-12">
-          {photos.map((item, idx) => {
-            const imgSrc = getPhotoSrc(item);
-
-            return (
-              <article
-                key={item.id || idx}
-                className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-main)] shadow-sm"
-              >
-                {/* Header */}
-                <div className="p-4 flex items-center justify-between border-b border-[var(--border-subtle)]">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-[var(--text-primary)] text-[var(--bg-main)] font-serif font-medium flex items-center justify-center text-xs">
-                      q
-                    </div>
-                    <div>
-                      <h3 className="font-sans text-xs font-semibold text-[var(--text-primary)] break-words leading-normal whitespace-normal">
-                        {item.title}
-                      </h3>
-                      {item.location && (
-                        <p className="font-sans text-[10px] text-[var(--text-muted)] flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5" />
-                          <span>{item.location}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <span className="font-sans text-[11px] text-[var(--text-muted)]">
-                    {formatDate(item.date)}
-                  </span>
-                </div>
-
-                {/* Image */}
-                <div
-                  className="relative aspect-square sm:aspect-auto max-h-[560px] bg-black/5 cursor-pointer overflow-hidden flex items-center justify-center"
-                  onClick={() => openPhoto(item, idx)}
-                >
-                  {item.has_passcode && item.content && item.content.includes('🔒') ? (
-                    <div className="p-8 text-center flex flex-col items-center justify-center space-y-3 py-16 bg-[var(--card-bg)] w-full h-full">
-                      <div className="w-12 h-12 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--accent-warm)]">
-                        <Lock className="w-5 h-5" />
-                      </div>
-                      <h4 className="font-serif text-base font-medium text-[var(--text-primary)]">Passcode Protected Photo</h4>
-                      <p className="font-sans text-xs text-[var(--text-muted)] max-w-xs leading-relaxed">
-                        This capture is private. Tap to enter passcode and view high-res photo.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openPhoto(item, idx);
-                        }}
-                        className="quiet-button text-xs py-2 px-4 font-sans inline-flex items-center gap-1.5 mt-2"
-                      >
-                        <span>Unlock Photo</span>
-                      </button>
-                    </div>
-                  ) : imgSrc ? (
-                    <img
-                      src={imgSrc}
-                      alt={item.title}
-                      className="w-full h-full object-contain max-h-[560px]"
-                      loading="lazy"
-                      onError={(e) => handleImageError(e, imgSrc)}
-                    />
-                  ) : (
-                    <div className="p-8 text-center text-[var(--text-muted)] font-serif italic text-sm">
-                      No image available
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer / Caption */}
-                <div className="p-4 space-y-2">
-                  {shouldShowCommentsAndReactions(item) && (
-                    <div className="flex items-center space-x-4 text-[var(--text-secondary)]">
-                      <button
-                        onClick={(e) => handleLike(item.id, e)}
-                        className="flex items-center space-x-1 hover:text-red-500 transition-colors text-xs font-sans"
-                      >
-                        <Heart className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openPhoto(item, idx)}
-                        className="flex items-center space-x-1 hover:text-[var(--text-primary)] transition-colors text-xs font-sans"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  {getCleanCaption(item) && (
-                    <p className="font-sans text-xs sm:text-sm text-[var(--text-primary)] leading-relaxed">
-                      {getCleanCaption(item)}
-                    </p>
-                  )}
-
-                  {item.tags && (
-                    <p className="font-sans text-[11px] text-[var(--text-muted)]">
-                      {item.tags.split(',').map(t => `#${t.trim()}`).join(' ')}
-                    </p>
-                  )}
-                </div>
-              </article>
             );
           })}
         </div>
