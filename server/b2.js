@@ -280,10 +280,82 @@ export async function verifyB2UploadedFile(storageKey, originalName, mimeType) {
 }
 
 /**
+ * Extract all B2 storage keys referenced in a string (cover_image or content)
+ */
+export function extractAllB2StorageKeys(text) {
+  if (!text || typeof text !== 'string') return [];
+  const regex = /(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/gi;
+  const matches = text.match(regex);
+  if (!matches) return [];
+  return Array.from(new Set(matches));
+}
+
+const testDeletedB2Keys = new Set();
+
+export function getTestDeletedB2Keys() {
+  return Array.from(testDeletedB2Keys);
+}
+
+export function clearTestDeletedB2Keys() {
+  testDeletedB2Keys.clear();
+}
+
+/**
+ * Safely clean up B2 files referenced by an entry being deleted.
+ * Only deletes a B2 file if it is NOT referenced by any other entry
+ * and does NOT have a row in the media table.
+ */
+export async function cleanupOrphanedB2FilesForEntry(supabaseClient, entry) {
+  if (!entry) return;
+
+  const coverKeys = extractAllB2StorageKeys(entry.cover_image);
+  const contentKeys = extractAllB2StorageKeys(entry.content);
+  const allKeys = Array.from(new Set([...coverKeys, ...contentKeys]));
+
+  if (allKeys.length === 0) return;
+
+  for (const key of allKeys) {
+    try {
+      // 1. Check if referenced in any OTHER entry (excluding entry.id)
+      const { data: otherEntries } = await supabaseClient
+        .from('entries')
+        .select('id')
+        .neq('id', entry.id)
+        .or(`cover_image.ilike.%${key}%,content.ilike.%${key}%`)
+        .limit(1);
+
+      if (otherEntries && otherEntries.length > 0) {
+        // Still referenced in another entry — skip B2 delete
+        continue;
+      }
+
+      // 2. Check if key has a matching row in the media table
+      const filename = path.basename(key);
+      const { data: mediaRows } = await supabaseClient
+        .from('media')
+        .select('id')
+        .or(`url.ilike.%${key}%,filename.ilike.%${filename}%`)
+        .limit(1);
+
+      if (mediaRows && mediaRows.length > 0) {
+        // Referenced in media library — skip B2 delete
+        continue;
+      }
+
+      // 3. File is truly orphaned — delete from B2
+      await deleteFromB2(key);
+    } catch (err) {
+      console.error('Error during B2 orphan check/cleanup for key:', key, err.message);
+    }
+  }
+}
+
+/**
  * Delete an object from Backblaze B2
  */
 export async function deleteFromB2(storageKey) {
-  if (process.env.NODE_ENV === 'test') {
+  if (storageKey && process.env.NODE_ENV === 'test') {
+    testDeletedB2Keys.add(storageKey);
     return true;
   }
 

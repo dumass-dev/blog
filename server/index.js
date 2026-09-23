@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from './supabase.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
-import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey, getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl } from './b2.js';
+import { uploadToB2, deleteFromB2, isB2Configured, refreshB2Url, extractB2StorageKey, getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, cleanupOrphanedB2FilesForEntry } from './b2.js';
 import { generateSitemapXml, getRobotsTxt } from './sitemap.js';
 
 
@@ -1230,7 +1230,16 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
 app.delete('/api/posts/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await getSupabaseClient(req).from('entries').delete().eq('id', id);
+    const supabaseClient = getSupabaseClient(req);
+
+    // Fetch entry first to inspect B2 storage keys in cover_image / content
+    const { data: entry } = await supabaseClient.from('entries').select('*').eq('id', id).single();
+
+    if (entry) {
+      await cleanupOrphanedB2FilesForEntry(supabaseClient, entry);
+    }
+
+    const { error } = await supabaseClient.from('entries').delete().eq('id', id);
 
     if (error) throw error;
 

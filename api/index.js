@@ -3,7 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from '../server/supabase.js';
-import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured } from '../server/b2.js';
+import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
@@ -627,7 +627,15 @@ app.delete('/api/posts/:id', async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { error } = await getSupabaseClient(req)
+    const supabaseClient = getSupabaseClient(req);
+
+    const { data: entry } = await supabaseClient.from('entries').select('*').eq('id', id).single();
+
+    if (entry) {
+      await cleanupOrphanedB2FilesForEntry(supabaseClient, entry);
+    }
+
+    const { error } = await supabaseClient
       .from('entries')
       .delete()
       .eq('id', id);
