@@ -49,17 +49,11 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
     }
   }, [isOpen, fetchMedia]);
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploading(true);
-    setError(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+  const uploadViaServerFallback = async (file) => {
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch('/api/media/upload', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -67,12 +61,8 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
       });
 
       if (!res.ok) {
-        let errText = 'Upload failed.';
-        try {
-          const data = await res.json();
-          errText = data.error || errText;
-        } catch {}
-        throw new Error(errText);
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Server upload fallback failed.');
       }
 
       fetchMedia();
@@ -82,6 +72,103 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
       setUploading(false);
     }
   };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+
+    const effectiveMime = file.type || 'application/octet-stream';
+    const isSmallFile = file.size < 4 * 1024 * 1024; // <4MB
+
+    try {
+      // PRIMARY PATH: Direct-to-B2 presigned upload (Bypasses Vercel 4.5MB serverless limit)
+      let presignRes;
+      try {
+        presignRes = await fetch('/api/b2-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            mimeType: effectiveMime,
+            sizeBytes: file.size
+          })
+        });
+      } catch (presignErr) {
+        if (isSmallFile) {
+          return await uploadViaServerFallback(file);
+        }
+        throw new Error(`Failed to authorize upload: ${presignErr.message}`, { cause: presignErr });
+      }
+
+      if (!presignRes.ok) {
+        if (isSmallFile) {
+          return await uploadViaServerFallback(file);
+        }
+        const errData = await presignRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to authorize upload.');
+      }
+
+      const presignData = await presignRes.json();
+
+      // Step 2: Direct PUT to B2 S3 storage with exact matching Content-Type
+      try {
+        const b2Res = await fetch(presignData.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': effectiveMime
+          },
+          body: file
+        });
+
+        if (!b2Res.ok) {
+          throw new Error(`Direct B2 upload returned status ${b2Res.status}`);
+        }
+      } catch (b2Err) {
+        if (isSmallFile) {
+          return await uploadViaServerFallback(file);
+        }
+        throw new Error(`Direct B2 upload failed for large file (${(file.size / 1024 / 1024).toFixed(1)}MB): ${b2Err.message}. Check CORS config on B2 bucket.`, { cause: b2Err });
+      }
+
+
+      // Step 3: Confirm upload & record database row
+      const confirmRes = await fetch('/api/media/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          storageKey: presignData.storageKey,
+          originalName: file.name,
+          mimeType: effectiveMime,
+          sizeBytes: file.size,
+          publicUrl: presignData.publicUrl
+        })
+      });
+
+      if (!confirmRes.ok) {
+        if (isSmallFile) {
+          return await uploadViaServerFallback(file);
+        }
+        const confirmData = await confirmRes.json().catch(() => ({}));
+        throw new Error(confirmData.error || 'Media confirmation failed magic byte check.');
+      }
+
+      fetchMedia();
+    } catch (err) {
+      setError(err.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
 
 
   return (

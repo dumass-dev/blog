@@ -128,7 +128,85 @@ describe('BUG 2: Media Library API Routes & Upload Endpoint Tests', () => {
     assert.strictEqual(res.data.length, 1, 'Media list array must contain items');
   });
 
+  test('POST /api/b2-upload normalizes empty MIME types and returns valid presigned authorization', async () => {
+    const rawFile = { name: 'unnamed-recording.mov', type: '' };
+    const effectiveMime = rawFile.type || 'application/octet-stream';
+
+    const payload = JSON.stringify({
+      filename: rawFile.name,
+      mimeType: effectiveMime,
+      sizeBytes: 15000000
+    });
+
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/b2-upload',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        Authorization: 'Bearer admin-test-token'
+      }
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve({ status: r.statusCode, data: JSON.parse(body || '{}') }));
+      });
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 200, 'POST /api/b2-upload must return HTTP 200');
+    assert.ok(typeof res.data.storageKey === 'string', 'Must return storageKey');
+    assert.ok(typeof res.data.uploadUrl === 'string', 'Must return uploadUrl');
+    assert.strictEqual(effectiveMime, 'application/octet-stream', 'Empty file.type must normalize to application/octet-stream');
+  });
+
+
+  test('POST /api/media/confirm creates database record after upload', async () => {
+    const payload = JSON.stringify({
+      storageKey: 'images/2026/09/e2e-test-key.jpg',
+      originalName: 'e2e-photo.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 15000,
+      publicUrl: 'http://127.0.0.1:3099/images/2026/09/e2e-test-key.jpg'
+    });
+
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/media/confirm',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        Authorization: 'Bearer admin-test-token'
+      }
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve({ status: r.statusCode, data: JSON.parse(body || '{}') }));
+      });
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 201, 'POST /api/media/confirm must return HTTP 201 Created');
+    assert.strictEqual(res.data.success, true, 'Confirm response must report success: true');
+    assert.ok(res.data.media, 'Confirm response must include media record');
+  });
+
   test('Teardown mock server', () => {
     if (server) server.close();
   });
 });
+
