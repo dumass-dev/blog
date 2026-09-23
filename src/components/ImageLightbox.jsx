@@ -13,7 +13,8 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
           <div className="flex items-center gap-2 text-xs font-sans font-medium">
             <button
               onClick={onClose}
-              className="lightbox-close-btn"
+              className="lightbox-close-btn w-11 h-11 min-w-[44px] min-h-[44px] shrink-0"
+              style={{ width: '44px', height: '44px', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', backgroundColor: 'transparent', boxShadow: 'none' }}
               aria-label="Close photo view"
               title="Close photo"
             >

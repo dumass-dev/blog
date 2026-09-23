@@ -451,7 +451,8 @@ export default function Photos() {
               {/* High-visibility Close Button strictly on Photo Container Top-Left */}
               <button
                 onClick={() => setSelectedPhotoIndex(null)}
-                className="lightbox-close-btn"
+                className="lightbox-close-btn w-11 h-11 min-w-[44px] min-h-[44px] shrink-0"
+                style={{ width: '44px', height: '44px', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', backgroundColor: 'transparent', boxShadow: 'none' }}
                 aria-label="Close photo view"
                 title="Close photo"
               >

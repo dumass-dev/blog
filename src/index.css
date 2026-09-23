@@ -32,6 +32,47 @@
   --accent-warm: #EBE8E3;
   --code-bg: #141413;
   --card-bg: #0C0C0C;
+/* Glossy App-Like Shimmer Reflection Animation for Skeletons */
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--code-bg);
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 65%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 1.6s infinite ease-in-out;
+}
+
+:root:not(.dark) .skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.03) 35%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.03) 65%,
+    transparent 100%
+  );
 }
 
 /* Hide scrollbar on admin action bar and utility horizontal scrollers */
@@ -1348,6 +1389,10 @@ html, body {
   height: 44px !important;
   min-width: 44px !important;
   min-height: 44px !important;
+  max-width: 44px !important;
+  max-height: 44px !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
   background: transparent !important;
