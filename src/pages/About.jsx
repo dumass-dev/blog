@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import RichViewer from '../components/RichViewer';
 import useDocumentMeta from '../hooks/useDocumentMeta';
+import FeedSkeleton from '../components/FeedSkeleton';
 
 const defaultAbout = {
   author_name: 'q04ti',
@@ -73,9 +74,7 @@ export default function About() {
   return (
     <div className="notebook-container">
       {loading ? (
-        <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)] italic">
-          Loading about info...
-        </div>
+        <FeedSkeleton type="about" />
       ) : (
         <div className="space-y-12">
           {/* Header section */}

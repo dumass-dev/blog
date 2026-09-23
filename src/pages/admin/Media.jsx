@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import ThemeToggle from '../../components/ThemeToggle';
+import FeedSkeleton from '../../components/FeedSkeleton';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -176,9 +177,7 @@ export default function Media() {
 
       {/* Media Grid */}
       {loading ? (
-        <div className="py-16 text-center text-xs font-sans text-[var(--text-muted)] italic">
-          Loading media library...
-        </div>
+        <FeedSkeleton type="media" count={6} />
       ) : mediaList.length === 0 ? (
         <div className="py-16 text-center border border-dashed border-[var(--border-subtle)] rounded p-12">
           <p className="text-sm font-serif text-[var(--text-secondary)] mb-4">

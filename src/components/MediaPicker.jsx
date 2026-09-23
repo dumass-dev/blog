@@ -4,6 +4,7 @@ import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { supabase, safeApiFetch } from '../supabase';
 
 import Modal from './Modal';
+import FeedSkeleton from './FeedSkeleton';
 
 export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const { token } = useAuth();
@@ -218,9 +219,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         {/* Media Grid - Using vanilla CSS responsive-media-grid */}
         <div className="responsive-media-grid max-h-[50dvh] overflow-y-auto p-1">
           {loading ? (
-            <div className="text-center py-8 text-xs font-sans text-[var(--text-muted)]">
-              Loading media files...
-            </div>
+            <FeedSkeleton type="media" count={6} />
           ) : mediaList.length === 0 ? (
             <div className="text-center py-8 text-xs font-sans text-[var(--text-muted)]">
               No media uploaded yet. Use the upload button above.

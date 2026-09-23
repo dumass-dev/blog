@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
+import FeedSkeleton from '../components/FeedSkeleton';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -150,9 +151,7 @@ export default function Archive() {
       {(searchQuery || (activeYear && activeMonth)) ? (
         <div className="space-y-6">
           {loading ? (
-            <div className="py-8 text-center text-sm font-sans text-[var(--text-muted)] italic">
-              Searching archive...
-            </div>
+            <FeedSkeleton type="archive" />
           ) : searchResults.length === 0 ? (
             <div className="py-8 text-center text-sm font-sans text-[var(--text-muted)]">
               No entries found matching your criteria.

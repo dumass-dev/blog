@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import Modal from '../../components/Modal';
 import ThemeToggle from '../../components/ThemeToggle';
+import FeedSkeleton from '../../components/FeedSkeleton';
 import {
   Plus,
   FileText,
@@ -407,8 +408,8 @@ export default function Dashboard() {
       {/* Entries & Comments Container */}
       <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--card-bg)]">
         {loading ? (
-          <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
-            Loading data...
+          <div className="p-4">
+            <FeedSkeleton type="table" count={5} />
           </div>
         ) : filter === 'comments' ? (
           /* Reader Comments Moderation View */

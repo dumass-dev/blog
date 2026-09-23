@@ -11,6 +11,7 @@ import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase'
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { handleImageError } from '../utils/image';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
+import FeedSkeleton from '../components/FeedSkeleton';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -185,8 +186,8 @@ export default function EntryDetail() {
 
   if (loading) {
     return (
-      <div className="notebook-container py-16 text-center text-sm font-sans text-[var(--text-muted)] italic">
-        Opening entry...
+      <div className="notebook-container py-8">
+        <FeedSkeleton type="detail" />
       </div>
     );
   }
