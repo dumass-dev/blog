@@ -129,6 +129,106 @@ app.get('/api/posts/on-this-day', async (req, res) => {
   }
 });
 
+const defaultAboutData = {
+  author_name: 'q04ti',
+  tagline: 'thoughts, things I make, places I go, and everything in between.',
+  bio: 'Welcome to my digital diary and visual archive. I write about software, life, photography, and building minimalist web applications.',
+  projects: [
+    {
+      title: 'Digital Diary & Journal',
+      description: 'Minimalist personal digital diary, journal, blog, life archive and private admin space.',
+      link: 'https://github.com/shuaib-mk/blog'
+    }
+  ],
+  links: [
+    { label: 'GitHub', url: 'https://github.com/shuaib-mk' }
+  ]
+};
+
+// GET /api/about
+app.get('/api/about', async (req, res) => {
+  try {
+    const { data, error } = await getSupabaseClient(req)
+      .from('about')
+      .select('*')
+      .limit(1);
+
+    if (!error && data && data.length > 0 && data[0]) {
+      const row = data[0];
+      let projects = [];
+      try {
+        projects = Array.isArray(row.projects) ? row.projects : (typeof row.projects === 'string' ? JSON.parse(row.projects || '[]') : []);
+      } catch {}
+      let links = [];
+      try {
+        links = Array.isArray(row.links) ? row.links : (typeof row.links === 'string' ? JSON.parse(row.links || '[]') : []);
+      } catch {}
+
+      return res.json({
+        author_name: row.author_name || defaultAboutData.author_name,
+        tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
+        bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
+        projects: projects.length > 0 ? projects : defaultAboutData.projects,
+        links: links.length > 0 ? links : defaultAboutData.links
+      });
+    }
+
+    return res.json(defaultAboutData);
+  } catch (_err) {
+    return res.json(defaultAboutData);
+  }
+});
+
+// Save / Update About Handler (PUT & POST)
+async function handleSaveAbout(req, res) {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  try {
+    const payload = req.body || {};
+    const saveData = {
+      author_name: payload.author_name || 'q04ti',
+      tagline: payload.tagline || '',
+      bio: payload.bio || '',
+      projects: Array.isArray(payload.projects) ? payload.projects : [],
+      links: Array.isArray(payload.links) ? payload.links : [],
+      updated_at: new Date().toISOString()
+    };
+
+    const supabase = getSupabaseClient(req);
+    const { data: existing } = await supabase.from('about').select('id').limit(1);
+
+    let error;
+    let result;
+    if (existing && existing.length > 0) {
+      const resData = await supabase.from('about').update(saveData).eq('id', existing[0].id).select('*').single();
+      result = resData.data;
+      error = resData.error;
+    } else {
+      const resData = await supabase.from('about').insert([saveData]).select('*').single();
+      result = resData.data;
+      error = resData.error;
+    }
+
+    if (error) throw error;
+
+    return res.json({
+      author_name: result?.author_name || saveData.author_name,
+      tagline: result?.tagline || saveData.tagline,
+      bio: result?.bio || saveData.bio,
+      projects: result?.projects || saveData.projects,
+      links: result?.links || saveData.links
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+app.put('/api/about', handleSaveAbout);
+app.post('/api/about', handleSaveAbout);
+
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
   try {

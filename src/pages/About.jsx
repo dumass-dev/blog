@@ -2,6 +2,22 @@ import React, { useEffect, useState } from 'react';
 import RichViewer from '../components/RichViewer';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
+const defaultAbout = {
+  author_name: 'q04ti',
+  tagline: 'thoughts, things I make, places I go, and everything in between.',
+  bio: 'Welcome to my digital diary and visual archive. I write about software, life, photography, and building minimalist web applications.',
+  projects: [
+    {
+      title: 'Digital Diary & Journal',
+      description: 'Minimalist personal digital diary, journal, blog, life archive and private admin space.',
+      link: 'https://github.com/shuaib-mk/blog'
+    }
+  ],
+  links: [
+    { label: 'GitHub', url: 'https://github.com/shuaib-mk' }
+  ]
+};
+
 export default function About() {
   useDocumentMeta({
     title: 'About',
@@ -11,15 +27,14 @@ export default function About() {
   const [aboutData, setAboutData] = useState(() => {
     try {
       const cached = localStorage.getItem('cached_about_data');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && (parsed.bio || (parsed.projects && parsed.projects.length > 0))) {
+          return parsed;
+        }
+      }
     } catch {}
-    return {
-      author_name: 'q04ti',
-      tagline: 'thoughts, things I make, places I go, and everything in between.',
-      bio: '',
-      projects: [],
-      links: []
-    };
+    return defaultAbout;
   });
   const [loading, setLoading] = useState(() => {
     try {
@@ -40,11 +55,11 @@ export default function About() {
       .then(data => {
         if (!data) return;
         const updated = {
-          author_name: data.author_name || 'q04ti',
-          tagline: data.tagline || '',
-          bio: data.bio || '',
-          projects: Array.isArray(data.projects) ? data.projects : [],
-          links: Array.isArray(data.links) ? data.links : []
+          author_name: data.author_name || defaultAbout.author_name,
+          tagline: data.tagline !== undefined ? data.tagline : defaultAbout.tagline,
+          bio: data.bio || defaultAbout.bio,
+          projects: (Array.isArray(data.projects) && data.projects.length > 0) ? data.projects : defaultAbout.projects,
+          links: (Array.isArray(data.links) && data.links.length > 0) ? data.links : defaultAbout.links
         };
         setAboutData(updated);
         try {
