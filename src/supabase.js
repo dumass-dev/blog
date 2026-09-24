@@ -24,6 +24,15 @@ export function getCachedEntry(slugOrId) {
   return entriesCache.get(slugOrId) || null;
 }
 
+export function invalidateFeedCache() {
+  feedsCache.clear();
+  entriesCache.clear();
+  try {
+    const keys = ['home', 'all', 'journal', 'writing', 'photo', 'update'];
+    keys.forEach(k => localStorage.removeItem(`feed_cache_${k}`));
+  } catch {}
+}
+
 export function getCachedFeed(typeKey = 'all') {
   if (feedsCache.has(typeKey)) return feedsCache.get(typeKey);
   try {
@@ -37,7 +46,7 @@ export function getCachedFeed(typeKey = 'all') {
     }
   } catch {}
 
-  // Fallback: If a specific section feed (like 'journal', 'writing', 'photo') is not yet cached independently,
+  // Fallback: If a specific section feed (like 'journal', 'writing', 'photo', 'update') is not yet cached independently,
   // derive it instantly from 'home' or 'all' feed cache for 0ms instant section page navigation
   if (typeKey !== 'all' && typeKey !== 'home') {
     const parentCache = feedsCache.get('home') || feedsCache.get('all') || (() => {
@@ -51,7 +60,8 @@ export function getCachedFeed(typeKey = 'all') {
       let derived = parentCache;
       if (typeKey === 'journal') {
         derived = parentCache.filter(item => 
-          item.type !== 'photo' && 
+          item.type !== 'photo' &&
+          item.type !== 'update' &&
           (!item.category || item.category.toLowerCase() !== 'photos')
         );
       } else if (typeKey === 'writing') {
@@ -127,7 +137,20 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
       if (type === 'journal') {
         list = list.filter(item => 
           item.type !== 'photo' && 
+          item.type !== 'update' && 
           (!item.category || item.category.toLowerCase() !== 'photos')
+        );
+      } else if (type === 'update') {
+        list = list.filter(item => item.type === 'update');
+      } else if (type === 'writing') {
+        list = list.filter(item => 
+          item.type === 'writing' || item.type === 'essay' || 
+          (item.category && item.category.toLowerCase() === 'writing')
+        );
+      } else if (type === 'photo') {
+        list = list.filter(item => 
+          item.type === 'photo' || 
+          (item.category && item.category.toLowerCase() === 'photos')
         );
       }
 
@@ -191,7 +214,20 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (type === 'journal') {
       rawList = rawList.filter(item => 
         item.type !== 'photo' && 
+        item.type !== 'update' && 
         (!item.category || item.category.toLowerCase() !== 'photos')
+      );
+    } else if (type === 'update') {
+      rawList = rawList.filter(item => item.type === 'update');
+    } else if (type === 'writing') {
+      rawList = rawList.filter(item => 
+        item.type === 'writing' || item.type === 'essay' || 
+        (item.category && item.category.toLowerCase() === 'writing')
+      );
+    } else if (type === 'photo') {
+      rawList = rawList.filter(item => 
+        item.type === 'photo' || 
+        (item.category && item.category.toLowerCase() === 'photos')
       );
     }
 

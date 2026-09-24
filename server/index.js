@@ -738,6 +738,24 @@ app.get('/api/posts', async (req, res) => {
               (item.category && item.category.toLowerCase().includes('photos')) ||
               (item.cover_image && item.cover_image.trim() !== '')
             );
+          } else if (type === 'journal') {
+            posts = fallbackPosts.filter(item => 
+              (item.type === 'journal' || !item.type || item.type === '') && 
+              item.type !== 'photo' && 
+              item.type !== 'update' && 
+              item.type !== 'writing' && 
+              item.type !== 'essay' && 
+              (!item.category || !item.category.toLowerCase().includes('photos'))
+            );
+          } else if (type === 'update') {
+            posts = fallbackPosts.filter(item => item.type === 'update');
+          } else if (type === 'writing') {
+            posts = fallbackPosts.filter(item => 
+              item.type === 'writing' || item.type === 'essay' || 
+              (item.category && item.category.toLowerCase().includes('writing'))
+            );
+          } else if (type) {
+            posts = fallbackPosts.filter(item => item.type === type);
           } else {
             posts = fallbackPosts;
           }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { supabase, safeApiFetch } from '../../supabase';
+import { supabase, safeApiFetch, invalidateFeedCache } from '../../supabase';
 import Modal from '../../components/Modal';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
@@ -180,6 +180,7 @@ export default function Dashboard() {
     }
 
     if (deleted) {
+      invalidateFeedCache();
       setDeleteTarget(null);
       setEntries(prev => {
         const updated = prev.filter(e => e.id !== id);

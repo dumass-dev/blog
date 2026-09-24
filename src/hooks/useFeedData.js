@@ -11,7 +11,23 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
     if (type === 'journal') {
       return cached.filter(item => 
         item.type !== 'photo' && 
+        item.type !== 'update' && 
         (!item.category || item.category.toLowerCase() !== 'photos')
+      );
+    }
+    if (type === 'update') {
+      return cached.filter(item => item.type === 'update');
+    }
+    if (type === 'writing') {
+      return cached.filter(item => 
+        item.type === 'writing' || item.type === 'essay' || 
+        (item.category && item.category.toLowerCase() === 'writing')
+      );
+    }
+    if (type === 'photo') {
+      return cached.filter(item => 
+        item.type === 'photo' || 
+        (item.category && item.category.toLowerCase() === 'photos')
       );
     }
     return cached;
@@ -34,7 +50,20 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
       if (type === 'journal') {
         list = list.filter(item => 
           item.type !== 'photo' && 
+          item.type !== 'update' && 
           (!item.category || item.category.toLowerCase() !== 'photos')
+        );
+      } else if (type === 'update') {
+        list = list.filter(item => item.type === 'update');
+      } else if (type === 'writing') {
+        list = list.filter(item => 
+          item.type === 'writing' || item.type === 'essay' || 
+          (item.category && item.category.toLowerCase() === 'writing')
+        );
+      } else if (type === 'photo') {
+        list = list.filter(item => 
+          item.type === 'photo' || 
+          (item.category && item.category.toLowerCase() === 'photos')
         );
       }
       setEntries(list);

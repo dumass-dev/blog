@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../supabase';
+import { supabase, invalidateFeedCache } from '../../supabase';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import ThemeToggle from '../../components/ThemeToggle';
@@ -423,6 +423,7 @@ export default function Editor() {
       return;
     }
 
+    invalidateFeedCache();
     setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
     setSaving(false);
     isSavingRef.current = false;
