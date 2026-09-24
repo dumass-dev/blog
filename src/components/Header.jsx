@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
+import TypewriterToggle from './TypewriterToggle';
 import { Menu, X } from 'lucide-react';
 
 export default function Header() {
@@ -149,8 +150,10 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* Right: Burger Icon Trigger & Dropdown Card */}
-      <div className="relative flex items-center justify-center min-w-[44px] min-h-[44px]" ref={dropdownRef}>
+      {/* Right: Typewriter Toggle & Burger Icon Trigger & Dropdown Card */}
+      <div className="relative flex items-center justify-center space-x-1 min-w-[44px] min-h-[44px]" ref={dropdownRef}>
+        <TypewriterToggle className="hidden sm:flex" />
+
         <button
           onClick={() => setMenuOpen(prev => !prev)}
           className="w-11 h-11 p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none touch-target"
@@ -199,9 +202,10 @@ export default function Header() {
                 );
               })}
 
-              {/* Theme Toggle Icon Only - Centered */}
-              <div className="pt-1.5 mt-1 border-t border-[var(--border-subtle)] flex items-center justify-center py-0.5">
+              {/* Theme & Typewriter Toggles */}
+              <div className="pt-1.5 mt-1 border-t border-[var(--border-subtle)] flex items-center justify-center space-x-1 py-0.5">
                 <ThemeToggle />
+                <TypewriterToggle />
               </div>
             </div>
           )}

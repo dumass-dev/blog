@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
+import TypewriterText from '../components/TypewriterText';
 
 function formatUpdateTimestamp(dateStr) {
   const d = new Date(dateStr);
@@ -72,14 +73,14 @@ export default function Updates() {
               {item.title && (
                 <h2 className="text-xl font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)]">
                   <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
-                    {item.title}
+                    <TypewriterText text={item.title} />
                   </Link>
                 </h2>
               )}
 
               {/* Content blockquote / text */}
               <blockquote className="font-serif text-base sm:text-lg text-[var(--text-primary)] leading-relaxed italic border-l-0 pl-0 my-0">
-                "{item.excerpt || item.title}"
+                "<TypewriterText text={item.excerpt || item.title} />"
               </blockquote>
 
 

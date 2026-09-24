@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { useTypewriterEffect } from '../hooks/useTypewriterEffect';
 
 // Configure DOMPurify hooks once for iframe host allowlist enforcement
 if (typeof window !== 'undefined') {
@@ -27,14 +28,13 @@ if (typeof window !== 'undefined') {
 }
 
 export default function RichViewer({ content = '' }) {
+  const containerRef = useRef(null);
+
   useEffect(() => {
     // Clean listener hook cleanup
     return () => {};
   }, []);
 
-  if (!content) return null;
-
-  // Custom processing for video embeds (YouTube / MP4) before rendering HTML
   const processEmbeds = (rawText) => {
     let processed = rawText ? String(rawText).replace(/\\n/g, '\n') : '';
 
@@ -64,8 +64,13 @@ export default function RichViewer({ content = '' }) {
     ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'controls', 'decoding', 'loading', 'target']
   });
 
+  useTypewriterEffect(containerRef, sanitizedHtml, { maxDuration: 500 });
+
+  if (!content) return null;
+
   return (
     <div
+      ref={containerRef}
       className="prose-editorial"
       dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />

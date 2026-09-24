@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
+import TypewriterText from '../components/TypewriterText';
 import ReadingProgressBar from '../components/ReadingProgressBar';
 import ImageLightbox from '../components/ImageLightbox';
 import Reactions from '../components/Reactions';
@@ -328,9 +329,11 @@ export default function EntryDetail() {
         </div>
 
         {entry.title && (
-          <h1 className="text-3xl sm:text-4xl font-serif font-medium tracking-tight leading-tight mb-4">
-            {entry.title}
-          </h1>
+          <TypewriterText
+            text={entry.title}
+            as="h1"
+            className="text-3xl sm:text-4xl font-serif font-medium tracking-tight leading-tight mb-4"
+          />
         )}
 
 

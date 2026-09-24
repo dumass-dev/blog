@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed } from '../supabase';
 import { stripMarkdown } from '../utils/excerpt';
 import FeedSkeleton from '../components/FeedSkeleton';
+import TypewriterText from '../components/TypewriterText';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -164,11 +165,11 @@ export default function Archive() {
                 </div>
                 <h3 className="text-xl font-serif font-medium mb-1">
                   <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
-                    {item.title}
+                    <TypewriterText text={item.title} />
                   </Link>
                 </h3>
                 <p className="text-sm font-serif text-[var(--text-secondary)] line-clamp-2">
-                  {stripMarkdown(item.excerpt || item.content)}
+                  <TypewriterText text={stripMarkdown(item.excerpt || item.content)} />
                 </p>
               </article>
             ))

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useFeedData } from '../hooks/useFeedData';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
+import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
 
 function formatShortDate(dateStr) {
@@ -97,12 +98,12 @@ export default function Writing() {
 
                   <h2 className="text-2xl font-serif font-medium tracking-tight mb-3">
                     <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
-                      {item.title}
+                      <TypewriterText text={item.title} />
                     </Link>
                   </h2>
 
                   <p className="text-[var(--text-secondary)] font-serif text-sm sm:text-base leading-relaxed mb-4 italic opacity-90 line-clamp-2">
-                    {stripMarkdown(item.excerpt || item.title)}
+                    <TypewriterText text={stripMarkdown(item.excerpt || item.title)} />
                   </p>
                 </article>
               </React.Fragment>

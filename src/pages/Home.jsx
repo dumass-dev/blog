@@ -5,6 +5,7 @@ import { useFeedData } from '../hooks/useFeedData';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
+import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
 import { handleImageError } from '../utils/image';
 
@@ -128,11 +129,10 @@ export default function Home() {
                         to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
                         className="hover:text-[var(--accent-warm)] transition-colors text-[var(--text-primary)]"
                       >
-                        {item.title}
+                        <TypewriterText text={item.title} />
                       </Link>
                     </h2>
                   ) : null}
-
 
                   {(item.location || item.weather || item.mood) && (
                     <div className="flex flex-wrap gap-3 text-xs font-sans text-[var(--text-secondary)] mb-3 italic">
@@ -177,7 +177,7 @@ export default function Home() {
                         to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
                         className="hover:text-[var(--text-primary)] transition-colors text-inherit"
                       >
-                        {stripMarkdown(item.excerpt)}
+                        <TypewriterText text={stripMarkdown(item.excerpt)} />
                       </Link>
                     </div>
                   )}
