@@ -76,7 +76,7 @@ export default function About() {
       {loading ? (
         <FeedSkeleton type="about" />
       ) : (
-        <div className="space-y-12">
+        <div className="space-y-12 animate-content-fade">
           {/* Header section */}
           <header>
             <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">

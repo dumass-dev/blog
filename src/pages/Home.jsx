@@ -89,6 +89,8 @@ export default function Home() {
             const photoSrc = isPhoto || item.cover_image ? getPhotoSrc(item) : null;
             const isLockedPasscode = item.has_passcode && item.content && item.content.includes('🔒');
 
+            const staggerClass = `stagger-${Math.min(idx + 1, 6)}`;
+
             return (
               <React.Fragment key={item.id || idx}>
                 {isFirstInGroup && (
@@ -97,7 +99,7 @@ export default function Home() {
                   </div>
                 )}
 
-                <article className="group pb-8 sm:pb-10 border-b border-[var(--border-subtle)]/70 last:border-0">
+                <article className={`group pb-8 sm:pb-10 border-b border-[var(--border-subtle)]/70 last:border-0 animate-content-fade ${staggerClass}`}>
                   <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-1.5">
                     <span>{categoryLabel}</span>
                     {!isGrouped && itemDate && (

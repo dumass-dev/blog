@@ -62,6 +62,8 @@ export default function Journal() {
             const categoryLabel = (item.category || 'JOURNAL').toUpperCase();
             const readTimeText = calcReadingTimeText(item.excerpt || item.content);
 
+            const staggerClass = `stagger-${Math.min(idx + 1, 6)}`;
+
             return (
               <React.Fragment key={item.id || idx}>
                 {isFirstInGroup && (
@@ -70,7 +72,7 @@ export default function Journal() {
                   </div>
                 )}
 
-                <article className="pb-8 border-b border-[var(--border-subtle)] last:border-0 group">
+                <article className={`pb-8 border-b border-[var(--border-subtle)] last:border-0 group animate-content-fade ${staggerClass}`}>
                   <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-1.5">
                     <span>{categoryLabel}</span>
                     {!isGrouped && itemDate && (

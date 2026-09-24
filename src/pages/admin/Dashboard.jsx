@@ -415,7 +415,7 @@ export default function Dashboard() {
         ) : filter === 'comments' ? (
           /* Reader Comments Moderation View */
           comments.length === 0 ? (
-            <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic">
+            <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)] italic animate-content-fade">
               No reader comments found.
             </div>
           ) : (
