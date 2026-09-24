@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTypewriter } from '../../context/TypewriterContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export default function AboutEdit() {
   const { token } = useAuth();
+  const { updateSiteDefault } = useTypewriter();
 
   const [formData, setFormData] = useState({
     author_name: '',
@@ -25,11 +27,12 @@ export default function AboutEdit() {
     fetch('/api/about')
       .then(res => res.json())
       .then(data => {
+        const defaultEnabled = Boolean(data.default_typewriter_enabled);
         setFormData({
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
           bio: data.bio || '',
-          default_typewriter_enabled: Boolean(data.default_typewriter_enabled),
+          default_typewriter_enabled: defaultEnabled,
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
         });
@@ -104,7 +107,8 @@ export default function AboutEdit() {
         throw new Error(data.error || 'Failed saving about info.');
       }
 
-      setMessage('About page updated successfully!');
+      updateSiteDefault(formData.default_typewriter_enabled);
+      setMessage('About page and site settings updated successfully!');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -205,7 +209,11 @@ export default function AboutEdit() {
           </div>
           <button
             type="button"
-            onClick={() => setFormData(prev => ({ ...prev, default_typewriter_enabled: !prev.default_typewriter_enabled }))}
+            onClick={() => {
+              const nextVal = !formData.default_typewriter_enabled;
+              setFormData(prev => ({ ...prev, default_typewriter_enabled: nextVal }));
+              updateSiteDefault(nextVal);
+            }}
             className={`px-3 py-1.5 rounded text-xs font-sans font-medium transition-colors border cursor-pointer ${
               formData.default_typewriter_enabled
                 ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
