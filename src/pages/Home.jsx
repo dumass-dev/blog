@@ -4,6 +4,7 @@ import { MapPin, Cloud, Smile } from 'lucide-react';
 import { useFeedData } from '../hooks/useFeedData';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
+import ProgressiveImage from '../components/ProgressiveImage';
 import { stripMarkdown } from '../utils/excerpt';
 import { handleImageError } from '../utils/image';
 
@@ -157,12 +158,12 @@ export default function Home() {
                   {effectiveType === 'photo' && photoSrc && !isLockedPasscode && (
                     <div className="my-3.5 rounded-lg overflow-hidden border border-[var(--border-subtle)] max-w-md bg-[var(--code-bg)]">
                       <Link to="/photos" className="block w-full leading-none">
-                        <img
+                        <ProgressiveImage
                           src={photoSrc}
                           alt={item.title || 'Photo'}
-                          className="block w-full h-auto max-h-[520px] object-cover group-hover:opacity-95 transition-opacity"
-                          loading="lazy"
-                          onError={(e) => handleImageError(e, photoSrc)}
+                          objectFit="object-cover"
+                          className="w-full h-auto max-h-[520px]"
+                          imgClassName="group-hover:opacity-95 transition-opacity"
                         />
                       </Link>
                     </div>

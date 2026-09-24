@@ -5,6 +5,7 @@ import { supabase, safeApiFetch } from '../supabase';
 
 import Modal from './Modal';
 import FeedSkeleton from './FeedSkeleton';
+import ProgressiveImage from './ProgressiveImage';
 
 export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const { token } = useAuth();
@@ -237,7 +238,11 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
                   <video src={item.signed_url || item.url} className="w-full h-full object-cover" />
                 ) : (
-                  <img src={item.signed_url || item.url} alt={item.original_name} className="w-full h-full object-cover" />
+                  <ProgressiveImage
+                    src={item.signed_url || item.url}
+                    alt={item.original_name || 'Media'}
+                    aspectRatio="aspect-square"
+                  />
                 )}
                 <div className="absolute inset-0 bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-sans font-medium text-center p-2">
                   Tap to insert

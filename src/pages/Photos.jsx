@@ -9,6 +9,7 @@ import { supabase } from '../supabase';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
+import ProgressiveImage from '../components/ProgressiveImage';
 
 export default function Photos() {
   useDocumentMeta({
@@ -241,12 +242,11 @@ export default function Photos() {
                 className="group relative aspect-square bg-[var(--code-bg)] rounded-md overflow-hidden border border-[var(--border-subtle)] cursor-pointer select-none"
               >
                 {imgSrc ? (
-                  <img
+                  <ProgressiveImage
                     src={imgSrc}
                     alt={item.title || 'Photo'}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => handleImageError(e, imgSrc)}
+                    aspectRatio="aspect-square"
+                    imgClassName="transition-transform duration-300 group-hover:scale-105"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-4 text-center">
@@ -318,11 +318,11 @@ export default function Photos() {
               </button>
 
               {getPhotoSrc(activePhoto) ? (
-                <img
+                <ProgressiveImage
                   src={getPhotoSrc(activePhoto)}
-                  alt={activePhoto.title}
-                  className="max-w-full max-h-[48vh] md:max-h-[75vh] object-contain rounded shadow-lg"
-                  onError={(e) => handleImageError(e, getPhotoSrc(activePhoto))}
+                  alt={activePhoto.title || 'Photo'}
+                  objectFit="object-contain"
+                  className="max-w-full max-h-[48vh] md:max-h-[75vh] rounded shadow-lg"
                 />
               ) : (
                 <div className="text-white/60 font-serif italic text-sm">No preview available</div>

@@ -625,6 +625,14 @@ html {
   margin-top: 2rem;
   margin-bottom: 2rem;
   display: block;
+  background-color: var(--code-bg);
+  transition: opacity 300ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose-editorial img {
+    transition: none !important;
+  }
 }
 
 .prose-editorial pre {

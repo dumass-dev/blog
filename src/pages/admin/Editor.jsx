@@ -425,9 +425,11 @@ export default function Editor() {
 
     invalidateFeedCache();
     setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
-    setSaving(false);
-    isSavingRef.current = false;
-    navigate('/admin');
+    setTimeout(() => {
+      setSaving(false);
+      isSavingRef.current = false;
+      navigate('/admin');
+    }, 100);
   };
 
   if (loading) {

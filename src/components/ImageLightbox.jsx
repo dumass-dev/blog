@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ZoomIn, ZoomOut, Camera } from 'lucide-react';
 import Modal from './Modal';
+import ProgressiveImage from './ProgressiveImage';
 
 export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
   const [zoom, setZoom] = useState(1);
@@ -45,11 +46,12 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
         {/* Main Image Stage Container - strict overflow containment */}
         <div className="flex-1 flex items-center justify-center overflow-hidden my-2 max-w-full relative min-h-[220px] bg-black/5 rounded-lg p-2">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <img
+            <ProgressiveImage
               src={src}
               alt={alt || caption || ''}
               style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
-              className="max-h-[60dvh] max-w-full object-contain rounded shadow-lg transition-transform duration-200 ease-out"
+              objectFit="object-contain"
+              className="max-h-[60dvh] max-w-full rounded shadow-lg transition-transform duration-200 ease-out"
             />
           </div>
         </div>

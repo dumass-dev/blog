@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
+import ProgressiveImage from '../../components/ProgressiveImage';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -206,7 +207,11 @@ export default function Media() {
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
                   <video src={item.signed_url || item.url} className="w-full h-full object-cover" controls />
                 ) : (
-                  <img src={item.signed_url || item.url} alt={item.original_name} className="w-full h-full object-cover" />
+                  <ProgressiveImage
+                    src={item.signed_url || item.url}
+                    alt={item.original_name || 'Media'}
+                    aspectRatio="aspect-video"
+                  />
                 )}
                 <span className="absolute top-2 left-2 p-1 rounded bg-black/60 text-white text-[10px]">
                   {item.mime_type && item.mime_type.startsWith('video/') ? <FileVideo className="w-3 h-3" /> : <FileImage className="w-3 h-3" />}

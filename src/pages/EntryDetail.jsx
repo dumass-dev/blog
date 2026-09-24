@@ -12,6 +12,7 @@ import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../util
 import { handleImageError } from '../utils/image';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 import FeedSkeleton from '../components/FeedSkeleton';
+import ProgressiveImage from '../components/ProgressiveImage';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -382,11 +383,12 @@ export default function EntryDetail() {
           {/* Cover Image if present and not duplicated in content */}
           {shouldRenderCoverImage && (
             <div className="mb-10 cursor-pointer group" onClick={handleImageClick}>
-              <img
+              <ProgressiveImage
                 src={entry.cover_image}
-                alt={entry.title}
-                className="w-full h-auto rounded border border-[var(--border-subtle)] object-cover max-h-[440px] group-hover:opacity-95 transition-opacity"
-                onError={(e) => handleImageError(e, entry.cover_image)}
+                alt={entry.title || 'Cover image'}
+                objectFit="object-cover"
+                className="w-full h-auto rounded border border-[var(--border-subtle)] max-h-[440px]"
+                imgClassName="group-hover:opacity-95 transition-opacity"
               />
             </div>
           )}
