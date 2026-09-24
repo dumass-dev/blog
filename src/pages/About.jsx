@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import RichViewer from '../components/RichViewer';
+import TypewriterText from '../components/TypewriterText';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
 
@@ -79,13 +80,17 @@ export default function About() {
         <div className="space-y-12">
           {/* Header section */}
           <header>
-            <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">
-              {aboutData.author_name}
-            </h1>
+            <TypewriterText
+              text={aboutData.author_name}
+              as="h1"
+              className="text-3xl font-serif font-medium tracking-tight mb-2"
+            />
             {aboutData.tagline && (
-              <p className="text-sm font-serif italic text-[var(--text-secondary)]">
-                {aboutData.tagline}
-              </p>
+              <TypewriterText
+                text={aboutData.tagline}
+                as="p"
+                className="text-sm font-serif italic text-[var(--text-secondary)]"
+              />
             )}
           </header>
 
