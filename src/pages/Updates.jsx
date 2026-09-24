@@ -58,8 +58,8 @@ export default function Updates() {
         </div>
       ) : (
         <div className="space-y-8 relative before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[1px] before:bg-[var(--border-subtle)] pl-6">
-          {updates.map((item) => (
-            <div key={item.id} className="relative group">
+          {updates.map((item, idx) => (
+            <div key={item.id} className={`relative group animate-content-fade stagger-${Math.min(idx + 1, 6)}`}>
               {/* Bullet point on line */}
               <div className="absolute -left-[31px] top-1.5 w-2.5 h-2.5 rounded-full bg-[var(--bg-main)] border border-[var(--text-muted)] group-hover:border-[var(--accent-warm)] transition-colors" />
 

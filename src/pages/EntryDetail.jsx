@@ -236,7 +236,7 @@ export default function EntryDetail() {
   const shouldRenderCoverImage = Boolean(entry.cover_image && !contentHasImage);
 
   return (
-    <article className="notebook-container relative">
+    <article className="notebook-container relative animate-content-fade">
       {/* Top Reading Progress Bar */}
       <ReadingProgressBar />
 

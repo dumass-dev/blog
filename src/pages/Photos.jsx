@@ -239,7 +239,7 @@ export default function Photos() {
               <div
                 key={item.id || idx}
                 onClick={() => openPhoto(item, idx)}
-                className="group relative aspect-square bg-[var(--code-bg)] rounded-md overflow-hidden border border-[var(--border-subtle)] cursor-pointer select-none"
+                className={`group relative aspect-square bg-[var(--code-bg)] rounded-md overflow-hidden border border-[var(--border-subtle)] cursor-pointer select-none animate-content-fade stagger-${Math.min(idx + 1, 6)}`}
               >
                 {imgSrc ? (
                   <ProgressiveImage

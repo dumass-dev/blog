@@ -157,8 +157,8 @@ export default function Archive() {
               No entries found matching your criteria.
             </div>
           ) : (
-            searchResults.map(item => (
-              <article key={item.id} className="pb-4 border-b border-[var(--border-subtle)]">
+            searchResults.map((item, idx) => (
+              <article key={item.id} className={`pb-4 border-b border-[var(--border-subtle)] animate-content-fade stagger-${Math.min(idx + 1, 6)}`}>
                 <div className="text-xs font-sans text-[var(--text-muted)] mb-1">
                   {formatDate(item.date)} · <span className="uppercase">{item.type}</span>
                 </div>
