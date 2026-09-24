@@ -150,10 +150,8 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* Right: Typewriter Toggle & Burger Icon Trigger & Dropdown Card */}
-      <div className="relative flex items-center justify-center space-x-1 min-w-[44px] min-h-[44px]" ref={dropdownRef}>
-        <TypewriterToggle className="hidden sm:flex" />
-
+      {/* Right: Burger Icon Trigger & Dropdown Card */}
+      <div className="relative flex items-center justify-center min-w-[44px] min-h-[44px]" ref={dropdownRef}>
         <button
           onClick={() => setMenuOpen(prev => !prev)}
           className="w-11 h-11 p-0 text-[var(--text-primary)] hover:opacity-75 transition-opacity cursor-pointer bg-transparent border-0 flex items-center justify-center select-none outline-none touch-target"

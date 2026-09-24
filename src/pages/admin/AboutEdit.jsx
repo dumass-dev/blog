@@ -11,6 +11,7 @@ export default function AboutEdit() {
     author_name: '',
     tagline: '',
     bio: '',
+    default_typewriter_enabled: false,
     projects: [],
     links: []
   });
@@ -28,6 +29,7 @@ export default function AboutEdit() {
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
           bio: data.bio || '',
+          default_typewriter_enabled: Boolean(data.default_typewriter_enabled),
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
         });
@@ -189,6 +191,29 @@ export default function AboutEdit() {
             placeholder="thoughts, things I make, places I go..."
             className="quiet-input text-sm italic font-serif"
           />
+        </div>
+
+        {/* Site Default Typewriter Setting */}
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+          <div>
+            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)]">
+              Site Default Typewriter Effect
+            </div>
+            <div className="text-xs font-sans text-[var(--text-muted)] mt-0.5">
+              Default state for new visitors who have not set a custom preference.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFormData(prev => ({ ...prev, default_typewriter_enabled: !prev.default_typewriter_enabled }))}
+            className={`px-3 py-1.5 rounded text-xs font-sans font-medium transition-colors border cursor-pointer ${
+              formData.default_typewriter_enabled
+                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
+                : 'bg-[var(--code-bg)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
+            }`}
+          >
+            {formData.default_typewriter_enabled ? 'ON by Default' : 'OFF by Default'}
+          </button>
         </div>
 
         {/* Bio */}

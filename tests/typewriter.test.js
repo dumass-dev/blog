@@ -49,7 +49,11 @@ describe('Typewriter Effect Tests', () => {
 
     await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
 
-    // Locate typewriter toggle button
+    // Open dropdown menu where typewriter toggle is located
+    const menuButton = page.locator('button[aria-label="Toggle navigation menu"]').first();
+    await menuButton.click();
+
+    // Locate typewriter toggle button inside dropdown menu
     const toggleButton = page.locator('button[aria-label="Toggle typewriter text reveal"]').first();
     await toggleButton.waitFor({ state: 'visible' });
 
@@ -70,8 +74,13 @@ describe('Typewriter Effect Tests', () => {
     const persistedState = await page.evaluate(() => localStorage.getItem('typewriter-enabled'));
     assert.strictEqual(persistedState, 'true', 'typewriter-enabled state must persist across reloads');
 
+    // Open dropdown menu again after reload
+    const menuAfterReload = page.locator('button[aria-label="Toggle navigation menu"]').first();
+    await menuAfterReload.click();
+
     // Click to turn OFF again
     const toggleAfterReload = page.locator('button[aria-label="Toggle typewriter text reveal"]').first();
+    await toggleAfterReload.waitFor({ state: 'visible' });
     await toggleAfterReload.click();
     const stateOff = await page.evaluate(() => localStorage.getItem('typewriter-enabled'));
     assert.strictEqual(stateOff, 'false', 'localStorage typewriter-enabled should be "false" after toggling off');

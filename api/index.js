@@ -170,6 +170,7 @@ app.get('/api/about', async (req, res) => {
         author_name: row.author_name || defaultAboutData.author_name,
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
+        default_typewriter_enabled: row.default_typewriter_enabled !== undefined ? Boolean(row.default_typewriter_enabled) : false,
         projects: projects.length > 0 ? projects : defaultAboutData.projects,
         links: links.length > 0 ? links : defaultAboutData.links
       });
@@ -194,6 +195,7 @@ async function handleSaveAbout(req, res) {
       author_name: payload.author_name || 'q04ti',
       tagline: payload.tagline || '',
       bio: payload.bio || '',
+      default_typewriter_enabled: Boolean(payload.default_typewriter_enabled),
       projects: Array.isArray(payload.projects) ? payload.projects : [],
       links: Array.isArray(payload.links) ? payload.links : [],
       updated_at: new Date().toISOString()
@@ -220,6 +222,7 @@ async function handleSaveAbout(req, res) {
       author_name: result?.author_name || saveData.author_name,
       tagline: result?.tagline || saveData.tagline,
       bio: result?.bio || saveData.bio,
+      default_typewriter_enabled: result?.default_typewriter_enabled !== undefined ? Boolean(result.default_typewriter_enabled) : saveData.default_typewriter_enabled,
       projects: result?.projects || saveData.projects,
       links: result?.links || saveData.links
     });

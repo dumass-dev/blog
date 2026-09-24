@@ -132,12 +132,12 @@ export default function Reactions({ postId }) {
                   ? 'font-medium scale-105 shadow-sm'
                   : 'border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--accent-warm)] hover:text-[var(--accent-warm)] bg-[var(--code-bg)]'
               }`}
-              style={hasReacted ? { backgroundColor: 'var(--accent-warm)', color: '#ffffff', borderColor: 'var(--accent-warm)' } : {}}
+              style={hasReacted ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)', borderColor: 'var(--text-primary)' } : {}}
               title={`Mark as ${item.label}`}
             >
-              <Icon className="w-3.5 h-3.5" style={hasReacted ? { color: '#ffffff' } : { color: 'var(--accent-warm)' }} />
-              <span style={hasReacted ? { color: '#ffffff' } : {}} className={hasReacted ? 'font-medium' : ''}>{item.label}</span>
-              <span style={hasReacted ? { color: '#ffffff', opacity: 0.9 } : { opacity: 0.75 }} className="text-[10px] font-mono ml-0.5">
+              <Icon className="w-3.5 h-3.5" style={hasReacted ? { color: 'var(--bg-main)' } : { color: 'var(--accent-warm)' }} />
+              <span style={hasReacted ? { color: 'var(--bg-main)' } : {}} className={hasReacted ? 'font-medium' : ''}>{item.label}</span>
+              <span style={hasReacted ? { color: 'var(--bg-main)', opacity: 0.9 } : { opacity: 0.75 }} className="text-[10px] font-mono ml-0.5">
                 ({count})
               </span>
             </button>
