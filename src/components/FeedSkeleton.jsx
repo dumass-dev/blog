@@ -1,11 +1,15 @@
 import React from 'react';
 
+/**
+ * Clean, seamless Skeleton Loader
+ * Renders pulse shimmer placeholder blocks with zero stray horizontal or vertical border lines.
+ */
 export default function FeedSkeleton({ count = 3, type = 'default' }) {
   if (type === 'photo' || type === 'media') {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         {Array.from({ length: count || 6 }).map((_, i) => (
-          <div key={i} className="aspect-square skeleton-shimmer rounded-md border border-[var(--border-subtle)]" />
+          <div key={i} className="aspect-square skeleton-shimmer rounded-md" />
         ))}
       </div>
     );
@@ -13,10 +17,10 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
 
   if (type === 'update') {
     return (
-      <div className="space-y-8 pl-6 border-l border-[var(--border-subtle)]">
+      <div className="space-y-8">
         {Array.from({ length: count || 4 }).map((_, i) => (
           <div key={i} className="space-y-2">
-            <div className="h-3 w-28 skeleton-shimmer rounded" />
+            <div className="h-3.5 w-28 skeleton-shimmer rounded" />
             <div className="h-5 w-full skeleton-shimmer rounded" />
             <div className="h-4 w-3/4 skeleton-shimmer rounded" />
           </div>
@@ -29,13 +33,13 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
     return (
       <div className="reading-container space-y-6 py-6">
         {/* Meta Header */}
-        <div className="space-y-3 pb-6 border-b border-[var(--border-subtle)]">
-          <div className="h-3 w-36 skeleton-shimmer rounded" />
+        <div className="space-y-3 pb-6">
+          <div className="h-3.5 w-36 skeleton-shimmer rounded" />
           <div className="h-8 w-4/5 skeleton-shimmer rounded" />
           <div className="h-4 w-1/2 skeleton-shimmer rounded" />
         </div>
         {/* Cover Image Skeleton */}
-        <div className="aspect-[16/9] w-full skeleton-shimmer rounded-lg border border-[var(--border-subtle)]" />
+        <div className="aspect-[16/9] w-full skeleton-shimmer rounded-lg" />
         {/* Body Text Lines */}
         <div className="space-y-3 pt-4">
           <div className="h-4 w-full skeleton-shimmer rounded" />
@@ -52,8 +56,8 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
     return (
       <div className="space-y-10">
         {/* Header / Avatar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-8 border-b border-[var(--border-subtle)]">
-          <div className="w-24 h-24 rounded-full skeleton-shimmer border border-[var(--border-subtle)] shrink-0" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-8">
+          <div className="w-24 h-24 rounded-full skeleton-shimmer shrink-0" />
           <div className="space-y-3 flex-1 w-full">
             <div className="h-7 w-48 skeleton-shimmer rounded" />
             <div className="h-4 w-64 skeleton-shimmer rounded" />
@@ -69,8 +73,8 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
         </div>
         {/* Projects Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-          <div className="h-28 skeleton-shimmer rounded-lg border border-[var(--border-subtle)]" />
-          <div className="h-28 skeleton-shimmer rounded-lg border border-[var(--border-subtle)]" />
+          <div className="h-28 skeleton-shimmer rounded-lg" />
+          <div className="h-28 skeleton-shimmer rounded-lg" />
         </div>
       </div>
     );
@@ -80,8 +84,8 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
     return (
       <div className="space-y-6">
         {Array.from({ length: count || 4 }).map((_, i) => (
-          <div key={i} className="pb-4 border-b border-[var(--border-subtle)] space-y-2">
-            <div className="h-3 w-28 skeleton-shimmer rounded" />
+          <div key={i} className="pb-6 space-y-2.5">
+            <div className="h-3.5 w-28 skeleton-shimmer rounded" />
             <div className="h-5 w-2/3 skeleton-shimmer rounded" />
             <div className="h-4 w-full skeleton-shimmer rounded" />
           </div>
@@ -92,12 +96,12 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
 
   if (type === 'table') {
     return (
-      <div className="divide-y divide-[var(--border-subtle)]">
+      <div className="space-y-3">
         {Array.from({ length: count || 5 }).map((_, i) => (
           <div key={i} className="p-4 flex items-center justify-between gap-4">
             <div className="space-y-2 flex-1">
               <div className="h-4 w-1/3 skeleton-shimmer rounded" />
-              <div className="h-3 w-1/2 skeleton-shimmer rounded" />
+              <div className="h-3.5 w-1/2 skeleton-shimmer rounded" />
             </div>
             <div className="h-6 w-16 skeleton-shimmer rounded shrink-0" />
           </div>
@@ -106,12 +110,12 @@ export default function FeedSkeleton({ count = 3, type = 'default' }) {
     );
   }
 
-  // Default / Article feed list skeleton
+  // Default / Article feed list skeleton (Clean, seamless pulse blocks with zero stray lines)
   return (
     <div className="space-y-10">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="pb-8 border-b border-[var(--border-subtle)] space-y-3">
-          <div className="h-3 w-32 skeleton-shimmer rounded" />
+        <div key={i} className="space-y-3">
+          <div className="h-3.5 w-32 skeleton-shimmer rounded" />
           <div className="h-7 w-3/4 skeleton-shimmer rounded" />
           <div className="h-4 w-full skeleton-shimmer rounded" />
           <div className="h-4 w-5/6 skeleton-shimmer rounded" />
