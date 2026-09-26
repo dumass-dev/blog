@@ -182,7 +182,8 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     let query = supabase
       .from('public_published_entries')
       .select('*')
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (type) {
       if (type === 'photo') {
@@ -294,10 +295,81 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
 }
 
 /**
- * No-op subscription for entries (Anon readers do not listen to Supabase realtime DB after Phase 1 RLS)
+ * Global Realtime channel for instant cross-device updates
  */
-export function subscribeToEntries() {
-  return () => {};
+let globalRealtimeChannel = null;
+
+export function initSupabaseRealtime() {
+  if (typeof window === 'undefined' || !supabase || globalRealtimeChannel) return;
+
+  try {
+    globalRealtimeChannel = supabase
+      .channel('public-realtime-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'entries' },
+        (payload) => {
+          invalidateFeedCache();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('feed-data-invalidated', { detail: payload }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'about' },
+        (payload) => {
+          localStorage.removeItem('cached_about_data');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('about-data-updated', { detail: payload }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'comments' },
+        (payload) => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('comments-updated', { detail: payload }));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reactions' },
+        (payload) => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('reactions-updated', { detail: payload }));
+          }
+        }
+      )
+      .subscribe();
+  } catch (err) {
+    console.warn('Realtime subscription skipped:', err.message);
+  }
+}
+
+// Automatically subscribe in browser
+if (typeof window !== 'undefined') {
+  initSupabaseRealtime();
+}
+
+/**
+ * Realtime subscription for entries
+ */
+export function subscribeToEntries(onDataChange) {
+  if (typeof window === 'undefined' || !supabase) return () => {};
+  const channel = supabase
+    .channel(`public:entries:${Date.now()}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, () => {
+      invalidateFeedCache();
+      if (typeof onDataChange === 'function') onDataChange();
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
 
 /**

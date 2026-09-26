@@ -249,7 +249,7 @@ app.get('/api/posts', async (req, res) => {
       : 'id, slug, title, date, category, tags, read_time, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
 
     const table = isAdmin ? 'entries' : 'public_published_entries';
-    let query = getSupabaseClient(req).from(table).select(fields).order('date', { ascending: false });
+    let query = getSupabaseClient(req).from(table).select(fields).order('date', { ascending: false }).order('created_at', { ascending: false });
 
     if (status === 'all' || status === 'draft') {
       if (!isAdmin) {
@@ -366,7 +366,7 @@ app.post('/api/posts', async (req, res) => {
       category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
       tags: payload.tags || '',
       cover_image: finalCover,
-      excerpt: stripMarkdown(payload.excerpt || payload.content || '', 150),
+      excerpt: stripMarkdown(payload.content || payload.excerpt || '', 150),
       date: payload.date || new Date().toISOString(),
       location: payload.location || null,
       weather: payload.weather || null,
@@ -600,7 +600,7 @@ app.put('/api/posts/:id', async (req, res) => {
       category: isPhotoPost ? 'Photos' : payload.category,
       cover_image: finalCover !== undefined ? finalCover : payload.cover_image,
       // Always recalculate excerpt from the latest content so feed previews show fresh text
-      excerpt: stripMarkdown(payload.excerpt || payload.content || '', 150),
+      excerpt: stripMarkdown(payload.content !== undefined ? payload.content : (payload.excerpt || ''), 150),
       updated_at: new Date().toISOString()
     };
     if (payload.passcode !== undefined) {

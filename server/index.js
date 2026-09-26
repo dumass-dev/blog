@@ -687,7 +687,7 @@ app.get('/api/posts', async (req, res) => {
     const { status, type, category, tag, limit } = req.query;
     const isAdmin = await checkIsAdmin(req);
 
-    let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false });
+    let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
 
     // Restrict status=all or status=draft to authenticated admin only
     if (status === 'all' || status === 'draft') {
@@ -1143,7 +1143,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       category: dbCategory,
       tags: tags ? tags.trim() : '',
       cover_image: finalCoverImage,
-      excerpt: stripMarkdown(excerpt || content, 150),
+      excerpt: stripMarkdown(content || excerpt || '', 150),
       date: date || new Date().toISOString(),
       location: location ? location.trim() : null,
       weather: weather ? weather.trim() : null,
@@ -1214,9 +1214,9 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (cover_image !== undefined) updates.cover_image = cover_image.trim();
     // Always recalculate excerpt from the latest content so feed previews stay fresh
     if (content !== undefined) {
-      updates.excerpt = stripMarkdown(excerpt || content || '', 150);
+      updates.excerpt = stripMarkdown(content, 150);
     } else if (excerpt !== undefined) {
-      updates.excerpt = excerpt.trim();
+      updates.excerpt = stripMarkdown(excerpt, 150);
     }
     if (date !== undefined) updates.date = date;
     if (location !== undefined) updates.location = location;

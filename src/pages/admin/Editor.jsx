@@ -6,6 +6,7 @@ import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
+import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
 import {
   Save,
   ArrowLeft,
@@ -53,7 +54,7 @@ export default function Editor() {
     mood: '',
     passcode: '',
     show_in_feed: initialType !== 'photo',
-    date: new Date().toISOString().slice(0, 16) // YYYY-MM-THH:mm
+    date: toLocalDatetimeInputString(new Date())
   });
 
   const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
@@ -159,10 +160,7 @@ export default function Editor() {
 
       if (isMounted) {
         if (entryData) {
-          let formattedDate = entryData.date;
-          try {
-            formattedDate = new Date(entryData.date).toISOString().slice(0, 16);
-          } catch {}
+          const formattedDate = toLocalDatetimeInputString(entryData.date);
 
           const passcodeExists = Boolean(entryData.has_passcode || (entryData.passcode && entryData.passcode.trim() !== ''));
           setHasExistingPasscode(passcodeExists);
@@ -307,7 +305,8 @@ export default function Editor() {
       type: isPhotoPost ? 'journal' : formData.type,
       category: isPhotoPost ? (formData.category || 'Photos') : formData.category,
       show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : !isPhotoPost,
-      date: new Date(formData.date).toISOString()
+      excerpt: stripMarkdown(formData.content, 150),
+      date: fromLocalDatetimeInputString(formData.date)
     };
 
     if (removePasscodeFlag) {
@@ -356,7 +355,7 @@ export default function Editor() {
           category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
           tags: payload.tags || '',
           cover_image: payload.cover_image || '',
-          excerpt: stripMarkdown(payload.excerpt || payload.content, 150),
+          excerpt: stripMarkdown(payload.content, 150),
           date: payload.date || new Date().toISOString(),
           location: payload.location || null,
           weather: payload.weather || null,
