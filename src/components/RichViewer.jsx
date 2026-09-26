@@ -27,6 +27,8 @@ if (typeof window !== 'undefined') {
   });
 }
 
+import { escapeNonStandardTags } from '../utils/markdown';
+
 export default function RichViewer({ content = '' }) {
   const containerRef = useRef(null);
 
@@ -53,7 +55,7 @@ export default function RichViewer({ content = '' }) {
     return processed;
   };
 
-  const processedContent = processEmbeds(content);
+  const processedContent = escapeNonStandardTags(processEmbeds(content));
   const rawHtml = marked.parse(processedContent, {
     gfm: true,
     breaks: true

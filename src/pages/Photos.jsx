@@ -224,7 +224,7 @@ export default function Photos() {
           <ImageIcon className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 opacity-50" />
           <p className="font-serif text-lg text-[var(--text-primary)]">No photos published yet</p>
           <p className="font-sans text-xs text-[var(--text-muted)] mt-1">
-            Upload images in Admin Studio to build your visual stream.
+            Check back soon for new visual captures.
           </p>
         </div>
       ) : (

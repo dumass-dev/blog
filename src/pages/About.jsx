@@ -11,7 +11,7 @@ const defaultAbout = {
   projects: [
     {
       title: 'Digital Diary & Journal',
-      description: 'Minimalist personal digital diary, journal, blog, life archive and private admin space.',
+      description: 'Minimalist personal digital diary, journal, blog, and life archive.',
       link: 'https://github.com/shuaib-mk/blog'
     }
   ],
