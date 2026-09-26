@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch, invalidateFeedCache } from '../../supabase';
+import { publishRealtimeUpdate } from '../../utils/realtime';
 import Modal from '../../components/Modal';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
@@ -162,6 +163,22 @@ export default function Dashboard() {
     loadData();
   }, [token, loadData]);
 
+  // Realtime live sync: refresh dashboard data silently when changes occur
+  useEffect(() => {
+    const handleFeedChange = () => {
+      loadData(false);
+    };
+    const handleCommentChange = () => {
+      loadData(false);
+    };
+    window.addEventListener('feed-data-invalidated', handleFeedChange);
+    window.addEventListener('comments-updated', handleCommentChange);
+    return () => {
+      window.removeEventListener('feed-data-invalidated', handleFeedChange);
+      window.removeEventListener('comments-updated', handleCommentChange);
+    };
+  }, [loadData]);
+
   const handleDelete = async (id) => {
     let deleted = false;
     try {
@@ -181,6 +198,11 @@ export default function Dashboard() {
 
     if (deleted) {
       invalidateFeedCache();
+      publishRealtimeUpdate({
+        type: 'entry',
+        op: 'DELETE',
+        id
+      });
       setDeleteTarget(null);
       setEntries(prev => {
         const updated = prev.filter(e => e.id !== id);
@@ -213,6 +235,11 @@ export default function Dashboard() {
     }
 
     if (deleted) {
+      publishRealtimeUpdate({
+        type: 'comment',
+        op: 'DELETE',
+        commentId
+      });
       setComments(prev => {
         const updated = prev.filter(c => c.id !== commentId);
         setPersistedCache({ entries, stats, comments: updated });

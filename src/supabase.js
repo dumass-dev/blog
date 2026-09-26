@@ -349,8 +349,8 @@ export function initSupabaseRealtime() {
   }
 }
 
-// Automatically subscribe in browser
-if (typeof window !== 'undefined') {
+// Automatically subscribe in browser (skip in node test environment)
+if (typeof window !== 'undefined' && (typeof process === 'undefined' || process?.env?.NODE_ENV !== 'test')) {
   initSupabaseRealtime();
 }
 
@@ -376,36 +376,46 @@ export function subscribeToEntries(onDataChange) {
  * Realtime subscription to comments table
  */
 export function subscribeToComments(postId, onDataChange) {
-  const channel = supabase
-    .channel(`public:comments:${postId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, payload => {
-      if (!postId || payload.new?.post_id === postId || payload.old?.post_id === postId) {
-        onDataChange();
-      }
-    })
-    .subscribe();
+  if (typeof window === 'undefined' || !supabase || typeof supabase.channel !== 'function') return () => {};
+  try {
+    const channel = supabase
+      .channel(`public:comments:${postId || 'all'}:${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, payload => {
+        if (!postId || payload.new?.post_id === postId || payload.old?.post_id === postId) {
+          if (typeof onDataChange === 'function') onDataChange();
+        }
+      })
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      try { supabase.removeChannel(channel); } catch {}
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 /**
  * Realtime subscription to reactions table
  */
 export function subscribeToReactions(postId, onDataChange) {
-  const channel = supabase
-    .channel(`public:reactions:${postId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, payload => {
-      if (!postId || payload.new?.post_id === postId || payload.old?.post_id === postId) {
-        onDataChange();
-      }
-    })
-    .subscribe();
+  if (typeof window === 'undefined' || !supabase || typeof supabase.channel !== 'function') return () => {};
+  try {
+    const channel = supabase
+      .channel(`public:reactions:${postId || 'all'}:${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, payload => {
+        if (!postId || payload.new?.post_id === postId || payload.old?.post_id === postId) {
+          if (typeof onDataChange === 'function') onDataChange();
+        }
+      })
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      try { supabase.removeChannel(channel); } catch {}
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 

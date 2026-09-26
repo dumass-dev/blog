@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Lightbulb, Coffee, Heart, Sparkles } from 'lucide-react';
 import { supabase, subscribeToReactions } from '../supabase';
+import { publishRealtimeUpdate } from '../utils/realtime';
 
 export default function Reactions({ postId }) {
   const [counts, setCounts] = useState({ thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 });
@@ -51,9 +52,21 @@ export default function Reactions({ postId }) {
       loadReactions();
     });
 
+    const handleReactionEvent = (e) => {
+      if (!e.detail?.postId || e.detail.postId === postId) {
+        if (e.detail?.counts) {
+          setCounts(e.detail.counts);
+        } else {
+          loadReactions();
+        }
+      }
+    };
+    window.addEventListener('reactions-updated', handleReactionEvent);
+
     return () => {
       isMounted = false;
       unsubscribe();
+      window.removeEventListener('reactions-updated', handleReactionEvent);
     };
   }, [postId]);
 
@@ -87,6 +100,12 @@ export default function Reactions({ postId }) {
 
     if (updatedCounts && typeof updatedCounts === 'object') {
       setCounts(updatedCounts);
+      publishRealtimeUpdate({
+        type: 'reaction',
+        op: 'INSERT',
+        postId,
+        counts: updatedCounts
+      });
     } else {
       // Direct Supabase fallback
       try {
@@ -98,6 +117,11 @@ export default function Reactions({ postId }) {
         }
 
         await supabase.from('reactions').insert([{ post_id: realPostId, reaction_type: type }]);
+        publishRealtimeUpdate({
+          type: 'reaction',
+          op: 'INSERT',
+          postId
+        });
       } catch (e) {
         console.error('Failed to post reaction to Supabase:', e);
       }

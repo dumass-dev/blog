@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, invalidateFeedCache } from '../../supabase';
+import { publishRealtimeUpdate } from '../../utils/realtime';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import ThemeToggle from '../../components/ThemeToggle';
@@ -423,6 +424,14 @@ export default function Editor() {
     }
 
     invalidateFeedCache();
+    publishRealtimeUpdate({
+      type: 'entry',
+      op: id ? 'UPDATE' : 'INSERT',
+      id: savedData.id,
+      slug: savedData.slug,
+      title: savedData.title || formData.title,
+      data: savedData
+    });
     setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
     setTimeout(() => {
       setSaving(false);

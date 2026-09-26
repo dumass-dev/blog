@@ -1,9 +1,9 @@
-/* global CustomEvent */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTypewriter } from '../../context/TypewriterContext';
 import ThemeToggle from '../../components/ThemeToggle';
+import { publishRealtimeUpdate } from '../../utils/realtime';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export default function AboutEdit() {
@@ -112,7 +112,11 @@ export default function AboutEdit() {
       // Bust the About page localStorage cache so public site reflects changes immediately
       try {
         localStorage.removeItem('cached_about_data');
-        window.dispatchEvent(new CustomEvent('about-data-updated'));
+        publishRealtimeUpdate({
+          type: 'about',
+          op: 'UPDATE',
+          data: formData
+        });
       } catch {}
       setMessage('About page and site settings updated successfully!');
     } catch (err) {

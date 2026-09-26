@@ -85,7 +85,16 @@ export default function Archive() {
     };
 
     loadArchive();
-    return () => { isMounted = false; };
+
+    const handleInvalidate = () => {
+      loadArchive();
+    };
+    window.addEventListener('feed-data-invalidated', handleInvalidate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('feed-data-invalidated', handleInvalidate);
+    };
   }, [searchQuery, activeYear, activeMonth]);
 
   const handleSearchSubmit = (e) => {

@@ -38,6 +38,56 @@ function slugify(text) {
 
 const serverStartTime = Date.now();
 
+// Realtime SSE Manager
+const sseClients = new Set();
+let realtimeVersion = Date.now();
+
+export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) {
+  realtimeVersion = Date.now();
+  const payload = {
+    event,
+    ...data,
+    version: realtimeVersion,
+    timestamp: new Date().toISOString()
+  };
+  const message = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+
+  for (const client of sseClients) {
+    try {
+      client.write(message);
+    } catch (_err) {
+      sseClients.delete(client);
+    }
+  }
+
+  // Cross-device broadcast: Persist to Supabase and send over Realtime channel
+  const clientToUse = supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
+  if (clientToUse && typeof clientToUse.from === 'function') {
+    try {
+      clientToUse.from('realtime_sync').upsert({
+        id: 'latest',
+        version: realtimeVersion,
+        event,
+        payload: data,
+        updated_at: new Date().toISOString()
+      }).then(() => {}).catch(() => {});
+    } catch {}
+
+    try {
+      if (typeof clientToUse.channel === 'function') {
+        const channel = clientToUse.channel('blog-live-sync', {
+          config: { broadcast: { self: false }, private: false }
+        });
+        channel.send({
+          type: 'broadcast',
+          event: 'sync',
+          payload
+        }).catch(() => {});
+      }
+    } catch {}
+  }
+}
+
 /**
  * Strict Server-Side Admin Authentication Middleware (Fail Closed)
  * Verifies Supabase JWT token server-side and checks against ADMIN_USER_ID
@@ -456,6 +506,92 @@ app.get(['/', '/api', '/api/'], async (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
+app.get('/api/realtime-stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+
+  res.write(`: connected\nevent: init\ndata: ${JSON.stringify({ version: realtimeVersion, timestamp: new Date().toISOString() })}\n\n`);
+
+  sseClients.add(res);
+
+  const keepAliveTimer = setInterval(() => {
+    try {
+      res.write(': keepalive\n\n');
+    } catch (_err) {
+      clearInterval(keepAliveTimer);
+      sseClients.delete(res);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAliveTimer);
+    sseClients.delete(res);
+  });
+});
+
+// GET /api/sync-check — Fast check for recent updates across all serverless containers & devices
+app.get('/api/sync-check', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  let currentVer = realtimeVersion;
+  let eventType = null;
+  let eventPayload = null;
+
+  try {
+    const client = getSupabaseClient(req);
+
+    // 1. Try reading latest event & version from realtime_sync
+    const { data: syncRow } = await client
+      .from('realtime_sync')
+      .select('version, updated_at, event, payload')
+      .eq('id', 'latest')
+      .maybeSingle();
+
+    if (syncRow && syncRow.version) {
+      currentVer = Math.max(currentVer, Number(syncRow.version) || 0);
+      eventType = syncRow.event;
+      eventPayload = syncRow.payload;
+    } else {
+      // 2. Fallback: check latest updated_at from public_published_entries
+      const { data: latestEntry } = await client
+        .from('public_published_entries')
+        .select('updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (latestEntry && latestEntry[0] && latestEntry[0].updated_at) {
+        const entryTime = new Date(latestEntry[0].updated_at).getTime();
+        currentVer = Math.max(currentVer, entryTime);
+      }
+    }
+  } catch (_err) {}
+
+  res.json({
+    status: 'ok',
+    version: currentVer,
+    event: eventType,
+    payload: eventPayload,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// POST /api/realtime-broadcast — Receive mutation event and broadcast cross-device
+app.post('/api/realtime-broadcast', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const event = body.event || body.type || 'resync';
+    const client = getSupabaseClient(req);
+    broadcastRealtimeEvent(event, body, client);
+    res.json({ success: true, version: realtimeVersion });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/b2/refresh — Auto-refresh expired presigned Backblaze B2 S3 URLs
@@ -931,6 +1067,10 @@ async function handleSaveAbout(req, res) {
 
     if (error) throw error;
 
+    broadcastRealtimeEvent('about_updated', {
+      data: result || saveData
+    });
+
     return res.json({
       author_name: result?.author_name || saveData.author_name,
       tagline: result?.tagline || saveData.tagline,
@@ -1163,6 +1303,14 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
 
     if (error) throw error;
 
+    broadcastRealtimeEvent('entry_created', {
+      op: 'INSERT',
+      id: data.id,
+      slug: data.slug,
+      title: data.title,
+      type: isPhotoType ? 'photo' : data.type
+    });
+
     res.status(201).json({
       ...data,
       type: isPhotoType ? 'photo' : data.type
@@ -1242,6 +1390,14 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
 
     if (error) throw error;
 
+    broadcastRealtimeEvent('entry_updated', {
+      op: 'UPDATE',
+      id: data.id,
+      slug: data.slug,
+      title: data.title,
+      type: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
+    });
+
     res.json({
       ...data,
       type: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
@@ -1267,6 +1423,11 @@ app.delete('/api/posts/:id', requireAdminAuth, async (req, res) => {
     const { error } = await supabaseClient.from('entries').delete().eq('id', id);
 
     if (error) throw error;
+
+    broadcastRealtimeEvent('entry_deleted', {
+      op: 'DELETE',
+      id
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -1434,6 +1595,12 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     if (error) throw error;
 
+    broadcastRealtimeEvent('comment_created', {
+      op: 'INSERT',
+      postId,
+      comment: data
+    });
+
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1463,6 +1630,11 @@ app.delete('/api/comments/:id', requireAdminAuth, async (req, res) => {
     if (!data || data.length === 0) {
       return res.status(404).json({ error: 'Comment not found or delete not permitted.' });
     }
+
+    broadcastRealtimeEvent('comment_deleted', {
+      op: 'DELETE',
+      commentId: data[0].id
+    });
 
     res.json({ success: true, deleted_id: data[0].id });
   } catch (err) {
@@ -1546,6 +1718,12 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       success: true,
       ...updatedCounts,
       hearts: (allReactions || []).length
+    });
+
+    broadcastRealtimeEvent('reaction_updated', {
+      postId,
+      reaction_type,
+      counts: updatedCounts
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

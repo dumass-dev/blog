@@ -39,21 +39,44 @@ export default function Photos() {
   useEffect(() => {
     if (!activePhoto) return;
 
-    // Fetch reactions
-    fetch(`/api/posts/${activePhoto.id}/reactions`)
-      .then(res => res.json())
-      .then(data => {
-        setReactions({ hearts: data.hearts || 0, userLiked: false });
-      })
-      .catch(() => {});
+    const loadInteractions = () => {
+      // Fetch reactions
+      fetch(`/api/posts/${activePhoto.id}/reactions`)
+        .then(res => res.json())
+        .then(data => {
+          setReactions(prev => ({ ...prev, hearts: data.hearts || 0 }));
+        })
+        .catch(() => {});
 
-    // Fetch comments
-    fetch(`/api/posts/${activePhoto.id}/comments`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setComments(data);
-      })
-      .catch(() => {});
+      // Fetch comments
+      fetch(`/api/posts/${activePhoto.id}/comments`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setComments(data);
+        })
+        .catch(() => {});
+    };
+
+    loadInteractions();
+
+    const handleComments = (e) => {
+      if (!e.detail?.postId || e.detail.postId === activePhoto.id) {
+        loadInteractions();
+      }
+    };
+
+    const handleReactions = (e) => {
+      if (!e.detail?.postId || e.detail.postId === activePhoto.id) {
+        loadInteractions();
+      }
+    };
+
+    window.addEventListener('comments-updated', handleComments);
+    window.addEventListener('reactions-updated', handleReactions);
+    return () => {
+      window.removeEventListener('comments-updated', handleComments);
+      window.removeEventListener('reactions-updated', handleReactions);
+    };
   }, [activePhoto]);
 
   const navigatePhoto = useCallback((direction) => {

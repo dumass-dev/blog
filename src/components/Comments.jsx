@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSquare, Send, User, Trash2 } from 'lucide-react';
 import { supabase, subscribeToComments } from '../supabase';
+import { publishRealtimeUpdate } from '../utils/realtime';
 import { useAuth } from '../context/AuthContext';
 
 function formatDate(dateStr) {
@@ -55,9 +56,17 @@ export default function Comments({ postId }) {
       loadComments();
     });
 
+    const handleCommentEvent = (e) => {
+      if (!e.detail?.postId || e.detail.postId === postId) {
+        loadComments();
+      }
+    };
+    window.addEventListener('comments-updated', handleCommentEvent);
+
     return () => {
       isMounted = false;
       unsubscribe();
+      window.removeEventListener('comments-updated', handleCommentEvent);
     };
   }, [postId]);
 
@@ -91,6 +100,12 @@ export default function Comments({ postId }) {
 
     if (deleted) {
       setComments(prev => prev.filter(c => c.id !== commentId));
+      publishRealtimeUpdate({
+        type: 'comment',
+        op: 'DELETE',
+        postId,
+        commentId
+      });
     }
     setDeletingId(null);
   };
@@ -173,6 +188,12 @@ export default function Comments({ postId }) {
 
     if (realComment) {
       setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
+      publishRealtimeUpdate({
+        type: 'comment',
+        op: 'INSERT',
+        postId,
+        comment: realComment
+      });
     }
     setSubmitting(false);
   };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
@@ -48,6 +48,8 @@ export default function EntryDetail() {
   const [loading, setLoading] = useState(initialState.loading);
   const [error, setError] = useState(initialState.error);
   const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [liveUpdatedPill, setLiveUpdatedPill] = useState(false);
 
   // Lightbox State
   const [lightbox, setLightbox] = useState({ isOpen: false, src: '', caption: '' });
@@ -57,62 +59,60 @@ export default function EntryDetail() {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [floatingBtnPos, setFloatingBtnPos] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const cached = getCachedEntry(slug);
-    const resolved = resolveEntryDetailState(slug, cached);
+  const loadEntry = useCallback(async (isSilent = false) => {
+    let postData = null;
+    let prev = null;
+    let next = null;
 
-    setData(resolved.data);
-    setLoading(resolved.loading);
-    setError(resolved.error);
-    setIsUnlocked(resolved.isUnlocked);
+    if (!isSilent) {
+      const cached = getCachedEntry(slug);
+      if (cached && typeof cached.content === 'string' && cached.content.trim() !== '') {
+        postData = cached;
+      }
+    }
 
-    const loadEntry = async () => {
-      let postData = (cached && typeof cached.content === 'string' && cached.content.trim() !== '') ? cached : null;
-      let prev = null;
-      let next = null;
+    // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
+    try {
+      const resData = await safeApiFetch(`/api/posts/${slug}`);
+      if (resData) {
+        if (resData.prev) prev = resData.prev;
+        if (resData.next) next = resData.next;
+        if (resData.entry || resData.title) {
+          postData = resData.entry || resData;
+          cacheEntry(postData);
+        }
+      }
+    } catch (_err) {}
 
-      // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
+    // 2. Secondary fallback: Direct Supabase query if API server endpoint is not reachable
+    if (!postData) {
       try {
-        const resData = await safeApiFetch(`/api/posts/${slug}`);
-        if (resData) {
-          if (resData.prev) prev = resData.prev;
-          if (resData.next) next = resData.next;
-          if (resData.entry || resData.title) {
-            postData = resData.entry || resData;
-            cacheEntry(postData);
-          }
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+        let query = supabase.from('public_published_entries').select('*');
+        if (isUuid) {
+          query = query.eq('id', slug);
+        } else {
+          query = query.eq('slug', slug);
+        }
+
+        const { data: posts } = await query;
+        if (posts && posts[0]) {
+          postData = posts[0];
+          cacheEntry(postData);
         }
       } catch (_err) {}
+    }
 
-      // 2. Secondary fallback: Direct Supabase query if API server endpoint is not reachable
-      if (!postData) {
-        try {
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-          let query = supabase.from('public_published_entries').select('*');
-          if (isUuid) {
-            query = query.eq('id', slug);
-          } else {
-            query = query.eq('slug', slug);
-          }
-
-          const { data: posts } = await query;
-          if (posts && posts[0]) {
-            postData = posts[0];
-            cacheEntry(postData);
-          }
-        } catch (_err) {}
+    if (!postData) {
+      if (!isSilent) {
+        setError('Entry not found.');
+        setLoading(false);
       }
+      return;
+    }
 
-      if (!postData) {
-        if (isMounted) {
-          setError('Entry not found.');
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Increment view count via RPC
+    // Increment view count via RPC on initial view
+    if (!isSilent) {
       const updatedViews = (postData.views || 0) + 1;
       postData.views = updatedViews;
 
@@ -120,30 +120,72 @@ export default function EntryDetail() {
         .rpc('increment_views', { target_slug: slug || postData.slug || postData.id })
         .then(() => {})
         .catch(() => {});
+    }
 
-      const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
+    const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 
-      if (isMounted) {
-        setData({
-          entry: {
-            ...postData,
-            has_passcode: hasPasscode,
-            content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
-          },
-          prev,
-          next
-        });
+    setData(prevData => ({
+      entry: {
+        ...postData,
+        has_passcode: hasPasscode,
+        content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
+      },
+      prev: prev || prevData?.prev,
+      next: next || prevData?.next
+    }));
 
-        if (!hasPasscode) {
-          setIsUnlocked(true);
+    if (!hasPasscode) {
+      setIsUnlocked(true);
+    }
+    setLoading(false);
+
+    if (isSilent) {
+      setLiveUpdatedPill(true);
+      setTimeout(() => setLiveUpdatedPill(false), 3000);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    const cached = getCachedEntry(slug);
+    const resolved = resolveEntryDetailState(slug, cached);
+
+    setData(resolved.data);
+    setLoading(resolved.loading);
+    setError(resolved.error);
+    setIsUnlocked(resolved.isUnlocked);
+    setIsDeleted(false);
+
+    loadEntry(false);
+  }, [slug, loadEntry]);
+
+  // Realtime subscription for live entry updates or deletion
+  useEffect(() => {
+    const handleEntryChange = (e) => {
+      const detail = e.detail;
+      const currentId = data?.entry?.id;
+      const currentSlug = data?.entry?.slug || slug;
+
+      if (detail) {
+        if (detail.op === 'DELETE' || detail.event === 'entry_deleted') {
+          if (detail.id === currentId || detail.slug === currentSlug) {
+            setIsDeleted(true);
+            return;
+          }
         }
-        setLoading(false);
       }
+
+      // Quietly reload entry with latest content in real-time
+      loadEntry(true);
     };
 
-    loadEntry();
-    return () => { isMounted = false; };
-  }, [slug]);
+    window.addEventListener('entry-updated', handleEntryChange);
+    window.addEventListener('feed-data-invalidated', handleEntryChange);
+    return () => {
+      window.removeEventListener('entry-updated', handleEntryChange);
+      window.removeEventListener('feed-data-invalidated', handleEntryChange);
+    };
+  }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry]);
+
 
   // Listen for text selection to show Floating "Quote Card" pill
   useEffect(() => {
@@ -189,6 +231,24 @@ export default function EntryDetail() {
     return (
       <div className="notebook-container py-8">
         <FeedSkeleton type="detail" />
+      </div>
+    );
+  }
+
+  if (isDeleted) {
+    return (
+      <div className="notebook-container py-16 text-center animate-content-fade">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-sans bg-[var(--card-bg)] border border-[var(--border-subtle)] text-[var(--text-muted)] mb-4">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span>Real-time update</span>
+        </div>
+        <h1 className="text-2xl font-serif font-medium mb-3">This entry was unpublished</h1>
+        <p className="text-sm font-sans text-[var(--text-secondary)] mb-6 max-w-md mx-auto">
+          The author has removed or unpublished this entry in real-time.
+        </p>
+        <Link to="/" className="inline-flex items-center text-xs font-sans font-medium text-[var(--accent-warm)] hover:underline">
+          ← Return to Chronological Feed
+        </Link>
       </div>
     );
   }
@@ -326,6 +386,15 @@ export default function EntryDetail() {
             </span>
           )}
         </div>
+
+        {liveUpdatedPill && (
+          <div className="mb-3 animate-content-fade">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-sans bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Updated live</span>
+            </span>
+          </div>
+        )}
 
         {entry.title && (
           <TypewriterText
