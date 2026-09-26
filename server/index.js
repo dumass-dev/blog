@@ -863,6 +863,7 @@ const defaultAboutData = {
 // GET /api/about
 app.get('/api/about', async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { data, error } = await getSupabaseClient(req)
       .from('about')
       .select('*')

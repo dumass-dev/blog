@@ -72,6 +72,7 @@ app.get('/api/b2/refresh', async (req, res) => {
 
 // Admin Stats
 app.get('/api/stats', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   const auth = await verifyAdminUser(req);
   if (!auth.authorized) {
     return res.status(auth.status).json({ error: auth.error });
@@ -150,6 +151,7 @@ const defaultAboutData = {
 // GET /api/about
 app.get('/api/about', async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { data, error } = await getSupabaseClient(req)
       .from('about')
       .select('*')
