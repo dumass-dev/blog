@@ -169,12 +169,12 @@ app.get('/api/about', async (req, res) => {
       } catch {}
 
       return res.json({
-        author_name: row.author_name || defaultAboutData.author_name,
+        author_name: row.author_name !== undefined ? row.author_name : defaultAboutData.author_name,
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
         default_typewriter_enabled: row.default_typewriter_enabled !== undefined ? Boolean(row.default_typewriter_enabled) : false,
-        projects: projects.length > 0 ? projects : defaultAboutData.projects,
-        links: links.length > 0 ? links : defaultAboutData.links
+        projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
+        links: Array.isArray(links) ? links : defaultAboutData.links
       });
     }
 
@@ -837,59 +837,6 @@ app.delete('/api/media/:id', async (req, res) => {
 
     if (error) throw error;
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ABOUT ENDPOINTS
-app.get('/api/about', async (req, res) => {
-  try {
-    const { data, error } = await getSupabaseClient(req)
-      .from('about')
-      .select('*')
-      .limit(1)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    res.json(data || {});
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/about', async (req, res) => {
-  const auth = await verifyAdminUser(req);
-  if (!auth.authorized) {
-    return res.status(auth.status).json({ error: auth.error });
-  }
-
-  try {
-    const payload = req.body;
-    const { data: existing } = await getSupabaseClient(req)
-      .from('about')
-      .select('id')
-      .limit(1)
-      .single();
-
-    let result;
-    if (existing) {
-      result = await getSupabaseClient(req)
-        .from('about')
-        .update(payload)
-        .eq('id', existing.id)
-        .select('*')
-        .single();
-    } else {
-      result = await getSupabaseClient(req)
-        .from('about')
-        .insert(payload)
-        .select('*')
-        .single();
-    }
-
-    if (result.error) throw result.error;
-    res.json(result.data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

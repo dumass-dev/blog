@@ -881,11 +881,12 @@ app.get('/api/about', async (req, res) => {
       } catch {}
 
       return res.json({
-        author_name: row.author_name || defaultAboutData.author_name,
+        author_name: row.author_name !== undefined ? row.author_name : defaultAboutData.author_name,
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
-        projects: projects.length > 0 ? projects : defaultAboutData.projects,
-        links: links.length > 0 ? links : defaultAboutData.links
+        default_typewriter_enabled: row.default_typewriter_enabled !== undefined ? Boolean(row.default_typewriter_enabled) : false,
+        projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
+        links: Array.isArray(links) ? links : defaultAboutData.links
       });
     }
 
@@ -1546,75 +1547,6 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       ...updatedCounts,
       hearts: (allReactions || []).length
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ==========================================================================
-   ABOUT & SETTINGS ROUTES (SUPABASE POWERED)
-   ========================================================================== */
-
-let cachedAboutData = null;
-let cachedAboutTimestamp = 0;
-
-app.get('/api/about', async (req, res) => {
-  try {
-    if (cachedAboutData && (Date.now() - cachedAboutTimestamp < 60000)) {
-      return res.json(cachedAboutData);
-    }
-
-    const { data: settings, error } = await getSupabaseClient(req).from('settings').select('*');
-
-    if (error && !cachedAboutData) throw error;
-
-    const result = {
-      author_name: 'q04ti',
-      tagline: 'thoughts, things I make, places I go, and everything in between.',
-      bio: '',
-      projects: [],
-      links: []
-    };
-
-    (settings || []).forEach(row => {
-      if (row.key === 'projects' || row.key === 'links') {
-        try {
-          result[row.key] = JSON.parse(row.value);
-        } catch {
-          result[row.key] = [];
-        }
-      } else {
-        result[row.key] = row.value;
-      }
-    });
-
-    cachedAboutData = result;
-    cachedAboutTimestamp = Date.now();
-
-    res.json(result);
-  } catch (err) {
-    if (cachedAboutData) return res.json(cachedAboutData);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/about', requireAdminAuth, async (req, res) => {
-  try {
-    const { author_name, tagline, bio, projects, links } = req.body;
-
-    const rowsToUpsert = [];
-    if (author_name !== undefined) rowsToUpsert.push({ key: 'author_name', value: author_name });
-    if (tagline !== undefined) rowsToUpsert.push({ key: 'tagline', value: tagline });
-    if (bio !== undefined) rowsToUpsert.push({ key: 'bio', value: bio });
-    if (projects !== undefined) rowsToUpsert.push({ key: 'projects', value: JSON.stringify(projects) });
-    if (links !== undefined) rowsToUpsert.push({ key: 'links', value: JSON.stringify(links) });
-
-    if (rowsToUpsert.length > 0) {
-      const { error } = await getSupabaseClient(req).from('settings').upsert(rowsToUpsert);
-      if (error) throw error;
-    }
-
-    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

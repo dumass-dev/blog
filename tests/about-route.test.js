@@ -94,6 +94,55 @@ describe('About Page API Route Tests (/api/about)', () => {
     assert.strictEqual(res.status, 401, 'POST /api/about without token must return 401');
   });
 
+  test('GET /api/about respects empty projects array without resetting to defaults', async () => {
+    global.__mockSupabaseClient = () => ({
+      auth: { getUser: async () => ({ data: null, error: null }) },
+      from: (tableName) => {
+        if (tableName === 'about') {
+          return {
+            select: () => ({
+              limit: async () => ({
+                data: [{
+                  id: 'about-uuid-2',
+                  author_name: 'q04ti',
+                  tagline: 'custom tagline',
+                  bio: 'Custom bio.',
+                  projects: [],
+                  links: []
+                }],
+                error: null
+              })
+            })
+          };
+        }
+        return { select: () => ({ limit: async () => ({ data: [], error: null }) }) };
+      }
+    });
+
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/about',
+      method: 'GET'
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve({ status: r.statusCode, data: JSON.parse(body || '{}') }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(Array.isArray(res.data.projects), true);
+    assert.strictEqual(res.data.projects.length, 0, 'projects array must remain empty when saved as empty');
+    assert.strictEqual(Array.isArray(res.data.links), true);
+    assert.strictEqual(res.data.links.length, 0, 'links array must remain empty when saved as empty');
+  });
+
   test('Teardown test server', () => {
     if (server) server.close();
   });

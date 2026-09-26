@@ -65,7 +65,7 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
     }
   }, [type, category, tag, limit, forHomeFeed]);
 
-  // Initial load + silent background refetch on window focus
+  // Initial load + silent background refetch on window focus or cache invalidation
   useEffect(() => {
     let isMounted = true;
     const executeLoad = async () => {
@@ -74,10 +74,14 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
     executeLoad();
 
     const handleFocus = () => { loadFeed(); };
+    const handleInvalidate = () => { loadFeed(); };
+
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('feed-data-invalidated', handleInvalidate);
     return () => {
       isMounted = false;
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('feed-data-invalidated', handleInvalidate);
     };
   }, [loadFeed]);
 

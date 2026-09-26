@@ -1,3 +1,4 @@
+/* global CustomEvent */
 import { createClient } from '@supabase/supabase-js';
 
 const defaultUrl = 'https://aidajlxmfxhmsctmciaq.supabase.co';
@@ -34,6 +35,13 @@ export function invalidateFeedCache() {
     localStorage.removeItem('cached_about_data');
     localStorage.removeItem('cached_admin_dashboard_v2');
   } catch {}
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('feed-data-invalidated'));
+      window.dispatchEvent(new CustomEvent('about-data-updated'));
+    } catch {}
+  }
 }
 
 export function getCachedFeed(typeKey = 'all') {

@@ -31,7 +31,7 @@ export default function About() {
       const cached = localStorage.getItem('cached_about_data');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && (parsed.bio || (parsed.projects && parsed.projects.length > 0))) {
+        if (parsed && typeof parsed === 'object') {
           return parsed;
         }
       }
@@ -58,11 +58,11 @@ export default function About() {
         .then(data => {
           if (!data) return;
           const updated = {
-            author_name: data.author_name || defaultAbout.author_name,
+            author_name: data.author_name !== undefined ? data.author_name : defaultAbout.author_name,
             tagline: data.tagline !== undefined ? data.tagline : defaultAbout.tagline,
-            bio: data.bio || defaultAbout.bio,
-            projects: (Array.isArray(data.projects) && data.projects.length > 0) ? data.projects : defaultAbout.projects,
-            links: (Array.isArray(data.links) && data.links.length > 0) ? data.links : defaultAbout.links
+            bio: data.bio !== undefined ? data.bio : defaultAbout.bio,
+            projects: Array.isArray(data.projects) ? data.projects : defaultAbout.projects,
+            links: Array.isArray(data.links) ? data.links : defaultAbout.links
           };
           setAboutData(updated);
           try {
