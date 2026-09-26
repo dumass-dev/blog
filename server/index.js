@@ -683,7 +683,7 @@ async function checkIsAdmin(req) {
 // GET /api/posts — List entries with filtering
 app.get('/api/posts', async (req, res) => {
   try {
-    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=120');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { status, type, category, tag, limit } = req.query;
     const isAdmin = await checkIsAdmin(req);
 
@@ -1210,7 +1210,12 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
     if (category !== undefined) updates.category = category.trim();
     if (tags !== undefined) updates.tags = tags.trim();
     if (cover_image !== undefined) updates.cover_image = cover_image.trim();
-    if (excerpt !== undefined) updates.excerpt = excerpt.trim();
+    // Always recalculate excerpt from the latest content so feed previews stay fresh
+    if (content !== undefined) {
+      updates.excerpt = stripMarkdown(excerpt || content || '', 150);
+    } else if (excerpt !== undefined) {
+      updates.excerpt = excerpt.trim();
+    }
     if (date !== undefined) updates.date = date;
     if (location !== undefined) updates.location = location;
     if (weather !== undefined) updates.weather = weather;

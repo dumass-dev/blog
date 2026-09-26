@@ -237,7 +237,7 @@ app.post('/api/about', handleSaveAbout);
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
   try {
-    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=120');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { status, type, category, tag, limit, includeContent } = req.query;
     const auth = await verifyAdminUser(req);
     const isAdmin = auth.authorized;
@@ -400,7 +400,7 @@ app.post('/api/posts', async (req, res) => {
 // GET /api/posts/:slug
 app.get('/api/posts/:slug', async (req, res) => {
   try {
-    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=120');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { slug } = req.params;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
     const auth = await verifyAdminUser(req);
@@ -597,6 +597,8 @@ app.put('/api/posts/:id', async (req, res) => {
       type: isPhotoPost ? 'journal' : payload.type,
       category: isPhotoPost ? 'Photos' : payload.category,
       cover_image: finalCover !== undefined ? finalCover : payload.cover_image,
+      // Always recalculate excerpt from the latest content so feed previews show fresh text
+      excerpt: stripMarkdown(payload.excerpt || payload.content || '', 150),
       updated_at: new Date().toISOString()
     };
     if (payload.passcode !== undefined) {

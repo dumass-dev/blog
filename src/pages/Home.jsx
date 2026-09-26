@@ -7,7 +7,6 @@ import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
-import { handleImageError } from '../utils/image';
 
 function formatShortDate(dateStr) {
   if (!dateStr) return '';

@@ -1,93 +1,79 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchPublishedEntries, getCachedFeed } from '../supabase';
+
+function filterEntries(list, { type, forHomeFeed }) {
+  if (!Array.isArray(list)) return [];
+  let filtered = list;
+  if (forHomeFeed) filtered = filtered.filter(item => item.show_in_feed !== false);
+  if (type === 'journal') {
+    filtered = filtered.filter(item =>
+      item.type !== 'photo' &&
+      item.type !== 'update' &&
+      (!item.category || item.category.toLowerCase() !== 'photos')
+    );
+  } else if (type === 'update') {
+    filtered = filtered.filter(item => item.type === 'update');
+  } else if (type === 'writing') {
+    filtered = filtered.filter(item =>
+      item.type === 'writing' || item.type === 'essay' ||
+      (item.category && item.category.toLowerCase() === 'writing')
+    );
+  } else if (type === 'photo') {
+    filtered = filtered.filter(item =>
+      item.type === 'photo' ||
+      (item.category && item.category.toLowerCase() === 'photos')
+    );
+  }
+  return filtered;
+}
 
 export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize = 10 } = {}) {
   const cacheKey = forHomeFeed ? 'home' : (type || 'all');
-  
-  const [entries, setEntries] = useState(() => {
-    const cached = getCachedFeed(cacheKey);
-    if (!Array.isArray(cached)) return [];
-    if (forHomeFeed) return cached.filter(item => item.show_in_feed !== false);
-    if (type === 'journal') {
-      return cached.filter(item => 
-        item.type !== 'photo' && 
-        item.type !== 'update' && 
-        (!item.category || item.category.toLowerCase() !== 'photos')
-      );
-    }
-    if (type === 'update') {
-      return cached.filter(item => item.type === 'update');
-    }
-    if (type === 'writing') {
-      return cached.filter(item => 
-        item.type === 'writing' || item.type === 'essay' || 
-        (item.category && item.category.toLowerCase() === 'writing')
-      );
-    }
-    if (type === 'photo') {
-      return cached.filter(item => 
-        item.type === 'photo' || 
-        (item.category && item.category.toLowerCase() === 'photos')
-      );
-    }
-    return cached;
-  });
 
-  const [loading, setLoading] = useState(() => {
+  const getInitialEntries = () => {
     const cached = getCachedFeed(cacheKey);
-    return !cached || cached.length === 0;
+    return filterEntries(cached || [], { type, forHomeFeed });
+  };
+
+  const [entries, setEntries] = useState(getInitialEntries);
+
+  // Only show the blocking skeleton when there is genuinely no data at all to display.
+  // If cached data is available (even derived from a parent feed), render immediately
+  // and refresh silently in the background — no skeleton flash on page navigation.
+  const [loading, setLoading] = useState(() => {
+    const cached = getInitialEntries();
+    return cached.length === 0;
   });
 
   const [page, setPage] = useState(1);
+  const isFetchingRef = useRef(false);
 
   const loadFeed = useCallback(async () => {
+    // Prevent concurrent parallel fetches
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const data = await fetchPublishedEntries({ type, category, tag, limit, forHomeFeed });
-      let list = Array.isArray(data) ? data : [];
-      if (forHomeFeed) {
-        list = list.filter(item => item.show_in_feed !== false);
-      }
-      if (type === 'journal') {
-        list = list.filter(item => 
-          item.type !== 'photo' && 
-          item.type !== 'update' && 
-          (!item.category || item.category.toLowerCase() !== 'photos')
-        );
-      } else if (type === 'update') {
-        list = list.filter(item => item.type === 'update');
-      } else if (type === 'writing') {
-        list = list.filter(item => 
-          item.type === 'writing' || item.type === 'essay' || 
-          (item.category && item.category.toLowerCase() === 'writing')
-        );
-      } else if (type === 'photo') {
-        list = list.filter(item => 
-          item.type === 'photo' || 
-          (item.category && item.category.toLowerCase() === 'photos')
-        );
-      }
+      const list = filterEntries(data, { type, forHomeFeed });
       setEntries(list);
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching feed:', err);
+    } finally {
+      // Always clear the skeleton after the first fetch attempt — never leave it stuck
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [type, category, tag, limit, forHomeFeed]);
 
-  // Initial load + Refetch on window focus
+  // Initial load + silent background refetch on window focus
   useEffect(() => {
     let isMounted = true;
-
     const executeLoad = async () => {
       if (isMounted) await loadFeed();
     };
-
     executeLoad();
 
-    const handleFocus = () => {
-      loadFeed();
-    };
-
+    const handleFocus = () => { loadFeed(); };
     window.addEventListener('focus', handleFocus);
     return () => {
       isMounted = false;

@@ -10,7 +10,6 @@ import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
-import { handleImageError } from '../utils/image';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';

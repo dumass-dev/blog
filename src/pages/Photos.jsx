@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Lock } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Heart } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { handleImageError } from '../utils/image';
 import { shouldShowCommentsAndReactions } from '../utils/entry';
 import { supabase } from '../supabase';
 

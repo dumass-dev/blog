@@ -30,6 +30,9 @@ export function invalidateFeedCache() {
   try {
     const keys = ['home', 'all', 'journal', 'writing', 'photo', 'update'];
     keys.forEach(k => localStorage.removeItem(`feed_cache_${k}`));
+    // Also bust the about page and admin dashboard caches
+    localStorage.removeItem('cached_about_data');
+    localStorage.removeItem('cached_admin_dashboard_v2');
   } catch {}
 }
 

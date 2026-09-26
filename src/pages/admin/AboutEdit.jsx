@@ -1,3 +1,4 @@
+/* global CustomEvent */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -108,6 +109,11 @@ export default function AboutEdit() {
       }
 
       updateSiteDefault(formData.default_typewriter_enabled);
+      // Bust the About page localStorage cache so public site reflects changes immediately
+      try {
+        localStorage.removeItem('cached_about_data');
+        window.dispatchEvent(new CustomEvent('about-data-updated'));
+      } catch {}
       setMessage('About page and site settings updated successfully!');
     } catch (err) {
       setError(err.message);

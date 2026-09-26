@@ -47,29 +47,42 @@ export default function About() {
   });
 
   useEffect(() => {
-    fetch('/api/about')
-      .then(async res => {
-        if (!res.ok) return null;
-        const text = await res.text();
-        if (!text || text.trim().startsWith('<')) return null;
-        return JSON.parse(text);
-      })
-      .then(data => {
-        if (!data) return;
-        const updated = {
-          author_name: data.author_name || defaultAbout.author_name,
-          tagline: data.tagline !== undefined ? data.tagline : defaultAbout.tagline,
-          bio: data.bio || defaultAbout.bio,
-          projects: (Array.isArray(data.projects) && data.projects.length > 0) ? data.projects : defaultAbout.projects,
-          links: (Array.isArray(data.links) && data.links.length > 0) ? data.links : defaultAbout.links
-        };
-        setAboutData(updated);
-        try {
-          localStorage.setItem('cached_about_data', JSON.stringify(updated));
-        } catch {}
-      })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    const doFetch = () => {
+      fetch('/api/about')
+        .then(async res => {
+          if (!res.ok) return null;
+          const text = await res.text();
+          if (!text || text.trim().startsWith('<')) return null;
+          return JSON.parse(text);
+        })
+        .then(data => {
+          if (!data) return;
+          const updated = {
+            author_name: data.author_name || defaultAbout.author_name,
+            tagline: data.tagline !== undefined ? data.tagline : defaultAbout.tagline,
+            bio: data.bio || defaultAbout.bio,
+            projects: (Array.isArray(data.projects) && data.projects.length > 0) ? data.projects : defaultAbout.projects,
+            links: (Array.isArray(data.links) && data.links.length > 0) ? data.links : defaultAbout.links
+          };
+          setAboutData(updated);
+          try {
+            localStorage.setItem('cached_about_data', JSON.stringify(updated));
+          } catch {}
+        })
+        .catch(err => console.error(err))
+        .finally(() => setLoading(false));
+    };
+
+    // Always fetch fresh on mount so projects/bio/links never stay stale
+    doFetch();
+
+    // Also refetch if the admin saves changes in the same session
+    const handleUpdate = () => {
+      setLoading(false);
+      doFetch();
+    };
+    window.addEventListener('about-data-updated', handleUpdate);
+    return () => window.removeEventListener('about-data-updated', handleUpdate);
   }, []);
 
   return (

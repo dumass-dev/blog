@@ -17,6 +17,11 @@ export default function TypewriterText({
   const [visibleCount, setVisibleCount] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const animFrameRef = useRef(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   // Check prefers-reduced-motion
   const isReducedMotion = typeof window !== 'undefined' &&
@@ -69,7 +74,7 @@ export default function TypewriterText({
       } else {
         setVisibleCount(N);
         setIsComplete(true);
-        if (onComplete) onComplete();
+        if (onCompleteRef.current) onCompleteRef.current();
       }
     };
 

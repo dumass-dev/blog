@@ -4,7 +4,6 @@ process.env.JWT_SECRET = 'test-jwt-secret-key-12345';
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import jwt from 'jsonwebtoken';
 import { 
   cleanupOrphanedB2FilesForEntry, 
   getTestDeletedB2Keys, 
@@ -36,7 +35,7 @@ describe('Safe Entry B2 Cleanup & Orphan Verification Suite', () => {
   test('SCENARIO 1: Shared B2 file (two entries sharing cover_image) — deleting one entry MUST NOT delete B2 file', async () => {
     const sharedKey = 'images/2026/09/shared-photo.jpg';
     const entry1 = { id: 'entry-uuid-1', title: 'Entry One', cover_image: sharedKey, content: 'Some text' };
-    const entry2 = { id: 'entry-uuid-2', title: 'Entry Two', cover_image: sharedKey, content: 'Other text' };
+    const _entry2 = { id: 'entry-uuid-2', title: 'Entry Two', cover_image: sharedKey, content: 'Other text' };
 
     // Mock Supabase client that returns entry2 when queried for remaining entries
     const mockSupabase = {
@@ -44,8 +43,8 @@ describe('Safe Entry B2 Cleanup & Orphan Verification Suite', () => {
         if (table === 'entries') {
           return {
             select: () => ({
-              neq: (col, id) => ({
-                or: (query) => ({
+              neq: (_col, _id) => ({
+                or: (_query) => ({
                   limit: async () => ({ data: [{ id: 'entry-uuid-2' }] }) // entry2 still exists!
                 })
               })
@@ -80,7 +79,7 @@ describe('Safe Entry B2 Cleanup & Orphan Verification Suite', () => {
 
     // Mock Supabase client returning 0 matching rows in entries or media
     const mockSupabase = {
-      from: (table) => {
+      from: (_table) => {
         return {
           select: () => ({
             neq: () => ({

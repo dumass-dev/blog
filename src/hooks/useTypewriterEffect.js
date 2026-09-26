@@ -1,3 +1,4 @@
+/* global NodeFilter */
 import { useEffect, useRef } from 'react';
 import { useTypewriter } from '../context/TypewriterContext';
 
@@ -21,19 +22,20 @@ export function useTypewriterEffect(containerRef, contentDependency, options = {
     // Helper: Collect all text nodes under container
     const collectTextNodes = (root) => {
       const textNodes = [];
+      const filterObj = typeof NodeFilter !== 'undefined' ? NodeFilter : (typeof window !== 'undefined' ? window.NodeFilter : { SHOW_TEXT: 4, FILTER_SKIP: 3, FILTER_ACCEPT: 1 });
       const walker = document.createTreeWalker(
         root,
-        NodeFilter.SHOW_TEXT,
+        filterObj?.SHOW_TEXT ?? 4,
         {
           acceptNode: (node) => {
             if (!node.nodeValue || !node.nodeValue.trim()) {
-              return NodeFilter.FILTER_SKIP;
+              return filterObj?.FILTER_SKIP ?? 3;
             }
             // Skip code blocks or already processed spans if any
             if (node.parentElement && (node.parentElement.tagName === 'CODE' || node.parentElement.classList.contains('tw-wrapper'))) {
-              return NodeFilter.FILTER_SKIP;
+              return filterObj?.FILTER_SKIP ?? 3;
             }
-            return NodeFilter.FILTER_ACCEPT;
+            return filterObj?.FILTER_ACCEPT ?? 1;
           }
         }
       );
