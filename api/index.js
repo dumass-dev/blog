@@ -287,6 +287,38 @@ app.get('/api/media/file/*', async (req, res) => {
   }
 });
 
+// GET /api/media — List uploaded media files with proxy URLs (Admin Only)
+app.get('/api/media', async (req, res) => {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  try {
+    const { data, error } = await getSupabaseClient(req)
+      .from('media')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const refreshed = (data || []).map(item => {
+      const rawUrl = item.url || '';
+      const key = extractB2StorageKey(rawUrl) || rawUrl;
+      const proxyUrl = key ? `/api/media/file/${key}` : rawUrl;
+      return {
+        ...item,
+        url: proxyUrl,
+        proxy_url: proxyUrl
+      };
+    });
+
+    res.json(refreshed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin Stats
 app.get('/api/stats', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
