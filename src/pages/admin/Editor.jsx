@@ -564,9 +564,18 @@ export default function Editor() {
             Visual Reading Preview
           </div>
           <h1 className="text-3xl font-serif font-medium mb-4">{formData.title || 'Untitled'}</h1>
-          {formData.cover_image && (
-            <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
-          )}
+          {(() => {
+            const contentHasImage = Boolean(
+              formData.content && (
+                (formData.cover_image && formData.content.includes(formData.cover_image)) ||
+                /!\[.*?\]\((.*?)\)/.test(formData.content) ||
+                /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i.test(formData.content)
+              )
+            );
+            return formData.cover_image && !contentHasImage ? (
+              <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
+            ) : null;
+          })()}
           <RichViewer content={formData.content} />
         </div>
       ) : (
