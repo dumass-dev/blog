@@ -13,20 +13,21 @@ export function resolveEntryDetailState(slug, cached) {
     };
   }
 
+  const isAlreadyUnlocked = Boolean(cached.content && !cached.content.startsWith('🔒'));
   const hasPasscode = Boolean(cached.has_passcode || (cached.passcode && cached.passcode.trim() !== ''));
   return {
     data: {
       entry: {
         ...cached,
         has_passcode: hasPasscode,
-        content: hasPasscode ? '🔒 This entry is passcode-protected.' : cached.content
+        content: isAlreadyUnlocked ? cached.content : (hasPasscode ? '🔒 This entry is passcode-protected.' : cached.content)
       },
       prev: null,
       next: null
     },
     loading: false,
     error: null,
-    isUnlocked: !hasPasscode
+    isUnlocked: isAlreadyUnlocked || !hasPasscode
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
@@ -49,6 +49,7 @@ export default function EntryDetail() {
   const [loading, setLoading] = useState(initialState.loading);
   const [error, setError] = useState(initialState.error);
   const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
+  const isUnlockedRef = useRef(initialState.isUnlocked);
   const [isDeleted, setIsDeleted] = useState(false);
 
   // Lightbox State
@@ -124,17 +125,29 @@ export default function EntryDetail() {
 
     const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
 
-    setData(prevData => ({
-      entry: {
-        ...postData,
-        has_passcode: hasPasscode,
-        content: hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content
-      },
-      prev: prev || prevData?.prev,
-      next: next || prevData?.next
-    }));
+    setData(prevData => {
+      const alreadyUnlocked = isUnlockedRef.current || (prevData?.entry?.content && !prevData.entry.content.startsWith('🔒'));
+      const effectiveContent = alreadyUnlocked
+        ? prevData.entry.content
+        : (hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content);
+      const effectiveCover = alreadyUnlocked
+        ? (prevData.entry.cover_image || postData.cover_image)
+        : (hasPasscode ? '' : postData.cover_image);
+
+      return {
+        entry: {
+          ...postData,
+          has_passcode: hasPasscode,
+          content: effectiveContent,
+          cover_image: effectiveCover
+        },
+        prev: prev || prevData?.prev,
+        next: next || prevData?.next
+      };
+    });
 
     if (!hasPasscode) {
+      isUnlockedRef.current = true;
       setIsUnlocked(true);
     }
     setLoading(false);
@@ -144,6 +157,7 @@ export default function EntryDetail() {
     const cached = getCachedEntry(slug);
     const resolved = resolveEntryDetailState(slug, cached);
 
+    isUnlockedRef.current = Boolean(resolved.isUnlocked);
     setData(resolved.data);
     setLoading(resolved.loading);
     setError(resolved.error);
@@ -416,19 +430,26 @@ export default function EntryDetail() {
       {!isUnlocked ? (
         <ProtectedEntryModal
           postId={entry.id}
+          slug={slug || entry.slug}
           onUnlock={(unlockedData) => {
-            if (unlockedData && unlockedData.content) {
-              setData(prev => ({
-                ...prev,
-                entry: {
+            if (unlockedData && unlockedData.content && !unlockedData.content.startsWith('🔒')) {
+              isUnlockedRef.current = true;
+              setIsUnlocked(true);
+              setData(prev => {
+                const updatedEntry = {
                   ...prev.entry,
                   content: unlockedData.content,
-                  cover_image: unlockedData.cover_image,
-                  excerpt: unlockedData.excerpt
-                }
-              }));
+                  cover_image: unlockedData.cover_image || prev.entry?.cover_image,
+                  excerpt: unlockedData.excerpt || prev.entry?.excerpt,
+                  has_passcode: false
+                };
+                cacheEntry(updatedEntry);
+                return {
+                  ...prev,
+                  entry: updatedEntry
+                };
+              });
             }
-            setIsUnlocked(true);
           }}
         />
       ) : (

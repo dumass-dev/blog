@@ -1168,7 +1168,7 @@ app.post('/api/about', handleSaveAbout);
 // Apply strict write rate limiter to public unauthenticated write endpoints
 app.use('/api/posts/:id/comments', writeLimiter);
 app.use('/api/posts/:id/reactions', writeLimiter);
-app.use('/api/posts/:id/verify-passcode', writeLimiter);
+app.use('/api/posts/:identifier/verify-passcode', writeLimiter);
 
 // GET /api/posts/:identifier — Fetch single entry by ID or Slug
 app.get('/api/posts/:identifier', async (req, res) => {
@@ -1270,10 +1270,10 @@ app.get('/api/posts/:identifier', async (req, res) => {
   }
 });
 
-// POST /api/posts/:id/verify-passcode — Verify entry passcode
-app.post('/api/posts/:id/verify-passcode', async (req, res) => {
+// POST /api/posts/:identifier/verify-passcode — Verify entry passcode
+app.post('/api/posts/:identifier/verify-passcode', async (req, res) => {
   try {
-    const { id } = req.params;
+    const identifier = req.params.identifier || req.params.id || req.params.slug;
     const { passcode } = req.body;
 
     if (!passcode || typeof passcode !== 'string') {
@@ -1284,7 +1284,7 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
     }
 
     const { data, error } = await getSupabaseClient(req).rpc('get_protected_entry', {
-      target_identifier: id,
+      target_identifier: identifier,
       code: passcode.trim()
     });
 
@@ -1302,8 +1302,8 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
 
     return res.json({
       unlocked: true,
-      content: freshContent,
-      cover_image: freshCover,
+      content: freshContent || result.content,
+      cover_image: freshCover || result.cover_image,
       excerpt: result.excerpt
     });
   } catch (err) {

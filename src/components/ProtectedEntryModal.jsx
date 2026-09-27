@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Lock, KeyRound, ArrowRight, X } from 'lucide-react';
 import { supabase } from '../supabase';
 
-export default function ProtectedEntryModal({ postId, entry, onUnlock, onSuccess, onClose }) {
+export default function ProtectedEntryModal({ postId, slug, entry, onUnlock, onSuccess, onClose }) {
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState(null);
   const [verifying, setVerifying] = useState(false);
 
-  const targetId = postId || (entry && (entry.id || entry.slug));
+  const targetId = postId || slug || (entry && (entry.id || entry.slug));
   const isModal = Boolean(onClose || entry);
 
   const handleSuccess = (unlockedData) => {
@@ -30,7 +30,7 @@ export default function ProtectedEntryModal({ postId, entry, onUnlock, onSuccess
     }
 
     try {
-      const res = await fetch(`/api/posts/${targetId}/verify-passcode`, {
+      const res = await fetch(`/api/posts/${encodeURIComponent(targetId)}/verify-passcode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passcode: passcode.trim() })
@@ -38,9 +38,11 @@ export default function ProtectedEntryModal({ postId, entry, onUnlock, onSuccess
 
       if (res.ok) {
         const data = await res.json();
-        handleSuccess(data);
-        setVerifying(false);
-        return;
+        if (data && data.unlocked && data.content && !data.content.startsWith('🔒')) {
+          handleSuccess(data);
+          setVerifying(false);
+          return;
+        }
       }
     } catch {
       // API call failed, continue to Supabase fallback
@@ -56,7 +58,7 @@ export default function ProtectedEntryModal({ postId, entry, onUnlock, onSuccess
       if (rpcErr) throw rpcErr;
 
       const resObj = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
-      if (resObj && resObj.unlocked) {
+      if (resObj && resObj.unlocked && resObj.content && !resObj.content.startsWith('🔒')) {
         handleSuccess({
           unlocked: true,
           content: resObj.content,
