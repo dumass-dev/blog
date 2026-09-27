@@ -819,7 +819,7 @@ app.post('/api/media/confirm', requireAdminAuth, async (req, res) => {
     }
 
     await verifyB2UploadedFile(storageKey, originalName, mimeType);
-    const signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
+    const _signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
 
     const mediaData = {
       filename: path.basename(storageKey),

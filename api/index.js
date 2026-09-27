@@ -11,6 +11,15 @@ import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
 
 
 const app = express();
+app.disable('x-powered-by');
+
+// Strip HTML tags from plain-text fields before they reach the DB.
+// Removes anything matching <tag>, </tag>, <tag/> — preserves all other text
+// including "<3", "<= 5", math operators, etc. (they have no closing >-preceded alphanumeric).
+function stripHtmlTags(str) {
+  if (!str || typeof str !== 'string') return str;
+  return str.replace(/<(?:[a-zA-Z/!][^>]*)>/g, '');
+}
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -1047,7 +1056,7 @@ app.post('/api/media/confirm', async (req, res) => {
     // Verify magic bytes of uploaded object
     await verifyB2UploadedFile(storageKey, originalName, mimeType);
 
-    const signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
+    const _signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
 
     const mediaData = {
       filename: path.basename(storageKey),
@@ -1197,6 +1206,9 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       counts: updatedCounts
     });
   } catch (err) {
+    if (err.message && /rate limit exceeded/i.test(err.message)) {
+      return res.status(429).json({ error: "You're reacting too fast. Try again in a few minutes." });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1235,13 +1247,18 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { author_name, content } = req.body;
 
-    if (!content || !content.trim()) {
+    // Strip HTML tags from plain-text fields — comments are plain text, never markup.
+    // React JSX already escapes on render, but we clean at the door so stored data is unambiguous.
+    const rawName = author_name && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
+    const rawContent = stripHtmlTags(content).trim();
+
+    if (!rawContent) {
       return res.status(400).json({ error: 'Comment text cannot be empty.' });
     }
-    if (content.trim().length > 2000) {
+    if (rawContent.length > 2000) {
       return res.status(400).json({ error: 'Comment must be 2000 characters or fewer.' });
     }
-    if (author_name && author_name.length > 100) {
+    if (rawName && rawName.length > 100) {
       return res.status(400).json({ error: 'Author name must be 100 characters or fewer.' });
     }
 
@@ -1257,11 +1274,11 @@ app.post('/api/posts/:id/comments', async (req, res) => {
       postId = posts[0].id;
     }
 
-    const name = author_name && author_name.trim() ? author_name.trim() : 'Anonymous Reader';
+    const name = rawName || 'Anonymous Reader';
 
     const { data, error } = await getSupabaseClient(req)
       .from('comments')
-      .insert([{ post_id: postId, author_name: name, content: content.trim() }])
+      .insert([{ post_id: postId, author_name: name, content: rawContent }])
       .select('*')
       .single();
 
@@ -1275,6 +1292,9 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     res.status(201).json(data);
   } catch (err) {
+    if (err.message && /rate limit exceeded/i.test(err.message)) {
+      return res.status(429).json({ error: "You're posting too fast. Try again in a few minutes." });
+    }
     res.status(500).json({ error: err.message });
   }
 });
