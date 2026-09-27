@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -1337,6 +1338,68 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
+
+// SSR for Open Graph (OG) tags on /entry/:slug (Link Previews for WhatsApp, Twitter, etc.)
+app.get('/entry/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { data: posts } = await getSupabaseClient(req)
+      .from('public_published_entries')
+      .select('id, title, excerpt, cover_image, has_passcode')
+      .eq('slug', slug);
+
+    const post = posts && posts[0];
+    
+    // Get raw index.html (fallback to fetch if fs fails in Vercel)
+    let html = '';
+    try {
+      html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
+    } catch (e) {
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const host = req.headers.host;
+      const htmlRes = await fetch(`${protocol}://${host}/?_static=1`);
+      if (htmlRes.ok) html = await htmlRes.text();
+    }
+
+    if (!html) return res.redirect(`/?entry=${slug}`);
+
+    if (post && !post.has_passcode) {
+      const escapeHtml = (str) => String(str || '').replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]);
+      
+      const title = escapeHtml(post.title || 'Untitled');
+      const excerpt = escapeHtml(post.excerpt || 'Personal diary entry');
+      let image = post.cover_image ? escapeHtml(post.cover_image) : '';
+      
+      if (image && !image.startsWith('http')) {
+        if (image.includes('backblazeb2.com') || image.startsWith('images/')) {
+           const match = image.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
+           if (match) image = `/api/media/file/${match[0]}`;
+        }
+        image = `https://${req.headers.host}${image}`;
+      }
+
+      const ogTags = `
+        <meta property="og:title" content="${title}" />
+        <meta property="og:description" content="${excerpt}" />
+        ${image ? \`<meta property="og:image" content="${image}" />\` : ''}
+        <meta property="og:type" content="article" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="${title}" />
+        <meta name="twitter:description" content="${excerpt}" />
+        ${image ? \`<meta name="twitter:image" content="${image}" />\` : ''}
+      `;
+      
+      html = html.replace('</head>', `${ogTags}</head>`);
+      html = html.replace(/<title>.*?<\/title>/, `<title>${title} — q04ti</title>`);
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.send(html);
+  } catch (err) {
+    console.error('OG Tag Error:', err);
+    res.redirect(`/?entry=${req.params.slug}`);
+  }
+});
 
 // SITEMAP & ROBOTS.TXT
 app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {

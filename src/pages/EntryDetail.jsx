@@ -10,7 +10,7 @@ import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
-import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
+import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import { resolveMediaUrl } from '../utils/media';
@@ -304,6 +304,30 @@ export default function EntryDetail() {
 
   const shouldRenderCoverImage = Boolean(entry.cover_image && !contentHasImage);
 
+  const handleShare = async () => {
+    const shareData = {
+      title: data?.entry?.title || 'q04ti blog',
+      text: data?.entry?.excerpt || 'Check out this entry on my blog',
+      url: window.location.href
+    };
+    
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        const btn = document.getElementById('share-btn-text');
+        if (btn) {
+          const original = btn.innerText;
+          btn.innerText = 'Copied!';
+          setTimeout(() => { btn.innerText = original; }, 2000);
+        }
+      }
+    } catch (e) {
+      // AbortError is normal if user cancels the share dialog
+    }
+  };
+
   return (
     <article className="notebook-container relative animate-content-fade">
       {/* Top Reading Progress Bar */}
@@ -394,6 +418,15 @@ export default function EntryDetail() {
               <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
             </span>
           )}
+
+          <button 
+            onClick={handleShare}
+            className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ml-auto transition-colors rounded px-2 py-1 -my-1"
+            title="Share this entry"
+          >
+            <Share2 className="w-3 h-3 opacity-60 shrink-0" />
+            <span id="share-btn-text">Share</span>
+          </button>
         </div>
 
         {entry.title && (
