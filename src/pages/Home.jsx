@@ -7,6 +7,7 @@ import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
+import { resolveMediaUrl } from '../utils/media';
 
 function formatShortDate(dateStr) {
   if (!dateStr) return '';
@@ -36,7 +37,7 @@ function getPhotoSrc(item) {
       .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
     src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
   }
-  return src;
+  return resolveMediaUrl(src);
 }
 
 export default function Home() {

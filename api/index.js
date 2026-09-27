@@ -259,17 +259,16 @@ app.get('/api/b2/refresh', async (req, res) => {
 });
 
 // GET /api/media/file/* — Permanent proxy URL for B2 media (no credentials ever exposed)
-// Browsers call this clean permanent URL; server generates a fresh signed URL and redirects.
-// Example: /api/media/file/images/2026/09/photo.jpg
-app.get('/api/media/file/*', async (req, res) => {
+// Uses regex route for Express 4+5 compatibility — named wildcards required in Express 5
+app.get(/^\/api\/media\/file\/(.+)$/, async (req, res) => {
   try {
-    const storageKey = req.params[0];
-    if (!storageKey || storageKey.trim() === '') {
+    const storageKey = decodeURIComponent(req.params[0] || '').trim();
+    if (!storageKey) {
       return res.status(400).json({ error: 'Storage key required.' });
     }
 
-    // Whitelist: only allow valid storage paths to prevent open-redirect abuse
-    const VALID_KEY = /^(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+$/i;
+    // Whitelist: only allow valid storage paths to prevent open-redirect abuse (no path traversal)
+    const VALID_KEY = /^(?:images|videos|audio|files)\/(?!.*\.\.)[a-zA-Z0-9_\-./% ]+\.[a-zA-Z0-9]+$/;
     if (!VALID_KEY.test(storageKey)) {
       return res.status(400).json({ error: 'Invalid media path.' });
     }
@@ -302,16 +301,23 @@ app.get('/api/media', async (req, res) => {
 
     if (error) throw error;
 
-    const refreshed = (data || []).map(item => {
+    const refreshed = await Promise.all((data || []).map(async item => {
       const rawUrl = item.url || '';
       const key = extractB2StorageKey(rawUrl) || rawUrl;
-      const proxyUrl = key ? `/api/media/file/${key}` : rawUrl;
+      const proxyUrl = key && /^(?:images|videos|audio|files)\//.test(key) ? `/api/media/file/${key}` : rawUrl;
+      // Generate a fresh signed URL for immediate admin panel display
+      let displayUrl = proxyUrl;
+      try {
+        const fresh = await refreshB2Url(key);
+        if (fresh) displayUrl = fresh;
+      } catch {}
       return {
         ...item,
-        url: proxyUrl,
+        url: displayUrl,
+        signed_url: displayUrl,
         proxy_url: proxyUrl
       };
-    });
+    }));
 
     res.json(refreshed);
   } catch (err) {
@@ -1064,39 +1070,6 @@ app.post('/api/media/confirm', async (req, res) => {
     res.status(201).json({ success: true, media: data, proxy_url: proxyUrl });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
-  }
-});
-
-// GET /api/media (Admin Only)
-app.get('/api/media', async (req, res) => {
-  const auth = await verifyAdminUser(req);
-  if (!auth.authorized) {
-    return res.status(auth.status).json({ error: auth.error });
-  }
-
-  try {
-    const { data, error } = await getSupabaseClient(req)
-      .from('media')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    const refreshed = await Promise.all((data || []).map(async item => {
-      const rawUrl = item.url || '';
-      const key = extractB2StorageKey(rawUrl) || rawUrl;
-      // Return a clean permanent proxy URL — no X-Amz-* credentials ever exposed
-      const proxyUrl = key ? `/api/media/file/${key}` : rawUrl;
-      return {
-        ...item,
-        url: proxyUrl,
-        proxy_url: proxyUrl
-      };
-    }));
-
-    res.json(refreshed);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 

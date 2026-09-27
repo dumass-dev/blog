@@ -57,6 +57,14 @@ export default function RichViewer({ content = '' }) {
       return `\n<div class="video-responsive"><video controls src="${safeUrl}"></video></div>\n`;
     });
 
+    // Convert raw B2 storage keys in markdown images to /api/media/file/... permanent proxy URLs
+    processed = processed.replace(/!\[(.*?)\]\(((?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+)\)/gi, '![$1](/api/media/file/$2)');
+    // Convert presigned Backblaze B2 URLs to clean permanent proxy URLs so they never expire
+    processed = processed.replace(/!\[(.*?)\]\((https?:\/\/[^\s)]*backblazeb2\.com[^\s)]*(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+[^\s)]*)\)/gi, (_m, alt, fullUrl) => {
+      const match = fullUrl.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
+      return match ? `![${alt}](/api/media/file/${match[0]})` : _m;
+    });
+
     return processed;
   };
 

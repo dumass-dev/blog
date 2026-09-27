@@ -8,6 +8,7 @@ import MediaPicker from '../../components/MediaPicker';
 import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
+import { resolveMediaUrl } from '../../utils/media';
 import {
   Save,
   ArrowLeft,
@@ -564,7 +565,7 @@ export default function Editor() {
           </div>
           <h1 className="text-3xl font-serif font-medium mb-4">{formData.title || 'Untitled'}</h1>
           {formData.cover_image && (
-            <img src={formData.cover_image} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
+            <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
           )}
           <RichViewer content={formData.content} />
         </div>

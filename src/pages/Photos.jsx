@@ -9,6 +9,7 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
+import { resolveMediaUrl } from '../utils/media';
 
 export default function Photos() {
   useDocumentMeta({
@@ -214,7 +215,7 @@ export default function Photos() {
         .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
       src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
     }
-    return src;
+    return resolveMediaUrl(src);
   };
 
   const getCleanCaption = (item) => {

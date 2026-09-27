@@ -13,6 +13,7 @@ import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../util
 import { Clock, MapPin, Cloud, Smile, Eye, Quote } from 'lucide-react';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
+import { resolveMediaUrl } from '../utils/media';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -436,7 +437,7 @@ export default function EntryDetail() {
           {shouldRenderCoverImage && (
             <div className="mb-10 cursor-pointer group" onClick={handleImageClick}>
               <ProgressiveImage
-                src={entry.cover_image}
+                src={resolveMediaUrl(entry.cover_image)}
                 alt={entry.title || 'Cover image'}
                 objectFit="object-cover"
                 className="w-full h-auto rounded border border-[var(--border-subtle)] max-h-[440px]"

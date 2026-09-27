@@ -28,7 +28,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
     if (Array.isArray(data)) {
       list = data;
     } else {
-      // Direct Supabase fallback
+      // Direct Supabase fallback — build proxy URLs from raw storage keys
       try {
         const { data: supaMedia, error: supaErr } = await supabase
           .from('media')
@@ -36,7 +36,13 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
           .order('created_at', { ascending: false });
 
         if (!supaErr && Array.isArray(supaMedia)) {
-          list = supaMedia;
+          list = supaMedia.map(item => {
+            const key = item.url || '';
+            const proxyUrl = key && /^(?:images|videos|audio|files)\//.test(key)
+              ? `/api/media/file/${key}`
+              : key;
+            return { ...item, proxy_url: proxyUrl, url: proxyUrl };
+          });
         }
       } catch (_e) {}
     }
@@ -236,10 +242,10 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                 className="group relative border border-[var(--border-subtle)] rounded overflow-hidden cursor-pointer hover:border-[var(--accent-warm)] transition-colors aspect-square bg-black/5"
               >
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
-                  <video src={item.proxy_url || item.url} className="w-full h-full object-cover" />
+                  <video src={item.signed_url || item.url || item.proxy_url} className="w-full h-full object-cover" />
                 ) : (
                   <ProgressiveImage
-                    src={item.proxy_url || item.url}
+                    src={item.signed_url || item.url || item.proxy_url}
                     alt={item.original_name || 'Media'}
                     aspectRatio="aspect-square"
                   />
