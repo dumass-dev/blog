@@ -1381,12 +1381,12 @@ app.get('/entry/:slug', async (req, res) => {
       const ogTags = `
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${excerpt}" />
-        ${image ? \`<meta property="og:image" content="${image}" />\` : ''}
+        ${image ? `<meta property="og:image" content="${image}" />` : ''}
         <meta property="og:type" content="article" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${excerpt}" />
-        ${image ? \`<meta name="twitter:image" content="${image}" />\` : ''}
+        ${image ? `<meta name="twitter:image" content="${image}" />` : ''}
       `;
       
       html = html.replace('</head>', `${ogTags}</head>`);
