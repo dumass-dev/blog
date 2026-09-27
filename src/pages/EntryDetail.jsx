@@ -127,12 +127,16 @@ export default function EntryDetail() {
 
     setData(prevData => {
       const alreadyUnlocked = isUnlockedRef.current || (prevData?.entry?.content && !prevData.entry.content.startsWith('🔒'));
-      const effectiveContent = alreadyUnlocked
+      
+      const incomingIsRedacted = postData.content && postData.content.startsWith('🔒');
+      
+      const effectiveContent = (alreadyUnlocked && incomingIsRedacted)
         ? prevData.entry.content
-        : (hasPasscode ? '🔒 This entry is passcode-protected.' : postData.content);
-      const effectiveCover = alreadyUnlocked
+        : (hasPasscode && !alreadyUnlocked ? '🔒 This entry is passcode-protected.' : postData.content);
+        
+      const effectiveCover = (alreadyUnlocked && incomingIsRedacted)
         ? (prevData.entry.cover_image || postData.cover_image)
-        : (hasPasscode ? '' : postData.cover_image);
+        : (hasPasscode && !alreadyUnlocked ? '' : postData.cover_image);
 
       return {
         entry: {
