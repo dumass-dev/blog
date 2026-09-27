@@ -230,9 +230,12 @@ export default function Editor() {
   };
 
   const handleSelectMedia = (media) => {
+    // Use proxy_url if available — this is a permanent /api/media/file/... URL
+    // with no X-Amz-* credentials embedded
+    const insertUrl = media.proxy_url || media.url;
     const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
-      ? `\n${media.url}\n`
-      : `\n![${media.original_name}](${media.url})\n`;
+      ? `\n${insertUrl}\n`
+      : `\n![${media.original_name}](${insertUrl})\n`;
 
     const textarea = document.getElementById('content-textarea');
     const currentContent = formData.content || '';

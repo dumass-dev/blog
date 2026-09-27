@@ -47,9 +47,14 @@ export default function RichViewer({ content = '' }) {
     });
 
     // Convert standalone mp4/webm video URLs into HTML5 video tags
-    const videoFileRegex = /(?:^|\n)(https?:\/\/\S+\.(?:mp4|webm)|^\/uploads\/\S+\.(?:mp4|webm))/gi;
+    const videoFileRegex = /(?:^|\n)(https?:\/\/\S+\.(?:mp4|webm)|\/uploads\/\S+\.(?:mp4|webm))/gi;
     processed = processed.replace(videoFileRegex, (_match, videoUrl) => {
-      return `\n<div class="video-responsive"><video controls src="${videoUrl}"></video></div>\n`;
+      // MEDIUM-1: Validate and escape the URL before inserting into HTML to prevent
+      // attribute injection attacks in case DOMPurify is ever bypassed
+      const isValidScheme = /^https?:\/\//i.test(videoUrl) || videoUrl.startsWith('/uploads/');
+      if (!isValidScheme) return _match;
+      const safeUrl = videoUrl.replace(/"/g, '%22').replace(/'/g, '%27').replace(/`/g, '%60');
+      return `\n<div class="video-responsive"><video controls src="${safeUrl}"></video></div>\n`;
     });
 
     return processed;

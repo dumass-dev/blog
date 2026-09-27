@@ -243,15 +243,13 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
       );
     }
 
-    // Check if user is logged in as admin locally
+    // HIGH-4: Use real Supabase session check instead of spoofable localStorage heuristic
     let isLocalAdmin = false;
     try {
-      const keys = Object.keys(localStorage);
-      const authKey = keys.find(k => k.includes('auth-token') || k.includes('sb-token'));
-      if (authKey) {
-        const parsed = JSON.parse(localStorage.getItem(authKey));
-        if (parsed?.user || parsed?.currentSession?.user) isLocalAdmin = true;
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const sessionUserId = session?.user?.id || '';
+      const adminId = (metaEnv.VITE_ADMIN_USER_ID || '').trim();
+      isLocalAdmin = Boolean(sessionUserId && adminId && sessionUserId === adminId);
     } catch {}
 
     const list = rawList.map(item => {

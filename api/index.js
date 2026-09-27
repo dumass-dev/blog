@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from '../server/supabase.js';
@@ -17,9 +18,48 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// CORS — restrict to known origins only (no wildcard)
+const allowedOrigins = [
+  process.env.ALLOWED_ORIGIN,
+  process.env.VITE_SITE_URL,
+  'http://localhost:3000',
+  'http://localhost:5173'
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow server-to-server (no origin) and explicitly listed origins
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS: origin not allowed'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
+
+// 1 MB global JSON body limit — file uploads handled by multer's own 100 MB limit
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// --- Rate Limiters ---
+// General API limiter: 150 req / minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' }
+});
+app.use('/api/', apiLimiter);
+
+// Strict limiter for public write endpoints
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests on this endpoint. Please slow down.' }
+});
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -77,12 +117,22 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
 }
 
 // GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
+const MAX_SSE_CLIENTS = 100;
 app.get('/api/realtime-stream', (req, res) => {
+  // LOW-1: Cap concurrent SSE connections to prevent resource exhaustion
+  if (sseClients.size >= MAX_SSE_CLIENTS) {
+    return res.status(503).json({ error: 'Realtime capacity reached. Try again shortly.' });
+  }
+
+  // Restrict ACAO to same-origin instead of wildcard
+  const reqOrigin = req.headers.origin || '';
+  const allowedOrigin = allowedOrigins.includes(reqOrigin) ? reqOrigin : (allowedOrigins[0] || '*');
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
+    'Access-Control-Allow-Origin': allowedOrigin
   });
 
   res.write(`: connected\nevent: init\ndata: ${JSON.stringify({ version: realtimeVersion, timestamp: new Date().toISOString() })}\n\n`);
@@ -109,7 +159,6 @@ app.get('/api/sync-check', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   let currentVer = realtimeVersion;
   let eventType = null;
-  let eventPayload = null;
 
   try {
     const client = getSupabaseClient(req);
@@ -117,14 +166,14 @@ app.get('/api/sync-check', async (req, res) => {
     // 1. Try reading latest event & version from realtime_sync
     const { data: syncRow } = await client
       .from('realtime_sync')
-      .select('version, updated_at, event, payload')
+      .select('version, updated_at, event')
       .eq('id', 'latest')
       .maybeSingle();
 
     if (syncRow && syncRow.version) {
       currentVer = Math.max(currentVer, Number(syncRow.version) || 0);
       eventType = syncRow.event;
-      eventPayload = syncRow.payload;
+      // HIGH-3: payload column intentionally not returned to unauthenticated callers
     } else {
       // 2. Fallback: check latest updated_at from public_published_entries
       const { data: latestEntry } = await client
@@ -144,13 +193,16 @@ app.get('/api/sync-check', async (req, res) => {
     status: 'ok',
     version: currentVer,
     event: eventType,
-    payload: eventPayload,
     timestamp: new Date().toISOString()
   });
 });
 
-// POST /api/realtime-broadcast — Receive mutation event and broadcast cross-device
+// POST /api/realtime-broadcast — Receive mutation event and broadcast cross-device (Admin only)
 app.post('/api/realtime-broadcast', async (req, res) => {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
   try {
     const body = req.body || {};
     const event = body.event || body.type || 'resync';
@@ -202,6 +254,35 @@ app.get('/api/b2/refresh', async (req, res) => {
     }
   } catch (err) {
     console.error('REFRESH ROUTE ERROR:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/media/file/* — Permanent proxy URL for B2 media (no credentials ever exposed)
+// Browsers call this clean permanent URL; server generates a fresh signed URL and redirects.
+// Example: /api/media/file/images/2026/09/photo.jpg
+app.get('/api/media/file/*', async (req, res) => {
+  try {
+    const storageKey = req.params[0];
+    if (!storageKey || storageKey.trim() === '') {
+      return res.status(400).json({ error: 'Storage key required.' });
+    }
+
+    // Whitelist: only allow valid storage paths to prevent open-redirect abuse
+    const VALID_KEY = /^(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+$/i;
+    if (!VALID_KEY.test(storageKey)) {
+      return res.status(400).json({ error: 'Invalid media path.' });
+    }
+
+    const signedUrl = await getB2SignedUrl(storageKey, 3600); // 1-hour TTL, server-side only
+    if (!signedUrl) {
+      return res.status(404).json({ error: 'Media not found or storage unavailable.' });
+    }
+
+    // Cache the redirect for 50 minutes (safely within the 1-hour signed URL TTL)
+    res.setHeader('Cache-Control', 'public, max-age=3000');
+    res.redirect(302, signedUrl);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -320,8 +401,9 @@ app.get('/api/about', async (req, res) => {
   }
 });
 
-// Save / Update About Handler (PUT & POST)
+// Save / Update About Handler (PUT & POST) — admin auth checked inline via verifyAdminUser
 async function handleSaveAbout(req, res) {
+  // MEDIUM-3: Use verifyAdminUser (same strength as requireAdminAuth) for consistency
   const auth = await verifyAdminUser(req);
   if (!auth.authorized) {
     return res.status(auth.status).json({ error: auth.error });
@@ -375,6 +457,11 @@ async function handleSaveAbout(req, res) {
 
 app.put('/api/about', handleSaveAbout);
 app.post('/api/about', handleSaveAbout);
+
+// Apply strict write rate limiter to public unauthenticated write endpoints
+app.use('/api/posts/:id/comments', writeLimiter);
+app.use('/api/posts/:id/reactions', writeLimiter);
+app.use('/api/posts/:id/verify-passcode', writeLimiter);
 
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
@@ -684,6 +771,9 @@ app.post('/api/posts/:slug/verify-passcode', async (req, res) => {
     if (!passcode || typeof passcode !== 'string') {
       return res.status(400).json({ error: 'Passcode is required.' });
     }
+    if (passcode.length > 256) {
+      return res.status(400).json({ error: 'Invalid passcode.' });
+    }
 
     // Direct call to security definer RPC
     const { data, error } = await getSupabaseClient(req).rpc('get_protected_entry', {
@@ -936,7 +1026,10 @@ app.post('/api/media/confirm', async (req, res) => {
       .single();
 
     if (error) throw error;
-    res.status(201).json({ success: true, media: data, signed_url: signedUrl });
+
+    // Return the permanent proxy URL instead of a raw signed URL
+    const proxyUrl = `/api/media/file/${storageKey}`;
+    res.status(201).json({ success: true, media: data, proxy_url: proxyUrl });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -960,11 +1053,12 @@ app.get('/api/media', async (req, res) => {
     const refreshed = await Promise.all((data || []).map(async item => {
       const rawUrl = item.url || '';
       const key = extractB2StorageKey(rawUrl) || rawUrl;
-      const freshUrl = await refreshB2Url(key);
+      // Return a clean permanent proxy URL — no X-Amz-* credentials ever exposed
+      const proxyUrl = key ? `/api/media/file/${key}` : rawUrl;
       return {
         ...item,
-        url: freshUrl || rawUrl,
-        signed_url: freshUrl || rawUrl
+        url: proxyUrl,
+        proxy_url: proxyUrl
       };
     }));
 
@@ -1052,6 +1146,11 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
     const rawType = req.body.reaction_type || req.body.type || 'loved';
     const reaction_type = rawType === 'heart' ? 'loved' : rawType;
 
+    const VALID_REACTIONS = ['thoughtful', 'cozy', 'loved', 'inspiring'];
+    if (!VALID_REACTIONS.includes(reaction_type)) {
+      return res.status(400).json({ error: 'Invalid reaction type.' });
+    }
+
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
@@ -1133,6 +1232,12 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Comment text cannot be empty.' });
+    }
+    if (content.trim().length > 2000) {
+      return res.status(400).json({ error: 'Comment must be 2000 characters or fewer.' });
+    }
+    if (author_name && author_name.length > 100) {
+      return res.status(400).json({ error: 'Author name must be 100 characters or fewer.' });
     }
 
     let postId = id;

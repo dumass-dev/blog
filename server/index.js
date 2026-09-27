@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient } from './supabase.js';
@@ -15,9 +16,47 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// CORS — restrict to known origins only (no wildcard)
+const allowedOrigins = [
+  process.env.ALLOWED_ORIGIN,
+  process.env.VITE_SITE_URL,
+  'http://localhost:3000',
+  'http://localhost:5173'
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS: origin not allowed'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
+
+// 1 MB global JSON body limit — file uploads handled by multer's own 100 MB limit
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// --- Rate Limiters ---
+// General API limiter: 150 req / minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' }
+});
+app.use('/api/', apiLimiter);
+
+// Strict limiter for public write endpoints
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests on this endpoint. Please slow down.' }
+});
 
 // Memory storage for file uploads to pipe directly to Backblaze B2
 const storage = multer.memoryStorage();
@@ -509,12 +548,20 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
+const MAX_SSE_CLIENTS = 100;
 app.get('/api/realtime-stream', (req, res) => {
+  if (sseClients.size >= MAX_SSE_CLIENTS) {
+    return res.status(503).json({ error: 'Realtime capacity reached. Try again shortly.' });
+  }
+
+  const reqOrigin = req.headers.origin || '';
+  const allowedOrigin = allowedOrigins.includes(reqOrigin) ? reqOrigin : (allowedOrigins[0] || '*');
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
+    'Access-Control-Allow-Origin': allowedOrigin
   });
 
   res.write(`: connected\nevent: init\ndata: ${JSON.stringify({ version: realtimeVersion, timestamp: new Date().toISOString() })}\n\n`);
@@ -541,7 +588,6 @@ app.get('/api/sync-check', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   let currentVer = realtimeVersion;
   let eventType = null;
-  let eventPayload = null;
 
   try {
     const client = getSupabaseClient(req);
@@ -549,14 +595,14 @@ app.get('/api/sync-check', async (req, res) => {
     // 1. Try reading latest event & version from realtime_sync
     const { data: syncRow } = await client
       .from('realtime_sync')
-      .select('version, updated_at, event, payload')
+      .select('version, updated_at, event')
       .eq('id', 'latest')
       .maybeSingle();
 
     if (syncRow && syncRow.version) {
       currentVer = Math.max(currentVer, Number(syncRow.version) || 0);
       eventType = syncRow.event;
-      eventPayload = syncRow.payload;
+      // HIGH-3: payload intentionally omitted — contains mutation data not for public consumption
     } else {
       // 2. Fallback: check latest updated_at from public_published_entries
       const { data: latestEntry } = await client
@@ -576,13 +622,12 @@ app.get('/api/sync-check', async (req, res) => {
     status: 'ok',
     version: currentVer,
     event: eventType,
-    payload: eventPayload,
     timestamp: new Date().toISOString()
   });
 });
 
-// POST /api/realtime-broadcast — Receive mutation event and broadcast cross-device
-app.post('/api/realtime-broadcast', async (req, res) => {
+// POST /api/realtime-broadcast — Receive mutation event and broadcast cross-device (Admin only)
+app.post('/api/realtime-broadcast', requireAdminAuth, async (req, res) => {
   try {
     const body = req.body || {};
     const event = body.event || body.type || 'resync';
@@ -601,6 +646,28 @@ app.get('/api/b2/refresh', async (req, res) => {
     if (!url) return res.status(400).json({ error: 'URL query parameter required' });
     const freshUrl = await refreshB2Url(url);
     res.json({ url: freshUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/media/file/* — Permanent proxy URL for B2 media (no credentials ever exposed)
+app.get('/api/media/file/*', async (req, res) => {
+  try {
+    const storageKey = req.params[0];
+    if (!storageKey || storageKey.trim() === '') {
+      return res.status(400).json({ error: 'Storage key required.' });
+    }
+    const VALID_KEY = /^(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+$/i;
+    if (!VALID_KEY.test(storageKey)) {
+      return res.status(400).json({ error: 'Invalid media path.' });
+    }
+    const signedUrl = await getB2SignedUrl(storageKey, 3600);
+    if (!signedUrl) {
+      return res.status(404).json({ error: 'Media not found or storage unavailable.' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=3000');
+    res.redirect(302, signedUrl);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -665,11 +732,12 @@ app.get('/api/media', requireAdminAuth, async (req, res) => {
     const refreshed = await Promise.all((data || []).map(async item => {
       const rawUrl = item.url || '';
       const key = extractB2StorageKey(rawUrl) || rawUrl;
-      const freshUrl = await refreshB2Url(key);
+      // Return a permanent proxy URL — no X-Amz-* credentials ever exposed to the client
+      const proxyUrl = key ? `/api/media/file/${key}` : rawUrl;
       return {
         ...item,
-        url: freshUrl || rawUrl,
-        signed_url: freshUrl || rawUrl
+        url: proxyUrl,
+        proxy_url: proxyUrl
       };
     }));
 
@@ -761,7 +829,9 @@ app.post('/api/media/confirm', requireAdminAuth, async (req, res) => {
       .single();
 
     if (error) throw error;
-    res.status(201).json({ success: true, media: data, signed_url: signedUrl });
+
+    const proxyUrl = `/api/media/file/${storageKey}`;
+    res.status(201).json({ success: true, media: data, proxy_url: proxyUrl });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -823,7 +893,9 @@ app.get('/api/posts', async (req, res) => {
     const { status, type, category, tag, limit } = req.query;
     const isAdmin = await checkIsAdmin(req);
 
-    let query = getSupabaseClient(req).from('entries').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
+    // HIGH-2: Non-admins always query through the safe view, never the raw entries table
+    const table = isAdmin ? 'entries' : 'public_published_entries';
+    let query = getSupabaseClient(req).from(table).select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
 
     // Restrict status=all or status=draft to authenticated admin only
     if (status === 'all' || status === 'draft') {
@@ -1086,6 +1158,11 @@ async function handleSaveAbout(req, res) {
 app.put('/api/about', handleSaveAbout);
 app.post('/api/about', handleSaveAbout);
 
+// Apply strict write rate limiter to public unauthenticated write endpoints
+app.use('/api/posts/:id/comments', writeLimiter);
+app.use('/api/posts/:id/reactions', writeLimiter);
+app.use('/api/posts/:id/verify-passcode', writeLimiter);
+
 // GET /api/posts/:identifier — Fetch single entry by ID or Slug
 app.get('/api/posts/:identifier', async (req, res) => {
   try {
@@ -1194,6 +1271,9 @@ app.post('/api/posts/:id/verify-passcode', async (req, res) => {
 
     if (!passcode || typeof passcode !== 'string') {
       return res.status(400).json({ error: 'Passcode is required.' });
+    }
+    if (passcode.length > 256) {
+      return res.status(400).json({ error: 'Invalid passcode.' });
     }
 
     const { data, error } = await getSupabaseClient(req).rpc('get_protected_entry', {

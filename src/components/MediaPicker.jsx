@@ -230,16 +230,16 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
               <div
                 key={item.id}
                 onClick={() => {
-                  onSelectMedia({ ...item, url: item.signed_url || item.url });
+                  onSelectMedia({ ...item, url: item.proxy_url || item.url, proxy_url: item.proxy_url || item.url });
                   onClose();
                 }}
                 className="group relative border border-[var(--border-subtle)] rounded overflow-hidden cursor-pointer hover:border-[var(--accent-warm)] transition-colors aspect-square bg-black/5"
               >
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
-                  <video src={item.signed_url || item.url} className="w-full h-full object-cover" />
+                  <video src={item.proxy_url || item.url} className="w-full h-full object-cover" />
                 ) : (
                   <ProgressiveImage
-                    src={item.signed_url || item.url}
+                    src={item.proxy_url || item.url}
                     alt={item.original_name || 'Media'}
                     aspectRatio="aspect-square"
                   />
