@@ -3,7 +3,6 @@ import { Routes, Route, useLocation, useNavigationType } from 'react-router-dom'
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
-import RealtimeToast from './components/RealtimeToast';
 
 // Public pages (eager loaded for instant feel)
 import Home from './pages/Home';
@@ -140,8 +139,6 @@ export default function App() {
       {/* Render quiet footer */}
       {!isAdminPath && <Footer />}
 
-      {/* Realtime Live Update Toast */}
-      <RealtimeToast />
     </div>
   );
 }

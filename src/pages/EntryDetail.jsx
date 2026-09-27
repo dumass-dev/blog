@@ -49,7 +49,6 @@ export default function EntryDetail() {
   const [error, setError] = useState(initialState.error);
   const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
   const [isDeleted, setIsDeleted] = useState(false);
-  const [liveUpdatedPill, setLiveUpdatedPill] = useState(false);
 
   // Lightbox State
   const [lightbox, setLightbox] = useState({ isOpen: false, src: '', caption: '' });
@@ -138,11 +137,6 @@ export default function EntryDetail() {
       setIsUnlocked(true);
     }
     setLoading(false);
-
-    if (isSilent) {
-      setLiveUpdatedPill(true);
-      setTimeout(() => setLiveUpdatedPill(false), 3000);
-    }
   }, [slug]);
 
   useEffect(() => {
@@ -238,10 +232,6 @@ export default function EntryDetail() {
   if (isDeleted) {
     return (
       <div className="notebook-container py-16 text-center animate-content-fade">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-sans bg-[var(--card-bg)] border border-[var(--border-subtle)] text-[var(--text-muted)] mb-4">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Real-time update</span>
-        </div>
         <h1 className="text-2xl font-serif font-medium mb-3">This entry was unpublished</h1>
         <p className="text-sm font-sans text-[var(--text-secondary)] mb-6 max-w-md mx-auto">
           The author has removed or unpublished this entry in real-time.
@@ -386,15 +376,6 @@ export default function EntryDetail() {
             </span>
           )}
         </div>
-
-        {liveUpdatedPill && (
-          <div className="mb-3 animate-content-fade">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-sans bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Updated live</span>
-            </span>
-          </div>
-        )}
 
         {entry.title && (
           <TypewriterText

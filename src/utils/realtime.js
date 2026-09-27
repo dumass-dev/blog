@@ -89,16 +89,6 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
         window.dispatchEvent(new CustomEvent('entry-updated', { detail: payload }));
       } catch {}
 
-      // Trigger subtle live toast for readers if not the local actor
-      if (!isLocal && (op === 'INSERT' || op === 'UPDATE' || eventType === 'entry_created' || eventType === 'entry_updated')) {
-        const title = payload.title || payload.data?.title;
-        const msg = title ? `"${title}" updated in real-time` : 'Chronological feed updated live';
-        try {
-          window.dispatchEvent(new CustomEvent('realtime-toast', {
-            detail: { message: msg, type: 'entry', op }
-          }));
-        } catch {}
-      }
     }
   }
 
@@ -112,14 +102,6 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
       try {
         window.dispatchEvent(new CustomEvent('about-data-updated', { detail: payload }));
       } catch {}
-
-      if (!isLocal) {
-        try {
-          window.dispatchEvent(new CustomEvent('realtime-toast', {
-            detail: { message: 'About profile updated in real-time', type: 'about' }
-          }));
-        } catch {}
-      }
     }
   }
 
