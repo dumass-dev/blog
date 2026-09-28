@@ -272,7 +272,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ showOnHome: newValue })
       });
-      if (res.ok) {
+      if (res && res.success) {
         setShowOnHome(newValue);
       }
     } catch {}
