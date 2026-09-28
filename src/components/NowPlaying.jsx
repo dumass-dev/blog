@@ -9,9 +9,8 @@ export default function NowPlaying({ forceShow = false }) {
     let interval;
     const fetchNowPlaying = async () => {
       try {
-        const response = await safeApiFetch('/api/now-playing');
-        const json = await response.json();
-        if (json.playing) {
+        const json = await safeApiFetch('/api/now-playing');
+        if (json && json.playing) {
           setData(json);
         } else {
           setData(null);
