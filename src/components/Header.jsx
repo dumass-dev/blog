@@ -172,8 +172,7 @@ export default function Header() {
               style={{ 
                 right: '0px', 
                 left: 'auto', 
-                width: 'auto', 
-                minWidth: '200px', 
+                width: '240px', 
                 maxWidth: 'calc(100vw - 2rem)',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
               }}

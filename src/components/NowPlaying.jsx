@@ -66,12 +66,12 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
       <div className="relative z-50 animate-content-fade" ref={containerRef}>
         {!isExpanded ? (
           <div 
-            className="now-playing-compact now-playing-cover"
+            className="now-playing-compact"
             onClick={() => setIsExpanded(true)}
             title={`Listening to ${displayData.title}`}
           >
             {displayData.coverUrl ? (
-              <img src={displayData.coverUrl} alt="Album Art" />
+              <img src={displayData.coverUrl} alt="Album Art" className="w-full h-full object-cover block" />
             ) : (
               <Music className="now-playing-fallback-icon" />
             )}
