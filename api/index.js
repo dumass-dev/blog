@@ -1355,8 +1355,7 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
     const supabase = getSupabaseClient(req);
     const { error } = await supabase
       .from('now_playing')
-      .upsert({ 
-        id: 1, 
+      .update({ 
         title, 
         artist, 
         album, 
@@ -1364,7 +1363,8 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
         progress, 
         cover_url: coverUrl,
         updated_at: new Date().toISOString()
-      });
+      })
+      .eq('id', 1);
 
     if (error) {
       console.error('Failed to update now_playing:', error);
