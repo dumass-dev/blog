@@ -1432,7 +1432,8 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
     
     const { error } = await supabase
       .from('now_playing')
-      .upsert({ id: 1, show_on_home: showOnHome });
+      .update({ show_on_home: showOnHome })
+      .eq('id', 1);
 
     if (error) throw error;
     res.json({ success: true, showOnHome });
