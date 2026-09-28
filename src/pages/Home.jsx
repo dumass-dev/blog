@@ -54,16 +54,19 @@ export default function Home() {
 
   return (
     <div className="notebook-container">
-      <header className="mb-12">
-        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)]">
-          Chronological Feed
-        </h1>
-        <p className="text-sm font-sans text-[var(--text-secondary)]">
-          A stream of essays, notes, thoughts, photos, and recent updates.
-        </p>
+      <header className="mb-12 flex justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)]">
+            Chronological Feed
+          </h1>
+          <p className="text-sm font-sans text-[var(--text-secondary)]">
+            A stream of essays, notes, thoughts, photos, and recent updates.
+          </p>
+        </div>
+        <div className="flex-shrink-0 mt-1">
+          <NowPlaying expandable={true} defaultExpanded={false} />
+        </div>
       </header>
-
-      <NowPlaying />
 
       {loading ? (
         <FeedSkeleton count={4} />

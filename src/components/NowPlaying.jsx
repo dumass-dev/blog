@@ -1,9 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeApiFetch } from '../supabase';
 import { Music } from 'lucide-react';
 
-export default function NowPlaying({ forceShow = false }) {
+export default function NowPlaying({ forceShow = false, expandable = false, defaultExpanded = true }) {
   const [data, setData] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [authorName, setAuthorName] = useState('q04ti');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/about')
+      .then(res => res.json())
+      .then(info => {
+        if (info && info.author_name) setAuthorName(info.author_name);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let interval;
@@ -26,6 +38,20 @@ export default function NowPlaying({ forceShow = false }) {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (expandable && isExpanded && containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsExpanded(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    }
+  }, [expandable, isExpanded]);
+
   if (!data && !forceShow) return null;
   if (data && !data.showOnHome && !forceShow) return null;
 
@@ -35,6 +61,48 @@ export default function NowPlaying({ forceShow = false }) {
     coverUrl: null
   };
 
+  if (expandable) {
+    return (
+      <div className="relative z-50 animate-content-fade" ref={containerRef}>
+        {!isExpanded ? (
+          <div 
+            className="now-playing-compact now-playing-cover"
+            onClick={() => setIsExpanded(true)}
+            title={`Listening to ${displayData.title}`}
+          >
+            {displayData.coverUrl ? (
+              <img src={displayData.coverUrl} alt="Album Art" />
+            ) : (
+              <Music className="now-playing-fallback-icon" />
+            )}
+          </div>
+        ) : (
+          <div className="now-playing-card">
+            <div className="now-playing-card-header">
+              {authorName} is currently listening to
+            </div>
+            <div className="now-playing-card-body">
+              <div className="now-playing-card-cover">
+                {displayData.coverUrl ? (
+                  <img src={displayData.coverUrl} alt="Album Art" />
+                ) : (
+                  <Music className="now-playing-fallback-icon" />
+                )}
+              </div>
+              <div className="now-playing-card-info">
+                <div className="now-playing-card-title" title={displayData.title}>{displayData.title}</div>
+                <div className="now-playing-card-artist" title={displayData.artist}>
+                  {displayData.artist} {displayData.album ? `• ${displayData.album}` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default pill style for non-expandable places (like hamburger menu)
   return (
     <div className="now-playing-pill animate-content-fade" title={displayData.title}>
       <div className="now-playing-cover">
