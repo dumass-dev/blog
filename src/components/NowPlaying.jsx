@@ -36,19 +36,17 @@ export default function NowPlaying({ forceShow = false }) {
   };
 
   return (
-    <div className="inline-flex items-center gap-3 p-1.5 pr-4 rounded-full bg-[var(--card-bg)]/80 backdrop-blur border border-[var(--border-subtle)] shadow-sm animate-content-fade">
-      <div className="shrink-0 relative w-8 h-8 rounded-full overflow-hidden bg-black/5 dark:bg-white/5 flex items-center justify-center">
+    <div className="now-playing-pill animate-content-fade" title={displayData.title}>
+      <div className="now-playing-cover">
         {displayData.coverUrl ? (
-          <img src={displayData.coverUrl} alt="Album Art" className="w-full h-full object-cover" />
+          <img src={displayData.coverUrl} alt="Album Art" />
         ) : (
-          <Music className="w-4 h-4 opacity-40" />
+          <Music className="now-playing-fallback-icon" />
         )}
       </div>
-      <div className="flex flex-col justify-center min-w-0 max-w-[150px]">
-        <div className="text-sm font-medium truncate leading-tight" title={displayData.title}>
-          {displayData.title}
-        </div>
-        <div className="text-[10px] font-sans text-[var(--text-secondary)] truncate leading-tight mt-0.5" title={displayData.artist}>
+      <div className="now-playing-info">
+        <div className="now-playing-title">{displayData.title}</div>
+        <div className="now-playing-artist" title={displayData.artist}>
           {displayData.artist} {displayData.album ? `• ${displayData.album}` : ''}
         </div>
       </div>
