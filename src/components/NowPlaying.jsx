@@ -22,7 +22,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     const fetchNowPlaying = async () => {
       try {
         const json = await safeApiFetch('/api/now-playing');
-        if (json && json.playing) {
+        if (json) {
           setData(json);
         } else {
           setData(null);
@@ -55,7 +55,8 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
   if (!data && !forceShow) return null;
   if (data && !data.showOnHome && !forceShow) return null;
 
-  const displayData = data || {
+  const displayData = data && data.title ? data : {
+    ...data,
     title: 'Nothing playing',
     artist: 'Silence',
     coverUrl: null

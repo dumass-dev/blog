@@ -1387,18 +1387,16 @@ app.get('/api/now-playing', async (req, res) => {
       .single();
 
     if (error || !data) {
-      return res.json({ playing: false });
+      return res.json({ playing: false, showOnHome: false });
     }
 
-    // If it hasn't been updated in 10 minutes, assume it's stopped/offline
+    // Check if it's currently active (updated within the last 10 minutes)
     const lastUpdate = new Date(data.updated_at).getTime();
-    if (Date.now() - lastUpdate > 10 * 60 * 1000) {
-      return res.json({ playing: false });
-    }
+    const isOffline = Date.now() - lastUpdate > 10 * 60 * 1000;
 
     res.json({
-      playing: true,
-      isPaused: data.is_paused,
+      playing: !isOffline, // True if recently updated
+      isPaused: data.is_paused || isOffline, // Treat offline as paused so frontend shows 'last listened to'
       title: data.title,
       artist: data.artist,
       album: data.album,
