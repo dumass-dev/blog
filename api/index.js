@@ -4,7 +4,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
-import { getSupabaseClient } from '../server/supabase.js';
+import { getSupabaseClient, supabase } from '../server/supabase.js';
 import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
@@ -1352,7 +1352,6 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
 
     const { title, artist, album, isPaused, progress, coverUrl } = req.body;
 
-    const supabase = getSupabaseClient(req);
     const { error } = await supabase
       .from('now_playing')
       .update({ 
