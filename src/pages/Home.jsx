@@ -8,6 +8,7 @@ import ProgressiveImage from '../components/ProgressiveImage';
 import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
 import { resolveMediaUrl } from '../utils/media';
+import NowPlaying from '../components/NowPlaying';
 
 function formatShortDate(dateStr) {
   if (!dateStr) return '';
@@ -61,6 +62,8 @@ export default function Home() {
           A stream of essays, notes, thoughts, photos, and recent updates.
         </p>
       </header>
+
+      <NowPlaying />
 
       {loading ? (
         <FeedSkeleton count={4} />

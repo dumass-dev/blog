@@ -1339,6 +1339,79 @@ app.delete('/api/comments/:id', async (req, res) => {
 });
 
 
+// Music Status (Now Playing) Endpoints
+app.post('/api/now-playing', express.json(), async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const expectedSecret = process.env.METROLIST_WEBHOOK_SECRET;
+    
+    // Very basic authorization check
+    if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized. Invalid or missing secret.' });
+    }
+
+    const { title, artist, album, isPaused, progress, coverUrl } = req.body;
+
+    const supabase = getSupabaseClient(req);
+    const { error } = await supabase
+      .from('now_playing')
+      .upsert({ 
+        id: 1, 
+        title, 
+        artist, 
+        album, 
+        is_paused: isPaused, 
+        progress, 
+        cover_url: coverUrl,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Failed to update now_playing:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/now-playing', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient(req);
+    const { data, error } = await supabase
+      .from('now_playing')
+      .select('*')
+      .eq('id', 1)
+      .single();
+
+    if (error || !data) {
+      return res.json({ playing: false });
+    }
+
+    // If it hasn't been updated in 2 hours, assume it's stopped/offline
+    const lastUpdate = new Date(data.updated_at).getTime();
+    if (Date.now() - lastUpdate > 2 * 60 * 60 * 1000) {
+      return res.json({ playing: false });
+    }
+
+    res.json({
+      playing: true,
+      isPaused: data.is_paused,
+      title: data.title,
+      artist: data.artist,
+      album: data.album,
+      progress: data.progress,
+      coverUrl: data.cover_url,
+      updatedAt: data.updated_at
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // SSR for Open Graph (OG) tags on /entry/:slug (Link Previews for WhatsApp, Twitter, etc.)
 app.get('/entry/:slug', async (req, res) => {
   try {
