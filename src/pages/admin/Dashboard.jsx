@@ -421,11 +421,11 @@ export default function Dashboard() {
 
         <button 
           onClick={toggleShowOnHome}
-          className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5"
+          className="quiet-button-secondary admin-quick-action text-xs flex items-center justify-center gap-2 border border-[var(--border-subtle)] bg-[var(--card-bg)] rounded px-3 py-2 cursor-pointer hover:opacity-80"
           title="Toggle music card on homepage"
         >
-          <div className={`w-2 h-2 rounded-full ${showOnHome ? 'bg-[var(--accent-warm)] animate-pulse' : 'bg-[var(--border-subtle)]'}`} />
-          <span>Music Card on Home {showOnHome ? '(ON)' : '(OFF)'}</span>
+          <div className={`w-2 h-2 rounded-full shrink-0 ${showOnHome ? 'bg-[var(--accent-warm)] animate-pulse' : 'bg-gray-400 dark:bg-gray-600'}`} />
+          <span>Show on Home: {showOnHome ? 'ON' : 'OFF'}</span>
         </button>
       </div>
 
