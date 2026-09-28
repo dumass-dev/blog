@@ -55,7 +55,7 @@ export default function Home() {
   return (
     <div className="notebook-container">
       <header className="mb-12 flex justify-between items-start gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)] leading-none pt-1">
             Chronological Feed
           </h1>
@@ -63,7 +63,7 @@ export default function Home() {
             A stream of essays, notes, thoughts, photos, and recent updates.
           </p>
         </div>
-        <div className="flex-shrink-0 mt-1">
+        <div className="flex-shrink-0 mt-1.5">
           <NowPlaying expandable={true} defaultExpanded={false} />
         </div>
       </header>
