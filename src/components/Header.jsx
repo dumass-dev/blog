@@ -169,8 +169,15 @@ export default function Header() {
           {/* Dropdown Card aligned with right edge of burger icon */}
           {menuOpen && (
             <div
-              style={{ right: '0px', left: 'auto' }}
-              className="absolute top-full mt-3 z-50 w-auto min-w-[150px] max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-1.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
+              style={{ 
+                right: '0px', 
+                left: 'auto', 
+                width: 'auto', 
+                minWidth: '200px', 
+                maxWidth: 'calc(100vw - 2rem)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+              }}
+              className="absolute top-full mt-3 z-50 bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg p-1.5 flex flex-col space-y-0.5 text-sm font-sans"
             >
               <div className="mb-1">
                 <NowPlaying forceShow={true} />

@@ -9,7 +9,9 @@ function filterEntries(list, { type, forHomeFeed }) {
     filtered = filtered.filter(item =>
       item.type !== 'photo' &&
       item.type !== 'update' &&
-      (!item.category || item.category.toLowerCase() !== 'photos')
+      item.type !== 'writing' &&
+      item.type !== 'essay' &&
+      (!item.category || (item.category.toLowerCase() !== 'photos' && item.category.toLowerCase() !== 'writing'))
     );
   } else if (type === 'update') {
     filtered = filtered.filter(item => item.type === 'update');
