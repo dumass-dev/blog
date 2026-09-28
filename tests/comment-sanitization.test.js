@@ -16,7 +16,7 @@ let lastInserted = null;
 
 function assert(condition, name) {
   if (condition) { console.log(`  [PASS] ${name}`); passed++; }
-  else           { console.error(`  [FAIL] ${name}`); failed++; }
+  else { console.error(`  [FAIL] ${name}`); failed++; }
 }
 
 function makeRequest(server, body) {
@@ -57,7 +57,7 @@ function buildMock() {
       return noop;
     },
     rpc: async () => ({ data: 1, error: null }),
-    channel: () => ({ send: () => Promise.resolve(), subscribe: () => {} })
+    channel: () => ({ send: () => Promise.resolve(), subscribe: () => { } })
   });
 }
 
@@ -80,11 +80,11 @@ async function run() {
     assert(r.status === 201, 'XSS payload: HTTP 201 (accepted after stripping)');
     assert(lastInserted !== null, 'XSS payload: mock DB received insert');
     assert(!hasHtmlTags(lastInserted.author_name), 'XSS: author_name stored has no HTML tags');
-    assert(!hasHtmlTags(lastInserted.content),     'XSS: content stored has no HTML tags');
+    assert(!hasHtmlTags(lastInserted.content), 'XSS: content stored has no HTML tags');
     // <script>alert(1)</script> -> tags stripped, inner text "alert(1)" remains -> still not empty -> stored
     // But author falls back since alert(1) trim -> 'alert(1)' which is non-empty
     assert(lastInserted.author_name === 'alert(1)', 'XSS: author_name text node preserved without tags');
-    assert(lastInserted.content === 'hello',         'XSS: <img ...> stripped, " hello" trimmed to "hello"');
+    assert(lastInserted.content === 'hello', 'XSS: <img ...> stripped, " hello" trimmed to "hello"');
 
     lastInserted = null;
     r = await makeRequest(server, { author_name: 'Alice', content: 'Nice post <script>doEvil()</script> bye' });
@@ -131,7 +131,7 @@ async function run() {
     lastInserted = null;
     r = await makeRequest(server, { author_name: 'Jane Doe', content: 'Great read, thanks for sharing!' });
     assert(r.status === 201, 'Normal comment: HTTP 201');
-    assert(lastInserted.author_name === 'Jane Doe',                'Normal comment: author_name unchanged');
+    assert(lastInserted.author_name === 'Jane Doe', 'Normal comment: author_name unchanged');
     assert(lastInserted.content === 'Great read, thanks for sharing!', 'Normal comment: content unchanged');
 
     lastInserted = null;

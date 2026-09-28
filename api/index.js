@@ -1405,10 +1405,40 @@ app.get('/api/now-playing', async (req, res) => {
       album: data.album,
       progress: data.progress,
       coverUrl: data.cover_url,
-      updatedAt: data.updated_at
+      updatedAt: data.updated_at,
+      showOnHome: data.show_on_home
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin endpoint to toggle Now Playing on Home
+app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!process.env.ADMIN_USER_ID) return res.status(500).json({ error: 'Config missing' });
+    
+    // Quick admin token verification (matches post edit auth)
+    // Here we'll just check if the bearer token is valid by querying Supabase
+    const supabase = getSupabaseClient(req);
+    const { data: userAuth, error: authError } = await supabase.auth.getUser(authHeader?.split(' ')[1] || '');
+    
+    if (authError || userAuth?.user?.id !== process.env.ADMIN_USER_ID) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { showOnHome } = req.body;
+    
+    const { error } = await supabase
+      .from('now_playing')
+      .upsert({ id: 1, show_on_home: showOnHome });
+
+    if (error) throw error;
+    res.json({ success: true, showOnHome });
+  } catch (err) {
+    console.error('Toggle error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { safeApiFetch } from '../supabase';
-import { Music, PauseCircle, PlayCircle } from 'lucide-react';
+import { Music } from 'lucide-react';
 
-export default function NowPlaying() {
+export default function NowPlaying({ forceShow = false }) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -28,33 +28,24 @@ export default function NowPlaying() {
   }, []);
 
   if (!data) return null;
+  if (!data.showOnHome && !forceShow) return null;
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded bg-[var(--card-bg)] border border-[var(--border-subtle)] max-w-sm mb-8 animate-content-fade">
-      <div className="shrink-0 relative w-12 h-12 rounded overflow-hidden bg-black/5 dark:bg-white/5">
+    <div className="inline-flex items-center gap-3 p-1.5 pr-4 rounded-full bg-[var(--card-bg)]/80 backdrop-blur border border-[var(--border-subtle)] shadow-sm animate-content-fade">
+      <div className="shrink-0 relative w-8 h-8 rounded-full overflow-hidden bg-black/5 dark:bg-white/5">
         {data.coverUrl ? (
           <img src={data.coverUrl} alt="Album Art" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Music className="w-5 h-5 opacity-40" />
+            <Music className="w-4 h-4 opacity-40" />
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5">
-          {data.isPaused ? (
-            <PauseCircle className="w-3.5 h-3.5 opacity-60 shrink-0" />
-          ) : (
-            <PlayCircle className="w-3.5 h-3.5 text-green-500 shrink-0 animate-pulse" />
-          )}
-          <span className="text-xs font-sans uppercase tracking-wider text-[var(--text-muted)] truncate">
-            {data.isPaused ? 'Paused' : 'Now Playing'}
-          </span>
-        </div>
-        <div className="text-sm font-medium truncate" title={data.title}>
+      <div className="flex flex-col justify-center min-w-0 max-w-[200px]">
+        <div className="text-sm font-medium truncate leading-tight" title={data.title}>
           {data.title}
         </div>
-        <div className="text-xs font-sans text-[var(--text-secondary)] truncate" title={data.artist}>
+        <div className="text-xs font-sans text-[var(--text-secondary)] truncate leading-tight mt-0.5" title={data.artist}>
           {data.artist} {data.album ? `• ${data.album}` : ''}
         </div>
       </div>

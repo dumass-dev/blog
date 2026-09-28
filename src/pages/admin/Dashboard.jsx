@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
+  const [showOnHome, setShowOnHome] = useState(false);
 
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -141,6 +142,15 @@ export default function Dashboard() {
       if (supaComments) {
         fetchedComments = supaComments;
         setComments(supaComments);
+      }
+    } catch {}
+
+    // 4. Fetch Now Playing Settings
+    try {
+      const npRes = await safeApiFetch('/api/now-playing');
+      const npData = await npRes.json();
+      if (npData && npData.showOnHome !== undefined) {
+        setShowOnHome(npData.showOnHome);
       }
     } catch {}
 
@@ -249,6 +259,23 @@ export default function Dashboard() {
       alert('Failed deleting comment.');
     }
     setDeletingCommentId(null);
+  };
+
+  const toggleShowOnHome = async () => {
+    try {
+      const newValue = !showOnHome;
+      const res = await safeApiFetch('/api/now-playing/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ showOnHome: newValue })
+      });
+      if (res.ok) {
+        setShowOnHome(newValue);
+      }
+    } catch {}
   };
 
   // Filtering Logic
@@ -391,6 +418,15 @@ export default function Dashboard() {
           <UserCheck className="w-3.5 h-3.5" />
           <span>Edit About Page</span>
         </Link>
+
+        <button 
+          onClick={toggleShowOnHome}
+          className="quiet-button-secondary admin-quick-action text-xs flex items-center gap-1.5"
+          title="Toggle music card on homepage"
+        >
+          <div className={`w-2 h-2 rounded-full ${showOnHome ? 'bg-[var(--accent-warm)] animate-pulse' : 'bg-[var(--border-subtle)]'}`} />
+          <span>Music Card on Home {showOnHome ? '(ON)' : '(OFF)'}</span>
+        </button>
       </div>
 
       {/* Filter and Search Controls */}

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import TypewriterToggle from './TypewriterToggle';
+import NowPlaying from './NowPlaying';
 import { Menu, X } from 'lucide-react';
 
 export default function Header() {
@@ -169,8 +170,11 @@ export default function Header() {
           {menuOpen && (
             <div
               style={{ right: '0px', left: 'auto' }}
-              className="absolute top-full mt-3 z-50 w-32 max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-1.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
+              className="absolute top-full mt-3 z-50 w-auto min-w-[150px] max-w-[calc(100vw-2rem)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-2xl p-1.5 flex flex-col space-y-0.5 text-sm font-sans animate-in fade-in duration-100"
             >
+              <div className="mb-1">
+                <NowPlaying forceShow={true} />
+              </div>
               {[
                 { label: 'home', path: '/' },
                 ...navItems
