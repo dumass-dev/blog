@@ -1390,9 +1390,9 @@ app.get('/api/now-playing', async (req, res) => {
       return res.json({ playing: false });
     }
 
-    // If it hasn't been updated in 2 hours, assume it's stopped/offline
+    // If it hasn't been updated in 10 minutes, assume it's stopped/offline
     const lastUpdate = new Date(data.updated_at).getTime();
-    if (Date.now() - lastUpdate > 2 * 60 * 60 * 1000) {
+    if (Date.now() - lastUpdate > 10 * 60 * 1000) {
       return res.json({ playing: false });
     }
 

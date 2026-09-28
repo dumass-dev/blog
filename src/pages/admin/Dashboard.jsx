@@ -147,8 +147,7 @@ export default function Dashboard() {
 
     // 4. Fetch Now Playing Settings
     try {
-      const npRes = await safeApiFetch('/api/now-playing');
-      const npData = await npRes.json();
+      const npData = await safeApiFetch('/api/now-playing');
       if (npData && npData.showOnHome !== undefined) {
         setShowOnHome(npData.showOnHome);
       }

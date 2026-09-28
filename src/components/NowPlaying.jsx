@@ -63,7 +63,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
 
   if (expandable) {
     return (
-      <div className="relative z-50 animate-content-fade" ref={containerRef}>
+      <div className={`relative animate-content-fade ${isExpanded ? 'z-50' : ''}`} ref={containerRef}>
         {!isExpanded ? (
           <div 
             className="now-playing-compact"
@@ -79,7 +79,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         ) : (
           <div className="now-playing-card">
             <div className="now-playing-card-header">
-              {authorName} is currently listening to
+              {authorName} {displayData.isPaused ? 'last listened to' : 'is currently listening to'}
             </div>
             <div className="now-playing-card-body">
               <div className="now-playing-card-cover">
