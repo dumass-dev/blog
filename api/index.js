@@ -1378,6 +1378,7 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
 });
 
 app.get('/api/now-playing', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     const supabase = getSupabaseClient(req);
     const { data, error } = await supabase

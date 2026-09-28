@@ -147,7 +147,7 @@ export default function Dashboard() {
 
     // 4. Fetch Now Playing Settings
     try {
-      const npData = await safeApiFetch('/api/now-playing');
+      const npData = await safeApiFetch(`/api/now-playing?t=${Date.now()}`);
       if (npData && npData.showOnHome !== undefined) {
         setShowOnHome(npData.showOnHome);
       }
@@ -261,8 +261,11 @@ export default function Dashboard() {
   };
 
   const toggleShowOnHome = async () => {
+    const newValue = !showOnHome;
+    // Optimistic UI update
+    setShowOnHome(newValue);
+
     try {
-      const newValue = !showOnHome;
       const res = await safeApiFetch('/api/now-playing/toggle', {
         method: 'POST',
         headers: {
@@ -271,10 +274,14 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ showOnHome: newValue })
       });
-      if (res && res.success) {
-        setShowOnHome(newValue);
+      if (!res || !res.success) {
+        // Revert if API fails
+        setShowOnHome(!newValue);
       }
-    } catch {}
+    } catch {
+      // Revert if fetch throws
+      setShowOnHome(!newValue);
+    }
   };
 
   // Filtering Logic

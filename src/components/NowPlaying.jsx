@@ -21,7 +21,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     let interval;
     const fetchNowPlaying = async () => {
       try {
-        const json = await safeApiFetch('/api/now-playing');
+        const json = await safeApiFetch(`/api/now-playing?t=${Date.now()}`);
         if (json) {
           setData(json);
         } else {
