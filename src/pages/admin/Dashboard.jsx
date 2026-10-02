@@ -19,7 +19,8 @@ import {
   LogOut,
   Eye,
   RotateCw,
-  Lock
+  Lock,
+  BarChart2
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [showOnHome, setShowOnHome] = useState(false);
+  const [analyticsTarget, setAnalyticsTarget] = useState(null);
 
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -568,7 +570,15 @@ export default function Dashboard() {
                   </div>
 
                   <div className="pt-2 flex items-center justify-between border-t border-[var(--border-subtle)]/50 text-xs font-sans">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button
+                        onClick={() => setAnalyticsTarget(item)}
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <BarChart2 className="w-3.5 h-3.5" />
+                        <span>Stats</span>
+                      </button>
+
                       <Link
                         to={`/admin/edit/${item.id}`}
                         className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5"
@@ -649,7 +659,15 @@ export default function Dashboard() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2">
+                      <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                        <button
+                          onClick={() => setAnalyticsTarget(item)}
+                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                          title="View Analytics"
+                        >
+                          <BarChart2 className="w-3.5 h-3.5" />
+                        </button>
+
                         <Link
                           to={`/admin/edit/${item.id}`}
                           className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -706,6 +724,46 @@ export default function Dashboard() {
               className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)] cursor-pointer select-none"
             >
               Delete Entry
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Analytics Modal */}
+      <Modal isOpen={!!analyticsTarget} onClose={() => setAnalyticsTarget(null)} title="Post Analytics">
+        <div className="flex flex-col space-y-6">
+          <div>
+            <h3 className="text-lg font-serif font-medium text-[var(--text-primary)] mb-1">
+              {analyticsTarget?.title || 'Analytics'}
+            </h3>
+            <p className="text-xs font-sans text-[var(--text-muted)]">
+              Real-time stats. Viewing this does not count as a page view.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)] text-center flex flex-col items-center justify-center">
+              <Eye className="w-5 h-5 text-[var(--accent-warm)] mb-2" />
+              <div className="text-3xl font-serif font-medium text-[var(--text-primary)]">{analyticsTarget?.views || 0}</div>
+              <div className="text-xs font-sans text-[var(--text-muted)] uppercase mt-1">Total Views</div>
+            </div>
+            
+            <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)] text-center flex flex-col items-center justify-center">
+              <MessageSquare className="w-5 h-5 text-[var(--text-secondary)] mb-2" />
+              <div className="text-3xl font-serif font-medium text-[var(--text-primary)]">
+                {comments.filter(c => c.post_id === analyticsTarget?.id).length}
+              </div>
+              <div className="text-xs font-sans text-[var(--text-muted)] uppercase mt-1">Comments</div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-[var(--border-subtle)]">
+            <button
+              type="button"
+              onClick={() => setAnalyticsTarget(null)}
+              className="quiet-button text-xs bg-[var(--text-primary)] text-[var(--bg-main)] cursor-pointer select-none"
+            >
+              Close
             </button>
           </div>
         </div>
