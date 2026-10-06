@@ -1383,6 +1383,10 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
       return res.status(500).json({ error: 'Database error' });
     }
 
+    broadcastRealtimeEvent('now_playing_updated', {
+      title, artist, album, isPaused: computedIsPaused
+    }, supabase);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Webhook error:', err);
