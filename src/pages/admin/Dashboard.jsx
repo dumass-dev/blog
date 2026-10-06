@@ -569,8 +569,7 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="pt-2 flex items-center justify-between border-t border-[var(--border-subtle)]/50 text-xs font-sans">
-                    <div className="flex items-center gap-3 flex-wrap">
+                  <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)]/50 text-xs font-sans mt-2">
                       <button
                         onClick={() => setAnalyticsTarget(item)}
                         className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
@@ -605,7 +604,6 @@ export default function Dashboard() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                    </div>
                   </div>
                 </div>
               ))}
