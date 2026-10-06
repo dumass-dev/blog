@@ -69,7 +69,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
           <div 
             className="now-playing-compact"
             onClick={() => setIsExpanded(true)}
-            title={`Listening to ${displayData.title}`}
+            title={displayData.isPaused ? `Last listened to ${displayData.title}` : `Listening to ${displayData.title}`}
           >
             {displayData.coverUrl ? (
               <img src={displayData.coverUrl} alt="Album Art" className="w-full h-full object-cover block" />
