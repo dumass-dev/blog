@@ -131,6 +131,15 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
       } catch {}
     }
   }
+
+  // 6. Now Playing
+  if (eventType === 'now_playing' || eventType === 'now_playing_updated') {
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('now-playing-updated', { detail: payload }));
+      } catch {}
+    }
+  }
 }
 
 /**

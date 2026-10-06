@@ -1575,7 +1575,7 @@ html.dark .now-playing-cover {
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  max-width: 150px;
+  flex: 1;
 }
 
 .now-playing-title {

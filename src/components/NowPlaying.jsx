@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeApiFetch } from '../supabase';
-import { subscribeToEvent } from '../utils/realtime';
 import { Music } from 'lucide-react';
 
 export default function NowPlaying({ forceShow = false, expandable = false, defaultExpanded = true }) {
@@ -36,13 +35,15 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     fetchNowPlaying();
     interval = setInterval(fetchNowPlaying, 15000); // refresh every 15s
 
-    const unsubscribe = subscribeToEvent('now_playing_updated', () => {
+    const handleRealtimeUpdate = () => {
       fetchNowPlaying();
-    });
+    };
+
+    window.addEventListener('now-playing-updated', handleRealtimeUpdate);
 
     return () => {
       clearInterval(interval);
-      unsubscribe();
+      window.removeEventListener('now-playing-updated', handleRealtimeUpdate);
     };
   }, []);
 
