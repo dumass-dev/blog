@@ -96,7 +96,7 @@ export default function Journal() {
                     )}
                   </div>
 
-                  <h2 className="text-2xl font-serif font-medium tracking-tight mb-2">
+                  <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
                     <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
                       <TypewriterText text={item.title} />
                     </Link>
