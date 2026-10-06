@@ -1275,7 +1275,7 @@ body {
 }
 
 .meta-chip:not(:last-child)::after {
-  content: '·';
+  content: 'Â·';
   margin-left: 0.5rem;
   margin-right: 0.25rem;
   opacity: 0.4;
@@ -1712,33 +1712,32 @@ html.dark .now-playing-card-cover {
   text-overflow: ellipsis;
 }
 
- / *   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
-       C U S T O M   M A R K D O W N   S H O R T C O D E S 
-       = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =   * / 
- . m e d i a - g r i d   { 
-     d i s p l a y :   g r i d ; 
-     g r i d - t e m p l a t e - c o l u m n s :   r e p e a t ( a u t o - f i t ,   m i n m a x ( 2 0 0 p x ,   1 f r ) ) ; 
-     g a p :   1 r e m ; 
-     m a r g i n :   1 . 5 r e m   0 ; 
-     a l i g n - i t e m s :   s t a r t ; 
- } 
- . m e d i a - g r i d   p   { 
-     m a r g i n :   0   ! i m p o r t a n t ; 
-     d i s p l a y :   f l e x ; 
-     f l e x - d i r e c t i o n :   c o l u m n ; 
-     g a p :   0 . 5 r e m ; 
- } 
- . m e d i a - g r i d   i m g   { 
-     m a r g i n :   0   ! i m p o r t a n t ; 
-     w i d t h :   1 0 0 % ; 
-     h e i g h t :   a u t o ; 
-     b o r d e r - r a d i u s :   8 p x ; 
- } 
- . m e d i a - g r i d   e m   { 
-     f o n t - s i z e :   0 . 8 r e m ; 
-     c o l o r :   v a r ( - - t e x t - m u t e d ) ; 
-     f o n t - s t y l e :   n o r m a l ; 
-     t e x t - a l i g n :   c e n t e r ; 
-     d i s p l a y :   b l o c k ; 
- }  
- 
+/* ============================================================
+   CUSTOM MARKDOWN SHORTCODES
+   ============================================================ */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+  align-items: start;
+}
+.media-grid p {
+  margin: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.media-grid img {
+  margin: 0 !important;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.media-grid em {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: normal;
+  text-align: center;
+  display: block;
+}
