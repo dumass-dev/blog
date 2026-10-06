@@ -55,7 +55,7 @@ export default function Home() {
   return (
     <div className="notebook-container">
       <header className="mb-12 flex justify-between items-start gap-4">
-        <div className="min-w-0">
+        <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)] leading-none pt-1">
             Chronological Feed
           </h1>
