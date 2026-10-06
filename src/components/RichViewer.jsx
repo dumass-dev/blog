@@ -65,6 +65,11 @@ export default function RichViewer({ content = '' }) {
       return match ? `![${alt}](/api/media/file/${match[0]})` : _m;
     });
 
+    // Handle [grid] shortcode for side-by-side media layouts
+    processed = processed.replace(/\[grid\]([\s\S]*?)\[\/grid\]/gi, (match, innerText) => {
+      return `\n<div class="media-grid">\n\n${innerText}\n\n</div>\n`;
+    });
+
     return processed;
   };
 
