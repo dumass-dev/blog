@@ -62,6 +62,11 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     coverUrl: null
   };
 
+  // If we are in the pill view (burger menu) and music is paused/offline, hide it completely!
+  if (!expandable && displayData.isPaused) {
+    return null;
+  }
+
   if (expandable) {
     return (
       <div className={`relative animate-content-fade ${isExpanded ? 'z-50' : ''}`} ref={containerRef}>
