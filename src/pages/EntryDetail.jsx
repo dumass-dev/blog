@@ -534,23 +534,23 @@ export default function EntryDetail() {
 
       {/* Next & Previous navigation */}
       <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-sans">
-        <div>
+        <div className="w-full sm:w-auto">
           {prev ? (
             <Link to={`/entry/${prev.slug}`} className="group block text-left">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">← Previous</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
-                {prev.title}
+                {prev.title.split(' ').length > 3 ? prev.title.split(' ').slice(0, 3).join(' ') + '...' : prev.title}
               </span>
             </Link>
           ) : null}
         </div>
 
-        <div className="text-right sm:text-right">
+        <div className="text-right w-full sm:w-auto">
           {next ? (
             <Link to={`/entry/${next.slug}`} className="group block text-right">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">Next →</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
-                {next.title}
+                {next.title.split(' ').length > 3 ? next.title.split(' ').slice(0, 3).join(' ') + '...' : next.title}
               </span>
             </Link>
           ) : null}
