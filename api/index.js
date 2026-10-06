@@ -1354,27 +1354,16 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
 
     const supabase = getSupabaseClient(req);
 
-    // Detect spammy webhooks where the song is actually paused
-    const { data: existing } = await supabase.from('now_playing').select('title, progress, updated_at').eq('id', 1).single();
-    
-    let computedIsPaused = isPaused;
-    let computedUpdatedAt = new Date().toISOString();
-
-    if (existing && existing.title === title && existing.progress === progress) {
-      computedIsPaused = true;
-      computedUpdatedAt = existing.updated_at; // Keep the old timestamp so the 5-min timeout works!
-    }
-
     const { error } = await supabase
       .from('now_playing')
       .update({ 
         title, 
         artist, 
         album, 
-        is_paused: computedIsPaused, 
+        is_paused: isPaused, 
         progress, 
         cover_url: coverUrl,
-        updated_at: computedUpdatedAt
+        updated_at: new Date().toISOString()
       })
       .eq('id', 1);
 
@@ -1384,7 +1373,7 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
     }
 
     broadcastRealtimeEvent('now_playing_updated', {
-      title, artist, album, isPaused: computedIsPaused
+      title, artist, album, isPaused
     }, supabase);
 
     res.json({ success: true });
