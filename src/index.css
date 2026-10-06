@@ -1304,7 +1304,8 @@ main {
 .rich-viewer table,
 .comment-body table,
 .comments-section table,
-.scroll-box {
+.scroll-box,
+.table-responsive {
   display: block;
   width: 100%;
   max-width: 100%;

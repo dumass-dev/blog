@@ -596,16 +596,16 @@ export default function Dashboard() {
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span>Preview</span>
                       </Link>
+                      
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center justify-center text-red-500 hover:text-red-600"
+                        title="Delete Entry"
+                        aria-label="Delete Entry"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-
-                    <button
-                      onClick={() => setDeleteTarget(item)}
-                      className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded hover:bg-black/10 transition-colors"
-                      title="Delete Entry"
-                      aria-label="Delete Entry"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
               ))}
