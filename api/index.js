@@ -1352,8 +1352,6 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
 
     const { title, artist, album, isPaused, progress, coverUrl } = req.body;
 
-    const supabase = getSupabaseClient(req);
-
     const { error } = await supabase
       .from('now_playing')
       .update({ 
