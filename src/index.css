@@ -1741,3 +1741,22 @@ html.dark .now-playing-card-cover {
   text-align: center;
   display: block;
 }
+
+/* Standalone Image Captions */
+.prose-editorial p:has(img) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.prose-editorial p:has(img) img {
+  margin-bottom: 0 !important;
+}
+.prose-editorial p:has(img) em {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: normal;
+  text-align: center;
+  display: block;
+  margin-top: 0.5rem;
+  width: 100%;
+}
