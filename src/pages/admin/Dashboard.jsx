@@ -569,40 +569,40 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="pt-3 mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)]/50">
+                  <div className="pt-3 mt-2 grid grid-cols-4 gap-2 border-t border-[var(--border-subtle)]/50">
                       <button
                         onClick={() => setAnalyticsTarget(item)}
-                        className="quiet-button-secondary flex-1 py-1.5 px-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer overflow-hidden"
                       >
-                        <BarChart2 className="w-3.5 h-3.5" />
-                        <span>Stats</span>
+                        <BarChart2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Stats</span>
                       </button>
 
                       <Link
                         to={`/admin/edit/${item.id}`}
-                        className="quiet-button-secondary flex-1 py-1.5 px-2 text-xs flex items-center justify-center gap-1.5"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 overflow-hidden"
                       >
-                        <Edit className="w-3.5 h-3.5" />
-                        <span>Edit</span>
+                        <Edit className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Edit</span>
                       </Link>
 
                       <Link
                         to={`/entry/${item.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="quiet-button-secondary flex-1 py-1.5 px-2 text-xs flex items-center justify-center gap-1.5"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 overflow-hidden"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Preview</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Preview</span>
                       </Link>
                       
                       <button
                         onClick={() => setDeleteTarget(item)}
-                        className="quiet-button-secondary py-1.5 px-3 text-xs flex items-center justify-center text-red-500 hover:text-red-600"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center text-red-500 hover:text-red-600 overflow-hidden"
                         title="Delete Entry"
                         aria-label="Delete Entry"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 shrink-0" />
                       </button>
                   </div>
                 </div>
