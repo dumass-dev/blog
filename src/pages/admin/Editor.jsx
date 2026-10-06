@@ -29,7 +29,8 @@ import {
   MapPin,
   Cloud,
   Smile,
-  Lock
+  Lock,
+  Columns
 } from 'lucide-react';
 
 export default function Editor() {
@@ -689,6 +690,16 @@ export default function Editor() {
                 title="Embed YouTube Video"
               >
                 <Video className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => insertFormatting('\n[grid]\n', '\n[/grid]\n')}
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
+                title="Insert Split Screen Grid for side-by-side images"
+              >
+                <Columns className="w-4 h-4" />
+                <span className="text-[11px]">Split Layout</span>
               </button>
 
               <button
