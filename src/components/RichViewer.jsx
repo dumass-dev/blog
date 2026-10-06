@@ -65,6 +65,12 @@ export default function RichViewer({ content = '' }) {
       return match ? `![${alt}](/api/media/file/${match[0]})` : _m;
     });
 
+    // Convert images followed by "Caption: " into HTML figure blocks
+    const captionRegex = /!\[(.*?)\]\((.*?)\)\nCaption:\s*(.+)/gi;
+    processed = processed.replace(captionRegex, (match, alt, url, captionText) => {
+      return `\n<figure class="media-figure"><img src="${url}" alt="${alt}"><figcaption>${captionText}</figcaption></figure>\n`;
+    });
+
     // Handle [grid] shortcode for side-by-side media layouts
     processed = processed.replace(/\[grid\]([\s\S]*?)\[\/grid\]/gi, (match, innerText) => {
       return `\n<div class="media-grid">\n\n${innerText}\n\n</div>\n`;
@@ -80,7 +86,7 @@ export default function RichViewer({ content = '' }) {
   });
 
   const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
-    ADD_TAGS: ['iframe', 'video', 'source'],
+    ADD_TAGS: ['iframe', 'video', 'source', 'figure', 'figcaption'],
     ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'controls', 'decoding', 'loading', 'target']
   });
 

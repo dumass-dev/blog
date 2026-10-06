@@ -1275,7 +1275,7 @@ body {
 }
 
 .meta-chip:not(:last-child)::after {
-  content: 'Â·';
+  content: 'Ã‚Â·';
   margin-left: 0.5rem;
   margin-right: 0.25rem;
   opacity: 0.4;
@@ -1739,19 +1739,25 @@ html.dark .now-playing-card-cover {
   color: var(--text-muted);
   font-style: normal;
   text-align: center;
-  display: block;
 }
 
-/* Standalone Image Captions */
-.prose-editorial p:has(img) {
+/* Image Captions */
+.media-figure {
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin: 1.5rem 0;
 }
-.prose-editorial p:has(img) img {
-  margin-bottom: 0 !important;
+.media-grid .media-figure {
+  margin: 0;
 }
-.prose-editorial p:has(img) em {
+.media-figure img {
+  margin: 0 !important;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.media-figure figcaption {
   font-size: 0.85rem;
   color: var(--text-muted);
   font-style: normal;
