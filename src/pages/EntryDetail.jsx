@@ -307,7 +307,6 @@ export default function EntryDetail() {
   const handleShare = async () => {
     const shareData = {
       title: data?.entry?.title || 'q04ti blog',
-      text: data?.entry?.excerpt || 'Check out this entry on my blog',
       url: window.location.href
     };
     
