@@ -141,7 +141,7 @@ export default function Media() {
           <h1 className="text-xl font-serif font-medium">Media Library</h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => fetchMedia(true)}
             disabled={refreshing}
