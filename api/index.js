@@ -1391,9 +1391,9 @@ app.get('/api/now-playing', async (req, res) => {
       return res.json({ playing: false, showOnHome: false });
     }
 
-    // Check if it's currently active (updated within the last 10 minutes)
+    // Check if it's currently active (updated within the last 5 minutes)
     const lastUpdate = new Date(data.updated_at).getTime();
-    const isOffline = Date.now() - lastUpdate > 10 * 60 * 1000;
+    const isOffline = Date.now() - lastUpdate > 5 * 60 * 1000;
 
     res.json({
       playing: !isOffline, // True if recently updated
