@@ -569,20 +569,20 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)]/50 text-xs font-sans mt-2">
+                  <div className="pt-2 flex items-center gap-2 overflow-x-auto no-scrollbar border-t border-[var(--border-subtle)]/50 text-xs font-sans mt-2 -mx-4 px-4 pb-1">
                       <button
                         onClick={() => setAnalyticsTarget(item)}
-                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
                       >
-                        <BarChart2 className="w-3.5 h-3.5" />
+                        <BarChart2 className="w-3.5 h-3.5 shrink-0" />
                         <span>Stats</span>
                       </button>
 
                       <Link
                         to={`/admin/edit/${item.id}`}
-                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5"
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                       >
-                        <Edit className="w-3.5 h-3.5" />
+                        <Edit className="w-3.5 h-3.5 shrink-0" />
                         <span>Edit</span>
                       </Link>
 
@@ -590,15 +590,15 @@ export default function Dashboard() {
                         to={`/entry/${item.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5"
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                         <span>Preview</span>
                       </Link>
                       
                       <button
                         onClick={() => setDeleteTarget(item)}
-                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center justify-center text-red-500 hover:text-red-600"
+                        className="quiet-button-secondary py-1 px-3 text-xs flex items-center justify-center text-red-500 hover:text-red-600 shrink-0"
                         title="Delete Entry"
                         aria-label="Delete Entry"
                       >
