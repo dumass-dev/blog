@@ -227,6 +227,7 @@ function setupSSEConnection() {
       es.addEventListener('comment_deleted', handleEvent);
       es.addEventListener('reaction_updated', handleEvent);
       es.addEventListener('media_updated', handleEvent);
+      es.addEventListener('now_playing_updated', handleEvent);
       es.addEventListener('init', (e) => {
         try {
           const d = JSON.parse(e.data);
