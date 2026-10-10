@@ -206,7 +206,7 @@ export default function Comments({ postId }) {
       </div>
 
       {/* Existing Comments List */}
-      <div className="space-y-4 mb-8">
+      <div className="space-y-4 mb-8 max-h-[60vh] overflow-y-auto pr-2">
         {loading ? (
           <div className="text-xs font-sans text-[var(--text-muted)] italic py-4">
             Loading comments...
