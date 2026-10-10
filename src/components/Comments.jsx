@@ -205,52 +205,8 @@ export default function Comments({ postId }) {
         <span>Reader Comments ({comments.length})</span>
       </div>
 
-      {/* Existing Comments List */}
-      <div className="space-y-4 mb-8 max-h-[60vh] overflow-y-auto pr-2">
-        {loading ? (
-          <div className="text-xs font-sans text-[var(--text-muted)] italic py-4">
-            Loading comments...
-          </div>
-        ) : comments.length === 0 ? (
-          <div className="text-xs font-sans text-[var(--text-muted)] py-4 italic">
-            No comments yet. Be the first to leave a thought below.
-          </div>
-        ) : (
-          comments.map(item => (
-            <div
-              key={item.id}
-              className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] text-xs font-sans space-y-1.5"
-            >
-              <div className="flex justify-between items-center text-[var(--text-secondary)]">
-                <span className="font-medium text-[var(--text-primary)] flex items-center gap-1.5">
-                  <User className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
-                  <span>{item.author_name}</span>
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-[var(--text-muted)]">{formatDate(item.created_at)}</span>
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteComment(item.id)}
-                      disabled={deletingId === item.id}
-                      className="text-red-500/80 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-500/10 inline-flex items-center gap-1 text-[11px] font-sans border border-transparent hover:border-red-500/20 cursor-pointer"
-                      title="Delete Comment (Admin Only)"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>{deletingId === item.id ? 'Deleting...' : 'Delete'}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p className="text-[var(--text-primary)] font-serif text-sm leading-relaxed whitespace-pre-wrap pt-1">
-                {item.content}
-              </p>
-            </div>
-          ))
-        )}
-      </div>
-
       {/* Add Comment Form */}
-      <form onSubmit={handleSubmit} className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--code-bg)] space-y-3">
+      <form onSubmit={handleSubmit} className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--code-bg)] space-y-3 mb-8">
         <div className="text-xs font-sans font-medium uppercase tracking-wider text-[var(--text-secondary)]">
           Leave a Thought
         </div>
@@ -311,6 +267,50 @@ export default function Comments({ postId }) {
           </button>
         </div>
       </form>
+
+      {/* Existing Comments List */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="text-xs font-sans text-[var(--text-muted)] italic py-4">
+            Loading comments...
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="text-xs font-sans text-[var(--text-muted)] py-4 italic">
+            No comments yet. Be the first to leave a thought below.
+          </div>
+        ) : (
+          comments.map(item => (
+            <div
+              key={item.id}
+              className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] text-xs font-sans space-y-1.5"
+            >
+              <div className="flex justify-between items-center text-[var(--text-secondary)]">
+                <span className="font-medium text-[var(--text-primary)] flex items-center gap-1.5">
+                  <User className="w-3 h-3 text-[var(--accent-warm)] opacity-80" />
+                  <span>{item.author_name}</span>
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-[var(--text-muted)]">{formatDate(item.created_at)}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteComment(item.id)}
+                      disabled={deletingId === item.id}
+                      className="text-red-500/80 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-500/10 inline-flex items-center gap-1 text-[11px] font-sans border border-transparent hover:border-red-500/20 cursor-pointer"
+                      title="Delete Comment (Admin Only)"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>{deletingId === item.id ? 'Deleting...' : 'Delete'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-[var(--text-primary)] font-serif text-sm leading-relaxed whitespace-pre-wrap pt-1">
+                {item.content}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
     </section>
   );
 }
