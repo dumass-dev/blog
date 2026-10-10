@@ -58,42 +58,62 @@ export default function Updates() {
           No updates posted yet.
         </div>
       ) : (
-        <div className="space-y-8 relative before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[1px] before:bg-[var(--border-subtle)] pl-6">
-          {updates.map((item, idx) => (
-            <div key={item.id} className={`relative group animate-content-fade stagger-${Math.min(idx + 1, 6)}`}>
-              {/* Bullet point on line */}
-              <div className="absolute -left-[31px] top-1.5 w-2.5 h-2.5 rounded-full bg-[var(--bg-main)] border border-[var(--text-muted)] group-hover:border-[var(--accent-warm)] transition-colors" />
+        <div className="space-y-8 sm:space-y-12">
+          {updates.map((item, idx) => {
+            const itemDate = formatUpdateTimestamp(item.date);
+            const prevItem = updates[idx - 1];
+            const nextItem = updates[idx + 1];
+            const prevDate = prevItem ? formatUpdateTimestamp(prevItem.date) : null;
+            const nextDate = nextItem ? formatUpdateTimestamp(nextItem.date) : null;
 
-              {/* Timestamp */}
-              <div className="text-xs font-sans font-medium text-[var(--text-secondary)] tracking-wide mb-1">
-                {formatUpdateTimestamp(item.date)}
-              </div>
+            const isGrouped = (prevDate === itemDate || nextDate === itemDate);
+            const isFirstInGroup = isGrouped && (prevDate !== itemDate);
+            const categoryLabel = (item.category || 'UPDATE').toUpperCase();
 
-              {/* Title heading if present */}
-              {item.title && (
-                <h2 className="text-xl font-serif font-medium tracking-tight mb-1 text-[var(--text-primary)]">
-                  <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
-                    <TypewriterText text={item.title} />
-                  </Link>
-                </h2>
-              )}
+            const staggerClass = `stagger-${Math.min(idx + 1, 6)}`;
 
-              {/* Content blockquote / text */}
-              <blockquote className="font-serif text-base sm:text-lg text-[var(--text-primary)] leading-relaxed italic border-l-0 pl-0 my-0">
-                "<TypewriterText text={item.excerpt || item.title} />"
-              </blockquote>
+            return (
+              <React.Fragment key={item.id || idx}>
+                {isFirstInGroup && (
+                  <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-wider uppercase pt-2 pb-1 mb-2 border-b border-[var(--border-subtle)]/50">
+                    {itemDate}
+                  </div>
+                )}
 
+                <article className={`pb-10 border-b border-[var(--border-subtle)] last:border-0 group animate-content-fade ${staggerClass}`}>
+                  <div className="text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-2 flex flex-wrap items-center gap-1.5">
+                    <span>{categoryLabel}</span>
+                    {!isGrouped && itemDate && (
+                      <>
+                        <span>·</span>
+                        <span>{itemDate}</span>
+                      </>
+                    )}
+                    {item.has_passcode && (
+                      <>
+                        <span>·</span>
+                        <span className="text-[10px] text-[var(--text-primary)] font-medium">PROTECTED</span>
+                      </>
+                    )}
+                  </div>
 
-              <div className="mt-1">
-                <Link
-                  to={`/entry/${item.slug}`}
-                  className="text-[11px] font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  Permalink →
-                </Link>
-              </div>
-            </div>
-          ))}
+                  {item.title ? (
+                    <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
+                      <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+                        <TypewriterText text={item.title} />
+                      </Link>
+                    </h2>
+                  ) : null}
+
+                  <div className="text-[var(--text-secondary)] font-serif text-sm sm:text-base leading-relaxed mb-4 italic opacity-90 line-clamp-2">
+                    <Link to={`/entry/${item.slug}`} className="hover:text-[var(--text-primary)] transition-colors text-inherit">
+                      <TypewriterText text={stripMarkdown(item.excerpt || item.title || item.content)} />
+                    </Link>
+                  </div>
+                </article>
+              </React.Fragment>
+            );
+          })}
 
           {hasMore && (
             <div className="pt-6 text-center">

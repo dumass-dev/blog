@@ -922,6 +922,29 @@ app.put('/api/posts/:id', async (req, res) => {
 });
 
 // DELETE /api/posts/:id (Admin Only)
+// Increment view count
+app.post('/api/posts/:identifier/views', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const column = isUuid ? 'id' : 'slug';
+    
+    // Read current views
+    const { data: post, error: fetchErr } = await supabase.from('entries').select('id, views').eq(column, identifier).single();
+    if (fetchErr || !post) return res.status(404).json({ error: 'Not found' });
+    
+    const newViews = (post.views || 0) + 1;
+    
+    // Update views using service client (global supabase)
+    const { error: updateErr } = await supabase.from('entries').update({ views: newViews }).eq('id', post.id);
+    if (updateErr) throw updateErr;
+    
+    res.json({ success: true, views: newViews });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/posts/:id', async (req, res) => {
   const auth = await verifyAdminUser(req);
   if (!auth.authorized) {

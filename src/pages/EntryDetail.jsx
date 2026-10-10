@@ -117,9 +117,7 @@ export default function EntryDetail() {
       const updatedViews = (postData.views || 0) + 1;
       postData.views = updatedViews;
 
-      supabase
-        .rpc('increment_views', { target_slug: slug || postData.slug || postData.id })
-        .then(() => {})
+      fetch(`/api/posts/${slug || postData.slug || postData.id}/views`, { method: 'POST' })
         .catch(() => {});
     }
 
