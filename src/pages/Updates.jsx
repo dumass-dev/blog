@@ -4,6 +4,7 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
 import TypewriterText from '../components/TypewriterText';
+import { stripMarkdown } from '../utils/excerpt';
 
 function formatUpdateTimestamp(dateStr) {
   const d = new Date(dateStr);
