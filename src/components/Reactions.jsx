@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Lightbulb, Coffee, Heart, Sparkles } from 'lucide-react';
+import { Lightbulb, Heart, Meh, ThumbsDown } from 'lucide-react';
 import { supabase, subscribeToReactions } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 
 export default function Reactions({ postId }) {
-  const [counts, setCounts] = useState({ thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 });
+  const [counts, setCounts] = useState({ thoughtful: 0, loved: 0, boring: 0, dislike: 0 });
   const [userReacted, setUserReacted] = useState({});
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function Reactions({ postId }) {
           .select('reaction_type')
           .eq('post_id', realPostId);
 
-        const newCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+        const newCounts = { thoughtful: 0, loved: 0, boring: 0, dislike: 0 };
         (reactions || []).forEach(r => {
           if (newCounts[r.reaction_type] !== undefined) {
             newCounts[r.reaction_type]++;
@@ -130,9 +130,9 @@ export default function Reactions({ postId }) {
 
   const reactionButtons = [
     { key: 'thoughtful', icon: Lightbulb, label: 'Thoughtful' },
-    { key: 'cozy', icon: Coffee, label: 'Cozy' },
     { key: 'loved', icon: Heart, label: 'Loved' },
-    { key: 'inspiring', icon: Sparkles, label: 'Inspiring' }
+    { key: 'boring', icon: Meh, label: 'Boring' },
+    { key: 'dislike', icon: ThumbsDown, label: 'Dislike' }
   ];
 
   return (
