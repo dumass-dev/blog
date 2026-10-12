@@ -67,7 +67,7 @@ export default function OnThisDay() {
             <span>{formatDate(firstEntry.date)}</span>
           </div>
           <h3 className="text-lg font-serif font-medium text-[var(--text-primary)]">
-            <Link to={`/entry/${firstEntry.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+            <Link to={`/entry/${firstEntry.slug || firstEntry.id}`} className="hover:text-[var(--accent-warm)] transition-colors">
               {firstEntry.title}
             </Link>
           </h3>
@@ -79,9 +79,10 @@ export default function OnThisDay() {
         </div>
 
         <Link
-          to={`/entry/${firstEntry.slug}`}
+          to={`/entry/${firstEntry.slug || firstEntry.id}`}
           className="quiet-button-secondary text-xs shrink-0 flex items-center gap-1.5"
         >
+
           <span>Revisit memory</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>

@@ -132,7 +132,7 @@ export default function Home() {
                   {item.title ? (
                     <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
                       <Link
-                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
+                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug || item.id}`}
                         className="hover:text-[var(--accent-warm)] transition-colors text-[var(--text-primary)]"
                       >
                         <TypewriterText text={item.title} />
@@ -180,13 +180,14 @@ export default function Home() {
                   {Boolean(stripMarkdown(item.excerpt || '').trim() && stripMarkdown(item.excerpt || '').trim() !== stripMarkdown(item.title || '').trim()) && (
                     <div className="text-[var(--text-secondary)] font-serif leading-relaxed italic text-sm sm:text-base opacity-90 line-clamp-2">
                       <Link
-                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug}`}
+                        to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug || item.id}`}
                         className="hover:text-[var(--text-primary)] transition-colors text-inherit"
                       >
                         <TypewriterText text={stripMarkdown(item.excerpt)} />
                       </Link>
                     </div>
                   )}
+
 
                 </article>
               </React.Fragment>

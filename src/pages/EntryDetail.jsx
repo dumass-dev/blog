@@ -60,6 +60,7 @@ export default function EntryDetail() {
   const [selectedQuote, setSelectedQuote] = useState('');
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [floatingBtnPos, setFloatingBtnPos] = useState(null);
+  const viewedSlugsRef = useRef(new Set());
 
   const loadEntry = useCallback(async (isSilent = false) => {
     let postData = null;
@@ -75,7 +76,7 @@ export default function EntryDetail() {
 
     // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
     try {
-      const resData = await safeApiFetch(`/api/posts/${slug}`);
+      const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}`);
       if (resData) {
         if (resData.prev) prev = resData.prev;
         if (resData.next) next = resData.next;
@@ -97,7 +98,13 @@ export default function EntryDetail() {
           query = query.eq('slug', slug);
         }
 
-        const { data: posts } = await query;
+        let { data: posts } = await query;
+        if ((!posts || posts.length === 0) && !isUuid) {
+          const ilikeRes = await supabase.from('public_published_entries').select('*').ilike('slug', slug);
+          if (ilikeRes.data && ilikeRes.data.length > 0) {
+            posts = ilikeRes.data;
+          }
+        }
         if (posts && posts[0]) {
           postData = posts[0];
           cacheEntry(postData);
@@ -113,14 +120,16 @@ export default function EntryDetail() {
       return;
     }
 
-    // Increment view count on initial view
-    if (!isSilent) {
+    // Increment view count on initial view (deduplicated per slug per navigation)
+    const viewKey = `${slug || postData.id || postData.slug}`;
+    if (!isSilent && !viewedSlugsRef.current.has(viewKey)) {
+      viewedSlugsRef.current.add(viewKey);
       const optimisticViews = (postData.views || 0) + 1;
       postData.views = optimisticViews;
       cacheEntry(postData);
 
-      const identifier = postData.slug || slug || postData.id;
-      fetch(`/api/posts/${identifier}/views`, { method: 'POST' })
+      const identifier = postData.id || postData.slug || slug;
+      fetch(`/api/posts/${encodeURIComponent(identifier)}/views`, { method: 'POST' })
         .then(async (res) => {
           if (res.ok) {
             const json = await res.json();
@@ -136,7 +145,7 @@ export default function EntryDetail() {
             }
           } else {
             // Direct RPC fallback if server endpoint is unavailable
-            supabase.rpc('increment_views', { target_slug: identifier })
+            supabase.rpc('increment_views', { target_slug: postData.id || identifier })
               .then(() => {
                 publishRealtimeUpdate({
                   type: 'entry_view_updated',
@@ -150,7 +159,7 @@ export default function EntryDetail() {
         })
         .catch(() => {
           // Network failure fallback
-          supabase.rpc('increment_views', { target_slug: identifier })
+          supabase.rpc('increment_views', { target_slug: postData.id || identifier })
             .then(() => {
               publishRealtimeUpdate({
                 type: 'entry_view_updated',
@@ -605,7 +614,7 @@ export default function EntryDetail() {
       <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-sans">
         <div className="w-full sm:w-auto">
           {prev ? (
-            <Link to={`/entry/${prev.slug}`} className="group block text-left">
+            <Link to={`/entry/${prev.slug || prev.id}`} className="group block text-left">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">← Previous</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
                 {prev.title.split(' ').length > 3 ? prev.title.split(' ').slice(0, 3).join(' ') + '...' : prev.title}
@@ -616,7 +625,7 @@ export default function EntryDetail() {
 
         <div className="text-right w-full sm:w-auto">
           {next ? (
-            <Link to={`/entry/${next.slug}`} className="group block text-right">
+            <Link to={`/entry/${next.slug || next.id}`} className="group block text-right">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">Next →</span>
               <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
                 {next.title.split(' ').length > 3 ? next.title.split(' ').slice(0, 3).join(' ') + '...' : next.title}

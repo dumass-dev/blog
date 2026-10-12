@@ -173,10 +173,11 @@ export default function Archive() {
                   {formatDate(item.date)} · <span className="uppercase">{item.type}</span>
                 </div>
                 <h3 className="text-xl font-serif font-medium mb-1">
-                  <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+                  <Link to={`/entry/${item.slug || item.id}`} className="hover:text-[var(--accent-warm)] transition-colors">
                     <TypewriterText text={item.title} />
                   </Link>
                 </h3>
+
                 <p className="text-sm font-serif text-[var(--text-secondary)] line-clamp-2">
                   <TypewriterText text={stripMarkdown(item.excerpt || item.content)} />
                 </p>

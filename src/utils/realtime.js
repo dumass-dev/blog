@@ -59,17 +59,18 @@ export function getRealtimeStatus() {
 export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
   if (!payload || typeof payload !== 'object') return;
 
-  const eventType = payload.type || payload.event || 'entry';
-  const targetId = payload.id || payload.data?.id || payload.commentId || payload.postId || '';
-  const op = payload.op || payload.eventType || '';
-  const dedupeKey = `${eventType}:${op}:${targetId}:${payload.version || ''}`;
+  const inner = (payload.payload && typeof payload.payload === 'object') ? payload.payload : payload;
+  const eventType = payload.type || payload.event || inner.event || inner.type || 'entry';
+  const targetId = inner.id || payload.id || inner.data?.id || payload.data?.id || inner.commentId || payload.commentId || inner.postId || payload.postId || '';
+  const op = inner.op || payload.op || inner.eventType || payload.eventType || '';
+  const dedupeKey = `${eventType}:${op}:${targetId}:${payload.version || inner.version || ''}`;
 
   if (!isLocal && isDuplicateEvent(dedupeKey)) {
     return;
   }
 
-  if (payload.version) {
-    lastKnownVersion = payload.version;
+  if (payload.version || inner.version) {
+    lastKnownVersion = payload.version || inner.version;
   }
 
   // 1. Entry / Feed changes
@@ -94,15 +95,15 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
 
   // 1b. Targeted Entry View Count updates (instant update, no feed flicker)
   if (eventType === 'entry_view_updated') {
-    const postId = payload.id;
-    const postSlug = payload.slug;
-    const views = payload.views;
+    const postId = inner.id || payload.id;
+    const postSlug = inner.slug || payload.slug;
+    const views = (typeof inner.views === 'number') ? inner.views : payload.views;
 
     if (typeof views === 'number') {
       updateCachedEntryViews(postId, postSlug, views);
       if (typeof window !== 'undefined') {
         try {
-          window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: payload }));
+          window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: postId, slug: postSlug, views } }));
         } catch {}
       }
     }
@@ -294,14 +295,23 @@ function setupSupabaseRealtime() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'realtime_sync' }, (payload) => {
         if (payload && payload.new) {
+          const innerPayload = (payload.new.payload && typeof payload.new.payload === 'object') ? payload.new.payload : {};
           dispatchRealtimeMutation({
             type: payload.new.event || 'resync',
             version: payload.new.version,
-            payload: payload.new.payload
+            ...innerPayload
           });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, (payload) => {
+        if (payload.new && typeof payload.new.views === 'number') {
+          dispatchRealtimeMutation({
+            type: 'entry_view_updated',
+            id: payload.new.id,
+            slug: payload.new.slug,
+            views: payload.new.views
+          });
+        }
         dispatchRealtimeMutation({
           type: 'entry',
           op: payload.eventType,

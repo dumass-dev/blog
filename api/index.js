@@ -36,10 +36,27 @@ const allowedOrigins = [
   'http://localhost:5173'
 ].filter(Boolean);
 
+export const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+    if (url.hostname.endsWith('.vercel.app')) return true;
+    for (const allowed of allowedOrigins) {
+      try {
+        const parsed = new URL(allowed.startsWith('http') ? allowed : `https://${allowed}`);
+        if (url.hostname === parsed.hostname) return true;
+      } catch {}
+    }
+  } catch {}
+  return false;
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow server-to-server (no origin) and explicitly listed origins
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow server-to-server (no origin), localhost, vercel deployments, and configured origins
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -700,7 +717,15 @@ app.get('/api/posts/:slug', async (req, res) => {
       query = query.eq('slug', slug);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if ((!data || data.length === 0) && !isUuid) {
+      const fallbackQuery = getSupabaseClient(req).from(table).select('*').ilike('slug', slug);
+      const res = await fallbackQuery;
+      if (res.data && res.data.length > 0) {
+        data = res.data;
+        error = null;
+      }
+    }
     if (error || !data || data.length === 0) {
       if (slug === 'protected-sample-entry') {
         return res.json({
@@ -928,27 +953,39 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
     if (!identifier) return res.status(400).json({ error: 'Identifier required' });
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
-    const column = isUuid ? 'id' : 'slug';
     const client = getSupabaseClient(req);
 
-    // 1. Locate entry by ID or Slug (check public_published_entries first, fallback to entries)
+    // 1. Locate entry by ID or Slug (with case-insensitive fallback)
     let post = null;
-    const { data: pubData } = await client
-      .from('public_published_entries')
-      .select('id, slug, views')
-      .eq(column, identifier)
-      .maybeSingle();
-
-    if (pubData) {
-      post = pubData;
+    if (isUuid) {
+      const { data } = await client.from('public_published_entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+      post = data;
+      if (!post) {
+        const { data: direct } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        post = direct;
+      }
     } else {
-      const { data: entriesData } = await client
-        .from('entries')
-        .select('id, slug, views')
-        .eq(column, identifier)
-        .maybeSingle();
-      if (entriesData) {
-        post = entriesData;
+      // Try exact slug
+      const { data } = await client.from('public_published_entries').select('id, slug, views').eq('slug', identifier).maybeSingle();
+      post = data;
+      // Try case-insensitive slug
+      if (!post) {
+        const { data: ilikeData } = await client.from('public_published_entries').select('id, slug, views').ilike('slug', identifier).maybeSingle();
+        post = ilikeData;
+      }
+      // Try entries table directly
+      if (!post) {
+        const { data: direct } = await client.from('entries').select('id, slug, views').eq('slug', identifier).maybeSingle();
+        post = direct;
+      }
+      if (!post) {
+        const { data: directIlike } = await client.from('entries').select('id, slug, views').ilike('slug', identifier).maybeSingle();
+        post = directIlike;
+      }
+      // If still not found, check if identifier happens to be an ID
+      if (!post) {
+        const { data: byId } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        post = byId;
       }
     }
 
@@ -956,27 +993,30 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
-    // 2. Increment view count:
-    // First, try the security definer RPC function (bypasses RLS safely for anon & authenticated)
-    const targetSlugParam = post.slug || post.id || identifier;
-    let rpcSuccess = false;
+    // 2. Increment view count
+    let newViews = (post.views || 0) + 1;
+    let incrementedViaRpc = false;
     try {
-      const { error: rpcErr } = await client.rpc('increment_views', { target_slug: targetSlugParam });
+      const { error: rpcErr } = await client.rpc('increment_views', { target_slug: post.id });
       if (!rpcErr) {
-        rpcSuccess = true;
+        incrementedViaRpc = true;
+      } else if (post.slug) {
+        const { error: slugRpcErr } = await client.rpc('increment_views', { target_slug: post.slug });
+        if (!slugRpcErr) incrementedViaRpc = true;
       }
     } catch {}
 
     // Fallback: If RPC failed or wasn't available, attempt direct table update
-    let newViews = (post.views || 0) + 1;
-    if (!rpcSuccess) {
+    if (!incrementedViaRpc) {
       try {
-        const { error: updateErr } = await client
+        const { data: updatedRow } = await client
           .from('entries')
           .update({ views: newViews })
-          .eq('id', post.id);
-        if (updateErr) {
-          console.warn('Direct view count update notice:', updateErr.message);
+          .eq('id', post.id)
+          .select('views')
+          .maybeSingle();
+        if (updatedRow && typeof updatedRow.views === 'number') {
+          newViews = updatedRow.views;
         }
       } catch {}
     }
@@ -989,7 +1029,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
         .eq('id', post.id)
         .maybeSingle();
       if (fresh && typeof fresh.views === 'number') {
-        newViews = fresh.views;
+        newViews = Math.max(newViews, fresh.views);
       } else {
         const { data: freshDirect } = await client
           .from('entries')
@@ -997,7 +1037,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
           .eq('id', post.id)
           .maybeSingle();
         if (freshDirect && typeof freshDirect.views === 'number') {
-          newViews = freshDirect.views;
+          newViews = Math.max(newViews, freshDirect.views);
         }
       }
     } catch {}
@@ -1014,6 +1054,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 app.delete('/api/posts/:id', async (req, res) => {

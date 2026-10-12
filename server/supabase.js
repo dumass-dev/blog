@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+const supabaseKey = serviceRoleKey || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
 if (!process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL) {
   console.warn('Warning: SUPABASE_URL or SUPABASE_ANON_KEY is missing from environment variables.');
@@ -22,7 +23,7 @@ export function getSupabaseClient(req) {
   const authHeader = req?.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ') && authHeader.split(' ')[1]) {
     const token = authHeader.split(' ')[1];
-    return createClient(supabaseUrl, supabaseKey, {
+    return createClient(supabaseUrl, process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || supabaseKey, {
       global: {
         headers: {
           Authorization: `Bearer ${token}`
@@ -32,4 +33,5 @@ export function getSupabaseClient(req) {
   }
   return supabase;
 }
+
 

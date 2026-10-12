@@ -100,17 +100,18 @@ export default function Updates() {
 
                   {item.title ? (
                     <h2 className="text-xl sm:text-2xl font-serif font-medium tracking-tight mb-2">
-                      <Link to={`/entry/${item.slug}`} className="hover:text-[var(--accent-warm)] transition-colors">
+                      <Link to={`/entry/${item.slug || item.id}`} className="hover:text-[var(--accent-warm)] transition-colors">
                         <TypewriterText text={item.title} />
                       </Link>
                     </h2>
                   ) : null}
 
                   <div className="text-[var(--text-secondary)] font-serif text-sm sm:text-base leading-relaxed mb-4 italic opacity-90 line-clamp-2">
-                    <Link to={`/entry/${item.slug}`} className="hover:text-[var(--text-primary)] transition-colors text-inherit">
+                    <Link to={`/entry/${item.slug || item.id}`} className="hover:text-[var(--text-primary)] transition-colors text-inherit">
                       <TypewriterText text={stripMarkdown(item.excerpt || item.title || item.content)} />
                     </Link>
                   </div>
+
                 </article>
               </React.Fragment>
             );
