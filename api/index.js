@@ -921,29 +921,100 @@ app.put('/api/posts/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/posts/:id (Admin Only)
-// Increment view count
+// POST /api/posts/:identifier/views — Increment view count & broadcast in real-time
 app.post('/api/posts/:identifier/views', async (req, res) => {
   try {
     const { identifier } = req.params;
+    if (!identifier) return res.status(400).json({ error: 'Identifier required' });
+
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
     const column = isUuid ? 'id' : 'slug';
-    
-    // Read current views
-    const { data: post, error: fetchErr } = await supabase.from('entries').select('id, views').eq(column, identifier).single();
-    if (fetchErr || !post) return res.status(404).json({ error: 'Not found' });
-    
-    const newViews = (post.views || 0) + 1;
-    
-    // Update views using service client (global supabase)
-    const { error: updateErr } = await supabase.from('entries').update({ views: newViews }).eq('id', post.id);
-    if (updateErr) throw updateErr;
-    
-    res.json({ success: true, views: newViews });
+    const client = getSupabaseClient(req);
+
+    // 1. Locate entry by ID or Slug (check public_published_entries first, fallback to entries)
+    let post = null;
+    const { data: pubData } = await client
+      .from('public_published_entries')
+      .select('id, slug, views')
+      .eq(column, identifier)
+      .maybeSingle();
+
+    if (pubData) {
+      post = pubData;
+    } else {
+      const { data: entriesData } = await client
+        .from('entries')
+        .select('id, slug, views')
+        .eq(column, identifier)
+        .maybeSingle();
+      if (entriesData) {
+        post = entriesData;
+      }
+    }
+
+    if (!post) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // 2. Increment view count:
+    // First, try the security definer RPC function (bypasses RLS safely for anon & authenticated)
+    const targetSlugParam = post.slug || post.id || identifier;
+    let rpcSuccess = false;
+    try {
+      const { error: rpcErr } = await client.rpc('increment_views', { target_slug: targetSlugParam });
+      if (!rpcErr) {
+        rpcSuccess = true;
+      }
+    } catch {}
+
+    // Fallback: If RPC failed or wasn't available, attempt direct table update
+    let newViews = (post.views || 0) + 1;
+    if (!rpcSuccess) {
+      try {
+        const { error: updateErr } = await client
+          .from('entries')
+          .update({ views: newViews })
+          .eq('id', post.id);
+        if (updateErr) {
+          console.warn('Direct view count update notice:', updateErr.message);
+        }
+      } catch {}
+    }
+
+    // 3. Read back latest views from database
+    try {
+      const { data: fresh } = await client
+        .from('public_published_entries')
+        .select('views')
+        .eq('id', post.id)
+        .maybeSingle();
+      if (fresh && typeof fresh.views === 'number') {
+        newViews = fresh.views;
+      } else {
+        const { data: freshDirect } = await client
+          .from('entries')
+          .select('views')
+          .eq('id', post.id)
+          .maybeSingle();
+        if (freshDirect && typeof freshDirect.views === 'number') {
+          newViews = freshDirect.views;
+        }
+      }
+    } catch {}
+
+    // 4. Broadcast realtime event so all open tabs and visitors see the updated count instantly
+    broadcastRealtimeEvent('entry_view_updated', {
+      id: post.id,
+      slug: post.slug,
+      views: newViews
+    }, client);
+
+    res.json({ success: true, id: post.id, slug: post.slug, views: newViews });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 app.delete('/api/posts/:id', async (req, res) => {
   const auth = await verifyAdminUser(req);
@@ -1433,9 +1504,10 @@ app.get('/api/now-playing', async (req, res) => {
       updatedAt: data.updated_at,
       showOnHome: data.show_on_home
     });
-  } catch (err) {
+  } catch (_err) {
     res.status(500).json({ error: 'Internal server error' });
   }
+
 });
 
 // Admin endpoint to toggle Now Playing on Home
@@ -1483,7 +1555,7 @@ app.get('/entry/:slug', async (req, res) => {
     let html = '';
     try {
       html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
-    } catch (e) {
+    } catch (_e) {
       const protocol = req.headers['x-forwarded-proto'] || 'http';
       const host = req.headers.host;
       const htmlRes = await fetch(`${protocol}://${host}/?_static=1`);

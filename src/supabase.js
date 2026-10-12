@@ -105,6 +105,37 @@ export function cacheEntry(entry) {
   if (entry.slug) entriesCache.set(entry.slug, entry);
 }
 
+export function updateCachedEntryViews(id, slug, views) {
+  if (typeof views !== 'number') return;
+  
+  if (id && entriesCache.has(id)) {
+    const item = entriesCache.get(id);
+    if (item) item.views = views;
+  }
+  if (slug && entriesCache.has(slug)) {
+    const item = entriesCache.get(slug);
+    if (item) item.views = views;
+  }
+
+  for (const [key, feedList] of feedsCache.entries()) {
+    if (Array.isArray(feedList)) {
+      let changed = false;
+      feedList.forEach(entry => {
+        if ((id && entry.id === id) || (slug && entry.slug === slug)) {
+          entry.views = views;
+          changed = true;
+        }
+      });
+      if (changed) {
+        try {
+          localStorage.setItem(`feed_cache_${key}`, JSON.stringify(feedList));
+        } catch {}
+      }
+    }
+  }
+}
+
+
 /**
  * Helper to safely fetch from API endpoints, returning null if 404/non-JSON
  */

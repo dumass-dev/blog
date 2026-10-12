@@ -27,9 +27,10 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         } else {
           setData(null);
         }
-      } catch (err) {
+      } catch (_err) {
         // silently fail
       }
+
     };
 
     fetchNowPlaying();

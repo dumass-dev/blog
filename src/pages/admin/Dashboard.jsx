@@ -182,13 +182,34 @@ export default function Dashboard() {
     const handleCommentChange = () => {
       loadData(false);
     };
+    const handleViewsChange = (e) => {
+      const detail = e.detail;
+      if (!detail || typeof detail.views !== 'number') return;
+      setEntries(prev => prev.map(entry => {
+        if ((detail.id && entry.id === detail.id) || (detail.slug && entry.slug === detail.slug)) {
+          return { ...entry, views: detail.views };
+        }
+        return entry;
+      }));
+      setAnalyticsTarget(prev => {
+        if (!prev) return prev;
+        if ((detail.id && prev.id === detail.id) || (detail.slug && prev.slug === detail.slug)) {
+          return { ...prev, views: detail.views };
+        }
+        return prev;
+      });
+    };
+
     window.addEventListener('feed-data-invalidated', handleFeedChange);
     window.addEventListener('comments-updated', handleCommentChange);
+    window.addEventListener('entry-views-updated', handleViewsChange);
     return () => {
       window.removeEventListener('feed-data-invalidated', handleFeedChange);
       window.removeEventListener('comments-updated', handleCommentChange);
+      window.removeEventListener('entry-views-updated', handleViewsChange);
     };
   }, [loadData]);
+
 
   const handleDelete = async (id) => {
     let deleted = false;

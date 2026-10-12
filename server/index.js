@@ -1270,6 +1270,100 @@ app.get('/api/posts/:identifier', async (req, res) => {
   }
 });
 
+// POST /api/posts/:identifier/views — Increment view count & broadcast in real-time
+app.post('/api/posts/:identifier/views', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    if (!identifier) return res.status(400).json({ error: 'Identifier required' });
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const column = isUuid ? 'id' : 'slug';
+    const client = getSupabaseClient(req);
+
+    // 1. Locate entry by ID or Slug (check public_published_entries first, fallback to entries)
+    let post = null;
+    const { data: pubData } = await client
+      .from('public_published_entries')
+      .select('id, slug, views')
+      .eq(column, identifier)
+      .maybeSingle();
+
+    if (pubData) {
+      post = pubData;
+    } else {
+      const { data: entriesData } = await client
+        .from('entries')
+        .select('id, slug, views')
+        .eq(column, identifier)
+        .maybeSingle();
+      if (entriesData) {
+        post = entriesData;
+      }
+    }
+
+    if (!post) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // 2. Increment view count:
+    // First, try the security definer RPC function (bypasses RLS safely for anon & authenticated)
+    const targetSlugParam = post.slug || post.id || identifier;
+    let rpcSuccess = false;
+    try {
+      const { error: rpcErr } = await client.rpc('increment_views', { target_slug: targetSlugParam });
+      if (!rpcErr) {
+        rpcSuccess = true;
+      }
+    } catch {}
+
+    // Fallback: If RPC failed or wasn't available, attempt direct table update
+    let newViews = (post.views || 0) + 1;
+    if (!rpcSuccess) {
+      try {
+        const { error: updateErr } = await client
+          .from('entries')
+          .update({ views: newViews })
+          .eq('id', post.id);
+        if (updateErr) {
+          console.warn('Direct view count update notice:', updateErr.message);
+        }
+      } catch {}
+    }
+
+    // 3. Read back latest views from database
+    try {
+      const { data: fresh } = await client
+        .from('public_published_entries')
+        .select('views')
+        .eq('id', post.id)
+        .maybeSingle();
+      if (fresh && typeof fresh.views === 'number') {
+        newViews = fresh.views;
+      } else {
+        const { data: freshDirect } = await client
+          .from('entries')
+          .select('views')
+          .eq('id', post.id)
+          .maybeSingle();
+        if (freshDirect && typeof freshDirect.views === 'number') {
+          newViews = freshDirect.views;
+        }
+      }
+    } catch {}
+
+    // 4. Broadcast realtime event so all open tabs and visitors see the updated count instantly
+    broadcastRealtimeEvent('entry_view_updated', {
+      id: post.id,
+      slug: post.slug,
+      views: newViews
+    }, client);
+
+    res.json({ success: true, id: post.id, slug: post.slug, views: newViews });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/posts/:identifier/verify-passcode — Verify entry passcode
 app.post('/api/posts/:identifier/verify-passcode', async (req, res) => {
   try {

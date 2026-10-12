@@ -8,7 +8,8 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { supabase, safeApiFetch, getCachedEntry, cacheEntry } from '../supabase';
+import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews } from '../supabase';
+import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -112,13 +113,54 @@ export default function EntryDetail() {
       return;
     }
 
-    // Increment view count via RPC on initial view
+    // Increment view count on initial view
     if (!isSilent) {
-      const updatedViews = (postData.views || 0) + 1;
-      postData.views = updatedViews;
+      const optimisticViews = (postData.views || 0) + 1;
+      postData.views = optimisticViews;
+      cacheEntry(postData);
 
-      fetch(`/api/posts/${slug || postData.slug || postData.id}/views`, { method: 'POST' })
-        .catch(() => {});
+      const identifier = postData.slug || slug || postData.id;
+      fetch(`/api/posts/${identifier}/views`, { method: 'POST' })
+        .then(async (res) => {
+          if (res.ok) {
+            const json = await res.json();
+            if (json && typeof json.views === 'number') {
+              setData(prev => {
+                if (!prev?.entry) return prev;
+                return {
+                  ...prev,
+                  entry: { ...prev.entry, views: json.views }
+                };
+              });
+              updateCachedEntryViews(json.id || postData.id, json.slug || postData.slug, json.views);
+            }
+          } else {
+            // Direct RPC fallback if server endpoint is unavailable
+            supabase.rpc('increment_views', { target_slug: identifier })
+              .then(() => {
+                publishRealtimeUpdate({
+                  type: 'entry_view_updated',
+                  id: postData.id,
+                  slug: postData.slug,
+                  views: optimisticViews
+                });
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {
+          // Network failure fallback
+          supabase.rpc('increment_views', { target_slug: identifier })
+            .then(() => {
+              publishRealtimeUpdate({
+                type: 'entry_view_updated',
+                id: postData.id,
+                slug: postData.slug,
+                views: optimisticViews
+              });
+            })
+            .catch(() => {});
+        });
     }
 
     const hasPasscode = Boolean(postData.has_passcode || (postData.passcode && postData.passcode.trim() !== ''));
@@ -136,9 +178,12 @@ export default function EntryDetail() {
         ? (prevData.entry.cover_image || postData.cover_image)
         : (hasPasscode && !alreadyUnlocked ? '' : postData.cover_image);
 
+      const effectiveViews = Math.max(postData.views || 0, prevData?.entry?.views || 0, 1);
+
       return {
         entry: {
           ...postData,
+          views: effectiveViews,
           has_passcode: hasPasscode,
           content: effectiveContent,
           cover_image: effectiveCover
@@ -196,6 +241,34 @@ export default function EntryDetail() {
       window.removeEventListener('feed-data-invalidated', handleEntryChange);
     };
   }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry]);
+
+  // Realtime subscription for live view count updates
+  useEffect(() => {
+    const handleViewsUpdate = (e) => {
+      const detail = e.detail;
+      if (!detail) return;
+      const currentId = data?.entry?.id;
+      const currentSlug = data?.entry?.slug || slug;
+
+      if ((detail.id && detail.id === currentId) || (detail.slug && detail.slug === currentSlug)) {
+        if (typeof detail.views === 'number') {
+          setData(prev => {
+            if (!prev?.entry) return prev;
+            if (prev.entry.views === detail.views) return prev;
+            return {
+              ...prev,
+              entry: { ...prev.entry, views: detail.views }
+            };
+          });
+        }
+      }
+    };
+
+    window.addEventListener('entry-views-updated', handleViewsUpdate);
+    return () => {
+      window.removeEventListener('entry-views-updated', handleViewsUpdate);
+    };
+  }, [slug, data?.entry?.id, data?.entry?.slug]);
 
 
   // Listen for text selection to show Floating "Quote Card" pill
@@ -320,9 +393,10 @@ export default function EntryDetail() {
           setTimeout(() => { btn.innerText = original; }, 2000);
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // AbortError is normal if user cancels the share dialog
     }
+
   };
 
   return (
@@ -409,12 +483,10 @@ export default function EntryDetail() {
             </span>
           )}
 
-          {entry.views !== undefined && entry.views !== null && (
-            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
-              <Eye className="w-3 h-3 opacity-60 shrink-0" />
-              <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
-            </span>
-          )}
+          <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+            <Eye className="w-3 h-3 opacity-60 shrink-0" />
+            <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
+          </span>
 
           <button 
             onClick={handleShare}

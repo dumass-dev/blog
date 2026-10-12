@@ -1,5 +1,5 @@
 /* global CustomEvent, EventSource, BroadcastChannel */
-import { supabase, invalidateFeedCache } from '../supabase.js';
+import { supabase, invalidateFeedCache, updateCachedEntryViews } from '../supabase.js';
 
 let isInitialized = false;
 let sseConnection = null;
@@ -90,6 +90,23 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
       } catch {}
 
     }
+  }
+
+  // 1b. Targeted Entry View Count updates (instant update, no feed flicker)
+  if (eventType === 'entry_view_updated') {
+    const postId = payload.id;
+    const postSlug = payload.slug;
+    const views = payload.views;
+
+    if (typeof views === 'number') {
+      updateCachedEntryViews(postId, postSlug, views);
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: payload }));
+        } catch {}
+      }
+    }
+    return;
   }
 
   // 2. About page changes
@@ -222,6 +239,7 @@ function setupSSEConnection() {
       es.addEventListener('entry_created', handleEvent);
       es.addEventListener('entry_updated', handleEvent);
       es.addEventListener('entry_deleted', handleEvent);
+      es.addEventListener('entry_view_updated', handleEvent);
       es.addEventListener('about_updated', handleEvent);
       es.addEventListener('comment_created', handleEvent);
       es.addEventListener('comment_deleted', handleEvent);
