@@ -1089,7 +1089,9 @@ const defaultAboutData = {
   ],
   links: [
     { label: 'GitHub', url: 'https://github.com/q04ti' }
-  ]
+  ],
+  default_typewriter_enabled: false,
+  default_theme: 'dark'
 };
 
 // GET /api/about
@@ -1117,6 +1119,7 @@ app.get('/api/about', async (req, res) => {
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
         default_typewriter_enabled: row.default_typewriter_enabled !== undefined ? Boolean(row.default_typewriter_enabled) : false,
+        default_theme: (row.default_theme === 'light' || row.default_theme === 'dark') ? row.default_theme : defaultAboutData.default_theme,
         projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
         links: Array.isArray(links) ? links : defaultAboutData.links
       });
@@ -1329,6 +1332,8 @@ async function handleSaveAbout(req, res) {
       author_name: payload.author_name || 'q04ti',
       tagline: payload.tagline || '',
       bio: payload.bio || '',
+      default_typewriter_enabled: Boolean(payload.default_typewriter_enabled),
+      default_theme: payload.default_theme === 'light' ? 'light' : 'dark',
       projects: Array.isArray(payload.projects) ? payload.projects : [],
       links: Array.isArray(payload.links) ? payload.links : [],
       updated_at: new Date().toISOString()
@@ -1340,11 +1345,19 @@ async function handleSaveAbout(req, res) {
     let error;
     let result;
     if (existing && existing.length > 0) {
-      const resData = await supabase.from('about').update(saveData).eq('id', existing[0].id).select('*').single();
+      let resData = await supabase.from('about').update(saveData).eq('id', existing[0].id).select('*').single();
+      if (resData.error && resData.error.message && resData.error.message.includes('default_theme')) {
+        const { default_theme: _dt, ...safeData } = saveData;
+        resData = await supabase.from('about').update(safeData).eq('id', existing[0].id).select('*').single();
+      }
       result = resData.data;
       error = resData.error;
     } else {
-      const resData = await supabase.from('about').insert([saveData]).select('*').single();
+      let resData = await supabase.from('about').insert([saveData]).select('*').single();
+      if (resData.error && resData.error.message && resData.error.message.includes('default_theme')) {
+        const { default_theme: _dt, ...safeData } = saveData;
+        resData = await supabase.from('about').insert([safeData]).select('*').single();
+      }
       result = resData.data;
       error = resData.error;
     }
@@ -1359,6 +1372,8 @@ async function handleSaveAbout(req, res) {
       author_name: result?.author_name || saveData.author_name,
       tagline: result?.tagline || saveData.tagline,
       bio: result?.bio || saveData.bio,
+      default_typewriter_enabled: result?.default_typewriter_enabled !== undefined ? Boolean(result.default_typewriter_enabled) : saveData.default_typewriter_enabled,
+      default_theme: result?.default_theme || saveData.default_theme,
       projects: result?.projects || saveData.projects,
       links: result?.links || saveData.links
     });

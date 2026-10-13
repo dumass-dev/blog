@@ -143,6 +143,28 @@ describe('About Page API Route Tests (/api/about)', () => {
     assert.strictEqual(res.data.links.length, 0, 'links array must remain empty when saved as empty');
   });
 
+  test('GET /api/about returns valid default_theme', async () => {
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/about',
+      method: 'GET'
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve({ status: r.statusCode, data: JSON.parse(body || '{}') }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.data.default_theme === 'dark' || res.data.default_theme === 'light', 'default_theme must be light or dark');
+  });
+
   test('Teardown test server', () => {
     if (server) server.close();
   });

@@ -7,9 +7,12 @@
     <script>
       (function() {
         try {
+          var userOverride = localStorage.getItem('theme_user_override') === 'true';
           var saved = localStorage.getItem('diary-theme') || localStorage.getItem('theme');
-          var isDark = saved ? saved === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var siteDefault = localStorage.getItem('site_default_theme') || 'dark';
+          var isDark = userOverride && saved ? (saved === 'dark') : (siteDefault === 'dark');
           if (isDark) document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
         } catch(e) {}
       })();
     </script>

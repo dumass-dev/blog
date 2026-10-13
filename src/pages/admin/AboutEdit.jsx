@@ -2,19 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTypewriter } from '../../context/TypewriterContext';
+import { useTheme } from '../../context/ThemeContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { publishRealtimeUpdate } from '../../utils/realtime';
-import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { Save, ArrowLeft, Plus, Trash2, Moon, Sun } from 'lucide-react';
 
 export default function AboutEdit() {
   const { token } = useAuth();
   const { updateSiteDefault } = useTypewriter();
+  const { updateSiteDefaultTheme } = useTheme();
 
   const [formData, setFormData] = useState({
     author_name: '',
     tagline: '',
     bio: '',
     default_typewriter_enabled: false,
+    default_theme: 'dark',
     projects: [],
     links: []
   });
@@ -29,11 +32,13 @@ export default function AboutEdit() {
       .then(res => res.json())
       .then(data => {
         const defaultEnabled = Boolean(data.default_typewriter_enabled);
+        const defaultTheme = (data.default_theme === 'light' || data.default_theme === 'dark') ? data.default_theme : 'dark';
         setFormData({
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
           bio: data.bio || '',
           default_typewriter_enabled: defaultEnabled,
+          default_theme: defaultTheme,
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
         });
@@ -109,9 +114,13 @@ export default function AboutEdit() {
       }
 
       updateSiteDefault(formData.default_typewriter_enabled);
+      if (updateSiteDefaultTheme) {
+        updateSiteDefaultTheme(formData.default_theme);
+      }
       // Bust the About page localStorage cache so public site reflects changes immediately
       try {
         localStorage.removeItem('cached_about_data');
+        localStorage.setItem('site_default_theme', formData.default_theme);
         publishRealtimeUpdate({
           type: 'about',
           op: 'UPDATE',
@@ -231,6 +240,42 @@ export default function AboutEdit() {
             }`}
           >
             {formData.default_typewriter_enabled ? 'ON by Default' : 'OFF by Default'}
+          </button>
+        </div>
+
+        {/* Site Default Theme Setting */}
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+          <div>
+            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex items-center gap-2">
+              <span>Site Default Theme</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase">
+                {formData.default_theme === 'light' ? 'Light Mode' : 'Dark Mode'}
+              </span>
+            </div>
+            <div className="text-xs font-sans text-[var(--text-muted)] mt-0.5">
+              Default appearance for visitors until they toggle it themselves on the website.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const nextTheme = formData.default_theme === 'dark' ? 'light' : 'dark';
+              setFormData(prev => ({ ...prev, default_theme: nextTheme }));
+              if (updateSiteDefaultTheme) updateSiteDefaultTheme(nextTheme);
+            }}
+            className="px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)] hover:opacity-90"
+          >
+            {formData.default_theme === 'dark' ? (
+              <>
+                <Moon className="w-3.5 h-3.5" />
+                <span>Default: Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5" />
+                <span>Default: Light Mode</span>
+              </>
+            )}
           </button>
         </div>
 
