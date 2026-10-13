@@ -30,7 +30,7 @@ export default function Activity() {
       </section>
 
       {/* Info Card / External Link */}
-      <div className="p-4 sm:p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--code-bg)]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-sans text-[var(--text-secondary)]">
+      <div className="p-4 sm:p-5 rounded-xl border border-[var(--border-subtle)] bg-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-sans text-[var(--text-secondary)]">
         <div className="flex items-center gap-3">
           <Code2 className="w-4 h-4 text-[var(--accent-warm)]" />
           <span>

@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { ExternalLink, Calendar, GitCommit } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export default function GitHubContributions({ username = 'q04ti', showHeader = true, compact = false }) {
+export default function GitHubContributions({
+  username = 'q04ti',
+  showHeader = true,
+  minimal = false
+}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,7 +27,6 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
       .then(resData => {
         if (!isMounted) return;
         setData(resData);
-        // Default to the first available year or 2026
         if (resData.years && resData.years.length > 0) {
           const currentYear = String(new Date().getFullYear());
           if (resData.years.includes(currentYear)) {
@@ -63,13 +65,11 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
     const contributionMap = new Map();
     yearContributions.forEach(c => contributionMap.set(c.date, c));
 
-    // Calculate dates for the entire year (Jan 1 to Dec 31)
     const yearNum = parseInt(selectedYear, 10) || new Date().getFullYear();
     const startDate = new Date(Date.UTC(yearNum, 0, 1));
     const endDate = new Date(Date.UTC(yearNum, 11, 31));
 
-    // Build day list starting from the Sunday on or before Jan 1
-    const startDayOfWeek = startDate.getUTCDay(); // 0 = Sun
+    const startDayOfWeek = startDate.getUTCDay();
     const firstSunday = new Date(startDate);
     firstSunday.setUTCDate(startDate.getUTCDate() - startDayOfWeek);
 
@@ -96,7 +96,6 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
           isCurrentYear
         });
 
-        // Track month transitions for labels (look at the first day of each month)
         if (isCurrentYear && currentDay.getUTCDate() <= 7 && currentDay.getUTCMonth() !== lastMonth) {
           weekHasTargetMonthChange = true;
           targetMonth = currentDay.getUTCMonth();
@@ -116,7 +115,6 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
       calculatedWeeks.push(week);
       weekIndex++;
 
-      // Safety bound to avoid infinite loop
       if (weekIndex > 54) break;
     }
 
@@ -131,7 +129,7 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
     };
   }, [data, selectedYear]);
 
-  // Square colors based on level (clean GitHub style in dark/light mode)
+  // Square colors based on level (matching site's pure dark and light backgrounds)
   const getCellFill = (level, isCurrentYear) => {
     if (!isCurrentYear) return 'transparent';
     switch (level) {
@@ -144,7 +142,7 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
       case 4:
         return 'var(--gh-level-4, #39d353)';
       default:
-        return 'var(--gh-level-0, rgba(255, 255, 255, 0.06))';
+        return 'var(--gh-level-0, rgba(255, 255, 255, 0.05))';
     }
   };
 
@@ -172,56 +170,41 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
 
   if (loading) {
     return (
-      <div className="w-full bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded-xl p-5 animate-pulse">
-        <div className="h-4 bg-[var(--border-subtle)] rounded w-1/4 mb-4"></div>
-        <div className="h-32 bg-[var(--border-subtle)]/40 rounded-lg w-full"></div>
+      <div className="w-full bg-transparent py-4 animate-pulse">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-4 bg-[var(--border-subtle)]/60 rounded w-1/3"></div>
+          <div className="h-4 bg-[var(--border-subtle)]/40 rounded w-24"></div>
+        </div>
+        <div className="h-28 bg-[var(--border-subtle)]/20 rounded-lg w-full"></div>
       </div>
     );
   }
 
   if (error) {
-    return (
-      <div className="w-full bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded-xl p-4 text-xs text-[var(--text-muted)] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 opacity-70" />
-          <span>GitHub activity temporarily unavailable.</span>
-        </div>
-        <a
-          href={`https://github.com/${username}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-[var(--text-primary)] transition-colors underline flex items-center gap-1"
-        >
-          View profile <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
-    );
+    return null; // Fail gracefully and silently in minimal view
   }
 
   const years = data?.years || ['2026', '2025', '2024'];
 
   return (
-    <div className={`w-full bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded-xl ${compact ? 'p-4' : 'p-5 sm:p-6'} transition-all relative font-sans text-xs`}>
-      {/* Header Row: Title & Year Tabs */}
+    <div className={`w-full bg-transparent transition-all relative font-sans text-xs ${minimal ? 'py-2' : 'py-4'}`}>
+      {/* Header Row: Minimal Count & Year Selector */}
       {showHeader && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div className="flex items-center gap-2.5">
-            <GitCommit className="w-4 h-4 text-[var(--text-muted)] opacity-80" />
-            <h3 className="font-serif text-base sm:text-lg font-normal text-[var(--text-primary)] tracking-tight">
-              {totalForYear.toLocaleString()} {totalForYear === 1 ? 'contribution' : 'contributions'} in {selectedYear}
-            </h3>
+        <div className="flex flex-row items-center justify-between gap-3 mb-4 select-none">
+          <div className="text-xs sm:text-sm font-sans text-[var(--text-secondary)] font-normal tracking-tight">
+            <span className="text-[var(--text-primary)] font-medium">{totalForYear.toLocaleString()}</span> contributions in {selectedYear}
           </div>
 
-          {/* Year selector pills */}
-          <div className="flex items-center gap-1.5 self-start sm:self-auto overflow-x-auto pb-1 sm:pb-0">
+          {/* Minimal Year Selector */}
+          <div className="flex items-center space-x-2 text-xs font-sans">
             {years.map(year => (
               <button
                 key={year}
                 onClick={() => setSelectedYear(year)}
-                className={`px-3 py-1 rounded-md text-xs font-sans transition-all cursor-pointer ${
+                className={`transition-colors cursor-pointer text-xs py-0.5 px-1.5 rounded ${
                   selectedYear === year
-                    ? 'bg-[#2f81f7] text-white font-medium shadow-sm'
-                    : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/40'
+                    ? 'text-[var(--text-primary)] font-medium underline underline-offset-4 decoration-[1px]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {year}
@@ -231,15 +214,15 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
         </div>
       )}
 
-      {/* Heatmap Grid Container (Horizontally Scrollable on Mobile) */}
+      {/* Heatmap Grid Container (Scrollable on Mobile, flush background) */}
       <div
         ref={scrollContainerRef}
-        className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-[var(--border-subtle)] scrollbar-track-transparent"
+        className="overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-[var(--border-subtle)] scrollbar-track-transparent"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div className="min-w-[700px] select-none py-1">
+        <div className="min-w-[700px] select-none py-0.5">
           <svg
-            viewBox="0 0 740 120"
+            viewBox="0 0 740 115"
             className="w-full h-auto block"
             style={{ shapeRendering: 'geometricPrecision' }}
           >
@@ -248,9 +231,9 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
               <text
                 key={`${m.label}-${m.weekIndex}`}
                 x={30 + m.weekIndex * 13}
-                y="12"
+                y="10"
                 fill="var(--text-muted)"
-                fontSize="10"
+                fontSize="9.5"
                 fontFamily="inherit"
               >
                 {m.label}
@@ -258,18 +241,18 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
             ))}
 
             {/* Weekday Labels (Mon, Wed, Fri) */}
-            <text x="5" y="42" fill="var(--text-muted)" fontSize="9" fontFamily="inherit">
+            <text x="6" y="39" fill="var(--text-muted)" fontSize="8.5" fontFamily="inherit">
               Mon
             </text>
-            <text x="5" y="68" fill="var(--text-muted)" fontSize="9" fontFamily="inherit">
+            <text x="6" y="65" fill="var(--text-muted)" fontSize="8.5" fontFamily="inherit">
               Wed
             </text>
-            <text x="5" y="94" fill="var(--text-muted)" fontSize="9" fontFamily="inherit">
+            <text x="6" y="91" fill="var(--text-muted)" fontSize="8.5" fontFamily="inherit">
               Fri
             </text>
 
             {/* 53 Weeks Grid */}
-            <g transform="translate(30, 22)">
+            <g transform="translate(30, 20)">
               {weeks.map((week, wIdx) => (
                 <g key={wIdx} transform={`translate(${wIdx * 13}, 0)`}>
                   {week.map((day, dIdx) => {
@@ -284,9 +267,9 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
                         rx="2"
                         ry="2"
                         fill={fill}
-                        stroke={day.isCurrentYear ? 'var(--border-subtle)' : 'transparent'}
-                        strokeWidth={day.isCurrentYear ? '0.5' : '0'}
-                        className={day.isCurrentYear ? 'cursor-pointer hover:stroke-[var(--text-primary)] transition-all' : ''}
+                        stroke={day.isCurrentYear ? (day.level === 0 ? 'var(--gh-border-0, rgba(255, 255, 255, 0.04))' : 'transparent') : 'transparent'}
+                        strokeWidth="0.5"
+                        className={day.isCurrentYear ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}
                         onMouseEnter={(e) => handleMouseEnter(day, e)}
                         onMouseLeave={handleMouseLeave}
                       />
@@ -299,40 +282,27 @@ export default function GitHubContributions({ username = 'q04ti', showHeader = t
         </div>
       </div>
 
-      {/* Footer / Legend */}
-      <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
-        <a
-          href={`https://github.com/${username}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1"
-        >
-          <span>github.com/{username}</span>
-          <ExternalLink className="w-3 h-3 opacity-70" />
-        </a>
-
-        {/* Less / More Legend */}
-        <div className="flex items-center gap-1.5">
-          <span>Less</span>
-          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-0, rgba(255, 255, 255, 0.06))', border: '0.5px solid var(--border-subtle)' }} />
-          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-1, #0e4429)' }} />
-          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-2, #006d32)' }} />
-          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-3, #26a641)' }} />
-          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-4, #39d353)' }} />
-          <span>More</span>
-        </div>
+      {/* Minimal Legend (Right-aligned, subtle) */}
+      <div className="mt-2.5 flex items-center justify-end gap-1.5 text-[10px] font-sans text-[var(--text-muted)] select-none">
+        <span>Less</span>
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-0, rgba(255, 255, 255, 0.05))', border: '0.5px solid var(--gh-border-0, rgba(255, 255, 255, 0.06))' }} />
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-1, #0e4429)' }} />
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-2, #006d32)' }} />
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-3, #26a641)' }} />
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: 'var(--gh-level-4, #39d353)' }} />
+        <span>More</span>
       </div>
 
       {/* Floating Hover Tooltip */}
       {tooltip && (
         <div
-          className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-md bg-[#161b22] text-[#f0f6fc] text-[11px] font-sans border border-[#30363d] shadow-xl whitespace-nowrap animate-content-fade"
+          className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-full px-2 py-1 rounded bg-[var(--bg-main)] text-[var(--text-primary)] text-[11px] font-sans border border-[var(--border-subtle)] shadow-xl whitespace-nowrap animate-content-fade"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <span className="font-medium text-white">
+          <span className="font-medium">
             {tooltip.count === 0 ? 'No contributions' : `${tooltip.count} contribution${tooltip.count === 1 ? '' : 's'}`}
           </span>{' '}
-          <span className="text-[#8b949e]">on {tooltip.date}</span>
+          <span className="text-[var(--text-muted)]">on {tooltip.date}</span>
         </div>
       )}
     </div>

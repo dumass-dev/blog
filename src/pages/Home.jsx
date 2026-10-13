@@ -210,20 +210,8 @@ export default function Home() {
 
       {/* GitHub Contributions Section at the bottom of Chrono Feed */}
       {!loading && (
-        <section className="mt-16 pt-8 border-t border-[var(--border-subtle)]" aria-label="GitHub Activity">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-wider uppercase">
-              Activity · GitHub
-            </span>
-            <Link
-              to="/activity"
-              className="text-xs font-sans text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1 lowercase"
-            >
-              <span>full view</span>
-              <span>→</span>
-            </Link>
-          </div>
-          <GitHubContributions username="q04ti" showHeader={true} compact={false} />
+        <section className="mt-14 pt-8 border-t border-[var(--border-subtle)]" aria-label="GitHub Activity">
+          <GitHubContributions username="q04ti" showHeader={true} minimal={true} />
         </section>
       )}
     </div>
