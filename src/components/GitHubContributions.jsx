@@ -48,6 +48,16 @@ export default function GitHubContributions({
     };
   }, [username]);
 
+  // Guaranteed list of years (2026, 2025, 2024, plus any extra from backend)
+  const years = useMemo(() => {
+    const defaultYears = ['2026', '2025', '2024'];
+    const set = new Set(defaultYears);
+    if (data?.years && Array.isArray(data.years)) {
+      data.years.forEach(y => set.add(String(y)));
+    }
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [data]);
+
   // Scroll to the end (most recent dates) on mount or year change
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -57,11 +67,7 @@ export default function GitHubContributions({
 
   // Filter contributions for the selected year and organize into a 53-week grid
   const { weeks, monthLabels, totalForYear } = useMemo(() => {
-    if (!data || !data.contributions || data.contributions.length === 0) {
-      return { weeks: [], monthLabels: [], totalForYear: 0 };
-    }
-
-    const yearContributions = data.contributions.filter(c => c.date.startsWith(selectedYear));
+    const yearContributions = (data?.contributions || []).filter(c => c.date && c.date.startsWith(selectedYear));
     const contributionMap = new Map();
     yearContributions.forEach(c => contributionMap.set(c.date, c));
 
@@ -118,7 +124,7 @@ export default function GitHubContributions({
       if (weekIndex > 54) break;
     }
 
-    const totalCount = data.total && typeof data.total[selectedYear] === 'number'
+    const totalCount = data?.total && typeof data.total[selectedYear] === 'number'
       ? data.total[selectedYear]
       : yearContributions.reduce((sum, c) => sum + (c.count || 0), 0);
 
@@ -159,8 +165,8 @@ export default function GitHubContributions({
     setTooltip({
       count: day.count,
       date: formattedDate,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 8
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top - 8)
     });
   };
 
@@ -181,10 +187,8 @@ export default function GitHubContributions({
   }
 
   if (error) {
-    return null; // Fail gracefully and silently in minimal view
+    return null;
   }
-
-  const years = data?.years || ['2026', '2025', '2024'];
 
   return (
     <div className={`w-full bg-transparent transition-all relative font-sans text-xs ${minimal ? 'py-2' : 'py-4'}`}>
@@ -293,16 +297,24 @@ export default function GitHubContributions({
         <span>More</span>
       </div>
 
-      {/* Floating Hover Tooltip */}
+      {/* Floating Hover Tooltip (Centered horizontally above hovered cell, guaranteed nowrap) */}
       {tooltip && (
         <div
-          className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-full px-2 py-1 rounded bg-[var(--bg-main)] text-[var(--text-primary)] text-[11px] font-sans border border-[var(--border-subtle)] shadow-xl whitespace-nowrap animate-content-fade"
-          style={{ left: tooltip.x, top: tooltip.y }}
+          className="gh-tooltip"
+          style={{
+            position: 'fixed',
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 10000,
+            whiteSpace: 'nowrap'
+          }}
         >
           <span className="font-medium">
             {tooltip.count === 0 ? 'No contributions' : `${tooltip.count} contribution${tooltip.count === 1 ? '' : 's'}`}
           </span>{' '}
-          <span className="text-[var(--text-muted)]">on {tooltip.date}</span>
+          <span style={{ opacity: 0.75 }}>on {tooltip.date}</span>
         </div>
       )}
     </div>

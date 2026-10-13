@@ -578,20 +578,51 @@ app.get('/api/github-contributions', async (req, res) => {
     // 2. Fallback to public contributions scraper
     if (!data) {
       try {
-        const publicUrl = `https://github-contributions-api.jogruber.de/v4/${username}?y=${requestedYear || 'all'}`;
-        const pubRes = await fetch(publicUrl);
-        if (pubRes.ok) {
-          const pubJson = await pubRes.json();
-          const years = Object.keys(pubJson.total || {})
-            .filter(y => y !== 'lastYear')
-            .sort((a, b) => Number(b) - Number(a));
+        const targetYears = ['2026', '2025', '2024'];
+        if (requestedYear && requestedYear !== 'all') {
+          const publicUrl = `https://github-contributions-api.jogruber.de/v4/${username}?y=${requestedYear}`;
+          const pubRes = await fetch(publicUrl);
+          if (pubRes.ok) {
+            const pubJson = await pubRes.json();
+            data = {
+              source: 'public',
+              username,
+              total: pubJson.total || { [requestedYear]: 0 },
+              years: targetYears,
+              contributions: pubJson.contributions || []
+            };
+          }
+        } else {
+          // Fetch 2026, 2025, 2024 in parallel and combine
+          const yearResponses = await Promise.all(
+            targetYears.map(y =>
+              fetch(`https://github-contributions-api.jogruber.de/v4/${username}?y=${y}`)
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+            )
+          );
+
+          const combinedTotal = { '2026': 0, '2025': 0, '2024': 0 };
+          const combinedContributions = [];
+
+          yearResponses.forEach((res, idx) => {
+            const y = targetYears[idx];
+            if (res) {
+              if (res.total && typeof res.total[y] === 'number') {
+                combinedTotal[y] = res.total[y];
+              }
+              if (Array.isArray(res.contributions)) {
+                combinedContributions.push(...res.contributions);
+              }
+            }
+          });
 
           data = {
             source: 'public',
             username,
-            total: pubJson.total || {},
-            years: years.length > 0 ? years : [String(new Date().getFullYear())],
-            contributions: pubJson.contributions || []
+            total: combinedTotal,
+            years: targetYears,
+            contributions: combinedContributions
           };
         }
       } catch (_pubErr) {}
