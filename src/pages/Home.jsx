@@ -223,7 +223,7 @@ export default function Home() {
               <span>→</span>
             </Link>
           </div>
-          <GitHubContributions username="shuaib-mk" showHeader={true} compact={false} />
+          <GitHubContributions username="q04ti" showHeader={true} compact={false} />
         </section>
       )}
     </div>

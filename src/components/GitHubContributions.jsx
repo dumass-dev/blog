@@ -3,7 +3,7 @@ import { ExternalLink, Calendar, GitCommit } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export default function GitHubContributions({ username = 'shuaib-mk', showHeader = true, compact = false }) {
+export default function GitHubContributions({ username = 'q04ti', showHeader = true, compact = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

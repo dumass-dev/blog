@@ -1084,11 +1084,11 @@ const defaultAboutData = {
     {
       title: 'Digital Diary & Journal',
       description: 'Minimalist personal digital diary, journal, blog, life archive and private admin space.',
-      link: 'https://github.com/shuaib-mk/blog'
+      link: 'https://github.com/q04ti/blog'
     }
   ],
   links: [
-    { label: 'GitHub', url: 'https://github.com/shuaib-mk' }
+    { label: 'GitHub', url: 'https://github.com/q04ti' }
   ]
 };
 
@@ -1138,8 +1138,8 @@ app.get('/api/github-contributions', async (req, res) => {
       return res.json(global.__mockGithubContributions);
     }
 
-    const rawUsername = (req.query.username || process.env.GITHUB_USERNAME || 'shuaib-mk').trim();
-    const username = /^[a-zA-Z0-9-]{1,39}$/.test(rawUsername) ? rawUsername : 'shuaib-mk';
+    const rawUsername = (req.query.username || process.env.GITHUB_USERNAME || 'q04ti').trim();
+    const username = /^[a-zA-Z0-9-]{1,39}$/.test(rawUsername) ? rawUsername : 'q04ti';
     const requestedYear = req.query.year ? String(req.query.year).trim() : null;
 
     const cacheKey = `${username}_${requestedYear || 'all'}`;

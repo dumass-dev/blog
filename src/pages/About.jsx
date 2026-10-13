@@ -12,11 +12,11 @@ const defaultAbout = {
     {
       title: 'Digital Diary & Journal',
       description: 'Minimalist personal digital diary, journal, blog, and life archive.',
-      link: 'https://github.com/shuaib-mk/blog'
+      link: 'https://github.com/q04ti/blog'
     }
   ],
   links: [
-    { label: 'GitHub', url: 'https://github.com/shuaib-mk' }
+    { label: 'GitHub', url: 'https://github.com/q04ti' }
   ]
 };
 

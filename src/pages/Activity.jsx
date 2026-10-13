@@ -26,7 +26,7 @@ export default function Activity() {
 
       {/* GitHub Contributions Component */}
       <section className="mb-10" aria-label="GitHub Contribution Heatmap">
-        <GitHubContributions username="shuaib-mk" showHeader={true} compact={false} />
+        <GitHubContributions username="q04ti" showHeader={true} compact={false} />
       </section>
 
       {/* Info Card / External Link */}
@@ -38,7 +38,7 @@ export default function Activity() {
           </span>
         </div>
         <a
-          href="https://github.com/shuaib-mk"
+          href="https://github.com/q04ti"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-[var(--text-primary)] hover:text-[var(--text-primary)] transition-all font-medium self-start sm:self-auto"

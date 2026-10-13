@@ -24,7 +24,7 @@ describe('GitHub Contributions API Route Tests (/api/github-contributions)', () 
     const options = {
       hostname: '127.0.0.1',
       port: PORT,
-      path: '/api/github-contributions?username=shuaib-mk',
+      path: '/api/github-contributions?username=q04ti',
       method: 'GET'
     };
 
