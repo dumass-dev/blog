@@ -88,6 +88,7 @@ export default function Header() {
     { label: 'journal', path: '/journal' },
     { label: 'photos', path: '/photos' },
     { label: 'updates', path: '/updates' },
+    { label: 'activity', path: '/activity' },
     { label: 'archive', path: '/archive' },
     { label: 'about', path: '/about' }
   ];

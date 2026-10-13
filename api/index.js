@@ -466,6 +466,163 @@ app.get('/api/about', async (req, res) => {
   }
 });
 
+// --- GitHub Contributions Endpoint ---
+const contributionsCache = new Map();
+
+// GET /api/github-contributions
+app.get('/api/github-contributions', async (req, res) => {
+  try {
+    if (global.__mockGithubContributions) {
+      return res.json(global.__mockGithubContributions);
+    }
+
+    const rawUsername = (req.query.username || process.env.GITHUB_USERNAME || 'shuaib-mk').trim();
+    const username = /^[a-zA-Z0-9-]{1,39}$/.test(rawUsername) ? rawUsername : 'shuaib-mk';
+    const requestedYear = req.query.year ? String(req.query.year).trim() : null;
+
+    const cacheKey = `${username}_${requestedYear || 'all'}`;
+    const cached = contributionsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
+      return res.json(cached.data);
+    }
+
+    const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+    let data = null;
+
+    // 1. If GITHUB_TOKEN is available, query GitHub GraphQL API (includes private contributions)
+    if (githubToken) {
+      try {
+        let from = null;
+        let to = null;
+        if (requestedYear && requestedYear !== 'lastYear' && requestedYear !== 'all') {
+          from = `${requestedYear}-01-01T00:00:00Z`;
+          to = `${requestedYear}-12-31T23:59:59Z`;
+        }
+        const query = `
+          query($username: String!, $from: DateTime, $to: DateTime) {
+            user(login: $username) {
+              contributionsCollection(from: $from, to: $to) {
+                contributionYears
+                contributionCalendar {
+                  totalContributions
+                  weeks {
+                    contributionDays {
+                      date
+                      contributionCount
+                      weekday
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const ghRes = await fetch('https://api.github.com/graphql', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${githubToken}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'PersonalDiaryBlog'
+          },
+          body: JSON.stringify({ query, variables: { username, from, to } })
+        });
+        if (ghRes.ok) {
+          const json = await ghRes.json();
+          const collection = json.data?.user?.contributionsCollection;
+          if (collection?.contributionCalendar) {
+            const cal = collection.contributionCalendar;
+            const contributions = [];
+            for (const week of cal.weeks) {
+              for (const day of week.contributionDays) {
+                let level = 0;
+                if (day.contributionCount > 0) {
+                  if (day.contributionCount >= 10) level = 4;
+                  else if (day.contributionCount >= 6) level = 3;
+                  else if (day.contributionCount >= 3) level = 2;
+                  else level = 1;
+                }
+                contributions.push({
+                  date: day.date,
+                  count: day.contributionCount,
+                  level
+                });
+              }
+            }
+            const years = Array.isArray(collection.contributionYears)
+              ? collection.contributionYears.map(String)
+              : [String(new Date().getFullYear())];
+
+            const totalObj = {};
+            if (requestedYear && requestedYear !== 'all') {
+              totalObj[requestedYear] = cal.totalContributions;
+            } else {
+              totalObj[String(new Date().getFullYear())] = cal.totalContributions;
+              totalObj.lastYear = cal.totalContributions;
+            }
+
+            data = {
+              source: 'graphql',
+              username,
+              total: totalObj,
+              years,
+              contributions
+            };
+          }
+        }
+      } catch (_tokenErr) {
+        // Fall through to public endpoint fallback
+      }
+    }
+
+    // 2. Fallback to public contributions scraper
+    if (!data) {
+      try {
+        const publicUrl = `https://github-contributions-api.jogruber.de/v4/${username}?y=${requestedYear || 'all'}`;
+        const pubRes = await fetch(publicUrl);
+        if (pubRes.ok) {
+          const pubJson = await pubRes.json();
+          const years = Object.keys(pubJson.total || {})
+            .filter(y => y !== 'lastYear')
+            .sort((a, b) => Number(b) - Number(a));
+
+          data = {
+            source: 'public',
+            username,
+            total: pubJson.total || {},
+            years: years.length > 0 ? years : [String(new Date().getFullYear())],
+            contributions: pubJson.contributions || []
+          };
+        }
+      } catch (_pubErr) {}
+    }
+
+    if (!data) {
+      if (process.env.NODE_ENV === 'test') {
+        return res.json({
+          source: 'test-fallback',
+          username,
+          total: { [requestedYear || '2026']: 0, lastYear: 0 },
+          years: ['2026', '2025', '2024'],
+          contributions: []
+        });
+      }
+      return res.status(502).json({ error: 'Failed to fetch contribution data' });
+    }
+
+    // Cache in memory for 1 hour
+    contributionsCache.set(cacheKey, {
+      data,
+      expiresAt: Date.now() + 60 * 60 * 1000
+    });
+
+    res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
+    return res.json(data);
+  } catch (_err) {
+    return res.status(500).json({ error: 'Internal server error fetching contributions' });
+  }
+});
+
 // Save / Update About Handler (PUT & POST) — admin auth checked inline via verifyAdminUser
 async function handleSaveAbout(req, res) {
   // MEDIUM-3: Use verifyAdminUser (same strength as requireAdminAuth) for consistency

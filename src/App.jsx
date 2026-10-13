@@ -13,6 +13,7 @@ import Photos from './pages/Photos';
 import EntryDetail from './pages/EntryDetail';
 import Archive from './pages/Archive';
 import About from './pages/About';
+import Activity from './pages/Activity';
 import NotFound from './pages/NotFound';
 
 // Admin pages (lazy loaded for zero initial bundle bloat)
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="/updates" element={<Updates />} />
               <Route path="/entry/:slug" element={<EntryDetail />} />
               <Route path="/archive" element={<Archive />} />
+              <Route path="/activity" element={<Activity />} />
               <Route path="/about" element={<About />} />
 
               {/* Admin Authentication & Protected Workspace */}

@@ -14,6 +14,11 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --z-modal: 1000;
   --header-h: 84px;
+  --gh-level-0: #ebedf0;
+  --gh-level-1: #9be9a8;
+  --gh-level-2: #40c463;
+  --gh-level-3: #30a14e;
+  --gh-level-4: #216e39;
 }
 
 @media (max-width: 767px) {
@@ -32,6 +37,11 @@
   --accent-warm: #EBE8E3;
   --code-bg: #141413;
   --card-bg: #0C0C0C;
+  --gh-level-0: #161b22;
+  --gh-level-1: #0e4429;
+  --gh-level-2: #006d32;
+  --gh-level-3: #26a641;
+  --gh-level-4: #39d353;
 }
 
 img {
