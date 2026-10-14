@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../supabase';
 
 const ThemeContext = createContext({
   theme: 'dark',
@@ -10,12 +11,19 @@ const ThemeContext = createContext({
 });
 
 export function ThemeProvider({ children }) {
+  // Only true if the visitor intentionally clicked the theme button on the website
   const [hasUserOverride, setHasUserOverride] = useState(() => {
     try {
-      return typeof window !== 'undefined' && window.localStorage && localStorage.getItem('theme_user_override') === 'true';
-    } catch {
-      return false;
-    }
+      if (typeof window !== 'undefined' && window.localStorage) {
+        // Clean legacy override poison
+        if (localStorage.getItem('theme_user_override')) {
+          localStorage.removeItem('theme_user_override');
+        }
+        const manual = localStorage.getItem('user_manual_theme');
+        return manual === 'light' || manual === 'dark';
+      }
+    } catch {}
+    return false;
   });
 
   const [siteDefaultTheme, setSiteDefaultTheme] = useState(() => {
@@ -31,10 +39,9 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const userOverride = localStorage.getItem('theme_user_override') === 'true';
-        const saved = localStorage.getItem('diary-theme') || localStorage.getItem('theme');
-        if (userOverride && (saved === 'light' || saved === 'dark')) {
-          return saved;
+        const manual = localStorage.getItem('user_manual_theme');
+        if (manual === 'light' || manual === 'dark') {
+          return manual;
         }
         const cachedDefault = localStorage.getItem('site_default_theme');
         if (cachedDefault === 'light' || cachedDefault === 'dark') {
@@ -45,71 +52,110 @@ export function ThemeProvider({ children }) {
     return 'dark';
   });
 
-  // Fetch initial site default preference from /api/about
+  // Apply default theme to the document and state
+  const applySiteDefault = (newDefault) => {
+    if (newDefault !== 'light' && newDefault !== 'dark') return;
+    setSiteDefaultTheme(newDefault);
+    try {
+      localStorage.setItem('site_default_theme', newDefault);
+    } catch {}
+
+    // Only change active theme if visitor hasn't chosen a personal manual theme on the public site
+    const manual = typeof window !== 'undefined' && localStorage.getItem('user_manual_theme');
+    if (!manual) {
+      setTheme(newDefault);
+      const root = document.documentElement;
+      if (newDefault === 'dark') {
+        root.classList.add('dark');
+        if (document.body) document.body.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+        if (document.body) document.body.classList.remove('dark');
+      }
+    }
+  };
+
+  // 1. Initial load from API & direct Supabase
   useEffect(() => {
     fetch('/api/about')
       .then(res => res.json())
       .then(data => {
         if (data && (data.default_theme === 'light' || data.default_theme === 'dark')) {
-          const newDefault = data.default_theme;
-          setSiteDefaultTheme(newDefault);
-          try {
-            localStorage.setItem('site_default_theme', newDefault);
-          } catch {}
-          // If visitor has NOT set a manual preference, follow the site default
-          const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
-          if (!userOverride) {
-            setTheme(newDefault);
-          }
+          applySiteDefault(data.default_theme);
         }
       })
       .catch(() => {});
-  }, [hasUserOverride]);
 
-  // Listen for realtime updates from Supabase and broadcast channels
+    // Direct Supabase query for instant zero-latency default theme retrieval
+    if (supabase && typeof supabase.from === 'function') {
+      supabase
+        .from('realtime_sync')
+        .select('payload')
+        .eq('id', 'site_settings')
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.payload?.default_theme === 'light' || data?.payload?.default_theme === 'dark') {
+            applySiteDefault(data.payload.default_theme);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  // 2. Realtime listener across tabs, devices, and Supabase CDC
   useEffect(() => {
     const handleAboutUpdate = (e) => {
       const data = e.detail?.data || e.detail?.payload || e.detail;
       const newDefault = data?.default_theme;
       if (newDefault === 'light' || newDefault === 'dark') {
-        setSiteDefaultTheme(newDefault);
-        try {
-          localStorage.setItem('site_default_theme', newDefault);
-        } catch {}
-        // If visitor has NOT set a manual preference, switch them in realtime!
-        const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
-        if (!userOverride) {
-          setTheme(newDefault);
-        }
+        applySiteDefault(newDefault);
       }
     };
 
     window.addEventListener('about-data-updated', handleAboutUpdate);
-    return () => window.removeEventListener('about-data-updated', handleAboutUpdate);
-  }, []);
 
-  // Sync state across browser tabs
-  useEffect(() => {
+    // Direct Supabase Realtime channel subscription
+    let channel;
+    if (supabase && typeof supabase.channel === 'function') {
+      try {
+        channel = supabase
+          .channel('theme-sync-channel')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'realtime_sync', filter: 'id=eq.site_settings' }, (payload) => {
+            const newDefault = payload?.new?.payload?.default_theme;
+            if (newDefault === 'light' || newDefault === 'dark') {
+              applySiteDefault(newDefault);
+            }
+          })
+          .subscribe();
+      } catch {}
+    }
+
     const handleStorage = (e) => {
-      if (e.key === 'diary-theme' || e.key === 'theme') {
+      if (e.key === 'site_default_theme') {
+        if (e.newValue === 'light' || e.newValue === 'dark') {
+          applySiteDefault(e.newValue);
+        }
+      } else if (e.key === 'user_manual_theme') {
         if (e.newValue === 'light' || e.newValue === 'dark') {
           setHasUserOverride(true);
           setTheme(e.newValue);
-        }
-      } else if (e.key === 'site_default_theme') {
-        if (e.newValue === 'light' || e.newValue === 'dark') {
-          setSiteDefaultTheme(e.newValue);
-          const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
-          if (!userOverride) {
-            setTheme(e.newValue);
-          }
+        } else if (e.newValue === null) {
+          setHasUserOverride(false);
+          setTheme(siteDefaultTheme);
         }
       }
     };
 
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [hasUserOverride]);
+
+    return () => {
+      window.removeEventListener('about-data-updated', handleAboutUpdate);
+      window.removeEventListener('storage', handleStorage);
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
+    };
+  }, [siteDefaultTheme]);
 
   // Apply dark class to document root
   useEffect(() => {
@@ -129,7 +175,7 @@ export function ThemeProvider({ children }) {
     setTheme(prev => {
       const next = prev === 'light' ? 'dark' : 'light';
       try {
-        localStorage.setItem('theme_user_override', 'true');
+        localStorage.setItem('user_manual_theme', next);
         localStorage.setItem('diary-theme', next);
         localStorage.setItem('theme', next);
       } catch {}
@@ -145,10 +191,20 @@ export function ThemeProvider({ children }) {
     setHasUserOverride(false);
     try {
       localStorage.setItem('site_default_theme', newDefault);
+      localStorage.removeItem('user_manual_theme');
       localStorage.removeItem('theme_user_override');
       localStorage.setItem('diary-theme', newDefault);
       localStorage.setItem('theme', newDefault);
     } catch {}
+
+    const root = document.documentElement;
+    if (newDefault === 'dark') {
+      root.classList.add('dark');
+      if (document.body) document.body.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+      if (document.body) document.body.classList.remove('dark');
+    }
   };
 
   return (

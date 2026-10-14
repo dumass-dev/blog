@@ -7,12 +7,17 @@
     <script>
       (function() {
         try {
-          var userOverride = localStorage.getItem('theme_user_override') === 'true';
-          var saved = localStorage.getItem('diary-theme') || localStorage.getItem('theme');
+          if (localStorage.getItem('theme_user_override')) {
+            localStorage.removeItem('theme_user_override');
+          }
+          var manual = localStorage.getItem('user_manual_theme');
           var siteDefault = localStorage.getItem('site_default_theme') || 'dark';
-          var isDark = userOverride && saved ? (saved === 'dark') : (siteDefault === 'dark');
-          if (isDark) document.documentElement.classList.add('dark');
-          else document.documentElement.classList.remove('dark');
+          var active = (manual === 'light' || manual === 'dark') ? manual : siteDefault;
+          if (active === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
         } catch(e) {}
       })();
     </script>

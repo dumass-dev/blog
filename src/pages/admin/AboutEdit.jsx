@@ -5,6 +5,7 @@ import { useTypewriter } from '../../context/TypewriterContext';
 import { useTheme } from '../../context/ThemeContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { publishRealtimeUpdate } from '../../utils/realtime';
+import { supabase } from '../../supabase';
 import { Save, ArrowLeft, Plus, Trash2, Moon, Sun } from 'lucide-react';
 
 export default function AboutEdit() {
@@ -126,6 +127,7 @@ export default function AboutEdit() {
 
     try {
       localStorage.setItem('site_default_theme', nextTheme);
+      localStorage.removeItem('user_manual_theme');
       localStorage.removeItem('theme_user_override');
       publishRealtimeUpdate({
         type: 'about',
@@ -133,6 +135,21 @@ export default function AboutEdit() {
         data: updated
       });
 
+      // 1. Direct write to Supabase for instant persistence
+      if (supabase && typeof supabase.from === 'function') {
+        supabase.from('realtime_sync').upsert({
+          id: 'site_settings',
+          version: Date.now(),
+          event: 'site_settings_updated',
+          payload: {
+            default_theme: nextTheme,
+            default_typewriter_enabled: formData.default_typewriter_enabled
+          },
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(() => {});
+      }
+
+      // 2. Also persist via API endpoint
       await fetch('/api/about', {
         method: 'PUT',
         headers: {
@@ -153,6 +170,20 @@ export default function AboutEdit() {
     setMessage(null);
 
     try {
+      // Direct Supabase upsert for instant persistence
+      if (supabase && typeof supabase.from === 'function') {
+        supabase.from('realtime_sync').upsert({
+          id: 'site_settings',
+          version: Date.now(),
+          event: 'site_settings_updated',
+          payload: {
+            default_theme: formData.default_theme,
+            default_typewriter_enabled: formData.default_typewriter_enabled
+          },
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(() => {});
+      }
+
       const res = await fetch('/api/about', {
         method: 'PUT',
         headers: {
@@ -175,6 +206,7 @@ export default function AboutEdit() {
       try {
         localStorage.removeItem('cached_about_data');
         localStorage.setItem('site_default_theme', formData.default_theme);
+        localStorage.removeItem('user_manual_theme');
         localStorage.removeItem('theme_user_override');
         publishRealtimeUpdate({
           type: 'about',
