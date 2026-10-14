@@ -11,16 +11,29 @@
             localStorage.removeItem('theme_user_override');
           }
           var manual = localStorage.getItem('user_manual_theme');
-          var siteDefault = localStorage.getItem('site_default_theme');
-          // For visitors without manual preference, use the site default (cached from admin).
-          // For first-time visitors, fallback is 'light' (matching CSS :root default) to prevent dark theme flash.
-          var active = (manual === 'light' || manual === 'dark')
-            ? manual
-            : ((siteDefault === 'dark' || siteDefault === 'light') ? siteDefault : 'light');
-          if (active === 'dark') {
+          // Manual user toggle on public site always has highest priority
+          if (manual === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else if (manual === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
-            document.documentElement.classList.remove('dark');
+            // Live server-injected state from admin settings (guarantees zero flash)
+            var serverRendered = document.documentElement.getAttribute('data-theme-injected');
+            if (serverRendered === 'dark') {
+              document.documentElement.classList.add('dark');
+              try { localStorage.setItem('site_default_theme', 'dark'); } catch(e) {}
+            } else if (serverRendered === 'light') {
+              document.documentElement.classList.remove('dark');
+              try { localStorage.setItem('site_default_theme', 'light'); } catch(e) {}
+            } else {
+              // Client fallback if rendered statically without injection
+              var siteDefault = localStorage.getItem('site_default_theme');
+              if (siteDefault === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else if (siteDefault === 'light') {
+                document.documentElement.classList.remove('dark');
+              }
+            }
           }
         } catch(e) {}
       })();

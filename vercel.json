@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "dist/**"
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
@@ -56,8 +61,12 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!api/|uploads/|assets/|favicon.ico|sitemap\\.xml|robots\\.txt).*)",
+      "source": "/_static_shell",
       "destination": "/index.html"
+    },
+    {
+      "source": "/((?!api/|uploads/|assets/|favicon.ico|sitemap\\.xml|robots\\.txt|_static_shell).*)",
+      "destination": "/api/index.js"
     }
   ]
 

@@ -751,6 +751,10 @@ async function handleSaveAbout(req, res) {
       });
     } catch (_syncErr) {}
 
+    if (saveData.default_theme === 'light' || saveData.default_theme === 'dark') {
+      setCachedDefaultTheme(saveData.default_theme);
+    }
+
     const broadcastPayload = {
       ...(result || saveData),
       default_theme: saveData.default_theme,
@@ -1836,6 +1840,16 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
   }
 });
 
+let cachedDefaultTheme = null;
+let lastThemeFetch = 0;
+
+export function setCachedDefaultTheme(theme) {
+  if (theme === 'light' || theme === 'dark') {
+    cachedDefaultTheme = theme;
+    lastThemeFetch = Date.now();
+  }
+}
+
 // Serve application HTML with injected site default theme to guarantee zero theme flash
 async function serveInjectedHtml(req, res, extraHead = '') {
   let html = '';
@@ -1845,64 +1859,73 @@ async function serveInjectedHtml(req, res, extraHead = '') {
     try {
       html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
     } catch (_e2) {
-      const protocol = req.headers['x-forwarded-proto'] || 'http';
-      const host = req.headers.host;
-      const htmlRes = await fetch(`${protocol}://${host}/?_static=1`);
-      if (htmlRes.ok) html = await htmlRes.text();
+      try {
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers.host;
+        const htmlRes = await fetch(`${protocol}://${host}/_static_shell`);
+        if (htmlRes.ok) html = await htmlRes.text();
+      } catch (_e3) {}
     }
   }
 
   if (!html) return res.status(500).send('Unable to load application shell.');
 
-  let defaultTheme = 'light';
-  try {
-    const supabase = getSupabaseClient(req);
-    const { data: syncRow } = await supabase
-      .from('realtime_sync')
-      .select('payload')
-      .eq('id', 'site_settings')
-      .maybeSingle();
-    if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
-      defaultTheme = syncRow.payload.default_theme;
-    } else {
-      const { data: aboutRow } = await supabase
-        .from('about')
-        .select('default_theme')
-        .limit(1);
-      if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
-        defaultTheme = aboutRow[0].default_theme;
-      }
-    }
-  } catch {}
+  let defaultTheme = cachedDefaultTheme;
+  const now = Date.now();
+  if (!defaultTheme || (now - lastThemeFetch > 3000)) {
+    try {
+      const supabase = getSupabaseClient(req);
+      const queryPromise = (async () => {
+        const { data: syncRow } = await supabase
+          .from('realtime_sync')
+          .select('payload')
+          .eq('id', 'site_settings')
+          .maybeSingle();
+        if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
+          return syncRow.payload.default_theme;
+        }
+        const { data: aboutRow } = await supabase
+          .from('about')
+          .select('default_theme')
+          .limit(1);
+        if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
+          return aboutRow[0].default_theme;
+        }
+        return null;
+      })();
 
-  // Inject theme into server token and html tag
-  html = html.replace(/\/\*SERVER_DEFAULT_THEME\*\/.*?\/\*END\*\//g, defaultTheme);
-  if (defaultTheme === 'dark') {
-    html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
-      if (attrs.includes('class=')) {
-        return attrs.includes('dark') ? m : `<html${attrs.replace(/class=["'](.*?)["']/, 'class="$1 dark"')}>`;
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
+      const resolved = await Promise.race([queryPromise, timeoutPromise]);
+      if (resolved === 'light' || resolved === 'dark') {
+        defaultTheme = resolved;
+        cachedDefaultTheme = defaultTheme;
+        lastThemeFetch = now;
       }
-      return `<html${attrs} class="dark">`;
-    });
-  } else {
-    html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
-      return `<html${attrs.replace(/\s*class=["'][^"']*dark[^"']*["']/i, '')}>`;
-    });
+    } catch {}
   }
+
+  if (!defaultTheme) defaultTheme = 'light';
+
+  // Inject theme and data-theme-injected attribute directly into <html>
+  html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
+    const clean = attrs
+      .replace(/\s*data-theme-injected=["'][^"']*["']/gi, '')
+      .replace(/\s*class=["'][^"']*["']/gi, '');
+    if (defaultTheme === 'dark') {
+      return `<html${clean} class="dark" data-theme-injected="dark">`;
+    } else {
+      return `<html${clean} class="" data-theme-injected="light">`;
+    }
+  });
 
   if (extraHead) {
     html = html.replace('</head>', `${extraHead}</head>`);
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   return res.send(html);
 }
-
-// Root and SPA HTML Shell with zero theme flash
-app.get(['/', '/index.html'], async (req, res) => {
-  return serveInjectedHtml(req, res);
-});
 
 // SSR for Open Graph (OG) tags on /entry/:slug (Link Previews for WhatsApp, Twitter, etc.)
 app.get('/entry/:slug', async (req, res) => {
@@ -1968,6 +1991,11 @@ app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
 app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.send(getRobotsTxt());
+});
+
+// Catch-all SPA route handler for all non-API HTML routes with zero theme flash
+app.get(/^(?!\/api).*/, async (req, res) => {
+  return serveInjectedHtml(req, res);
 });
 
 export default app;

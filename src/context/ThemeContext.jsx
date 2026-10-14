@@ -28,6 +28,11 @@ export function ThemeProvider({ children }) {
 
   const [siteDefaultTheme, setSiteDefaultTheme] = useState(() => {
     try {
+      if (typeof document !== 'undefined') {
+        const injected = document.documentElement.getAttribute('data-theme-injected');
+        if (injected === 'light' || injected === 'dark') return injected;
+        if (document.documentElement.classList.contains('dark')) return 'dark';
+      }
       if (typeof window !== 'undefined' && window.localStorage) {
         const cached = localStorage.getItem('site_default_theme');
         if (cached === 'light' || cached === 'dark') return cached;
@@ -43,13 +48,17 @@ export function ThemeProvider({ children }) {
         if (manual === 'light' || manual === 'dark') {
           return manual;
         }
+      }
+      if (typeof document !== 'undefined') {
+        const injected = document.documentElement.getAttribute('data-theme-injected');
+        if (injected === 'light' || injected === 'dark') return injected;
+        if (document.documentElement.classList.contains('dark')) return 'dark';
+      }
+      if (typeof window !== 'undefined' && window.localStorage) {
         const cachedDefault = localStorage.getItem('site_default_theme');
         if (cachedDefault === 'light' || cachedDefault === 'dark') {
           return cachedDefault;
         }
-      }
-      if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
-        return 'dark';
       }
     } catch {}
     return 'light';
