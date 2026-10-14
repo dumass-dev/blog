@@ -436,10 +436,24 @@ const defaultAboutData = {
 app.get('/api/about', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    const { data, error } = await getSupabaseClient(req)
+    const supabase = getSupabaseClient(req);
+    const { data, error } = await supabase
       .from('about')
       .select('*')
       .limit(1);
+
+    // Check realtime_sync for persisted site_settings fallback
+    let syncSettings = null;
+    try {
+      const { data: syncRow } = await supabase
+        .from('realtime_sync')
+        .select('payload')
+        .eq('id', 'site_settings')
+        .maybeSingle();
+      if (syncRow && syncRow.payload) {
+        syncSettings = syncRow.payload;
+      }
+    } catch {}
 
     if (!error && data && data.length > 0 && data[0]) {
       const row = data[0];
@@ -452,14 +466,34 @@ app.get('/api/about', async (req, res) => {
         links = Array.isArray(row.links) ? row.links : (typeof row.links === 'string' ? JSON.parse(row.links || '[]') : []);
       } catch {}
 
+      const effectiveTheme = (row.default_theme === 'light' || row.default_theme === 'dark')
+        ? row.default_theme
+        : (syncSettings?.default_theme === 'light' || syncSettings?.default_theme === 'dark'
+            ? syncSettings.default_theme
+            : defaultAboutData.default_theme);
+
+      const effectiveTypewriter = row.default_typewriter_enabled !== undefined
+        ? Boolean(row.default_typewriter_enabled)
+        : (syncSettings?.default_typewriter_enabled !== undefined
+            ? Boolean(syncSettings.default_typewriter_enabled)
+            : false);
+
       return res.json({
         author_name: row.author_name !== undefined ? row.author_name : defaultAboutData.author_name,
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
-        default_typewriter_enabled: row.default_typewriter_enabled !== undefined ? Boolean(row.default_typewriter_enabled) : false,
-        default_theme: (row.default_theme === 'light' || row.default_theme === 'dark') ? row.default_theme : defaultAboutData.default_theme,
+        default_typewriter_enabled: effectiveTypewriter,
+        default_theme: effectiveTheme,
         projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
         links: Array.isArray(links) ? links : defaultAboutData.links
+      });
+    }
+
+    if (syncSettings) {
+      return res.json({
+        ...defaultAboutData,
+        default_theme: syncSettings.default_theme || defaultAboutData.default_theme,
+        default_typewriter_enabled: syncSettings.default_typewriter_enabled !== undefined ? Boolean(syncSettings.default_typewriter_enabled) : defaultAboutData.default_typewriter_enabled
       });
     }
 
@@ -703,16 +737,36 @@ async function handleSaveAbout(req, res) {
 
     if (error) throw error;
 
+    // Guaranteed persistence in realtime_sync table (with jsonb payload)
+    try {
+      await supabase.from('realtime_sync').upsert({
+        id: 'site_settings',
+        version: Date.now(),
+        event: 'site_settings_updated',
+        payload: {
+          default_theme: saveData.default_theme,
+          default_typewriter_enabled: saveData.default_typewriter_enabled
+        },
+        updated_at: new Date().toISOString()
+      });
+    } catch (_syncErr) {}
+
+    const broadcastPayload = {
+      ...(result || saveData),
+      default_theme: saveData.default_theme,
+      default_typewriter_enabled: saveData.default_typewriter_enabled
+    };
+
     broadcastRealtimeEvent('about_updated', {
-      data: result || saveData
+      data: broadcastPayload
     });
 
     return res.json({
       author_name: result?.author_name || saveData.author_name,
       tagline: result?.tagline || saveData.tagline,
       bio: result?.bio || saveData.bio,
-      default_typewriter_enabled: result?.default_typewriter_enabled !== undefined ? Boolean(result.default_typewriter_enabled) : saveData.default_typewriter_enabled,
-      default_theme: result?.default_theme || saveData.default_theme,
+      default_typewriter_enabled: saveData.default_typewriter_enabled,
+      default_theme: saveData.default_theme,
       projects: result?.projects || saveData.projects,
       links: result?.links || saveData.links
     });

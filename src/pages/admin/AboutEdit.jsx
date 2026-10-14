@@ -92,6 +92,60 @@ export default function AboutEdit() {
     }));
   };
 
+  const handleToggleTypewriterDefault = async () => {
+    const nextVal = !formData.default_typewriter_enabled;
+    const updated = { ...formData, default_typewriter_enabled: nextVal };
+    setFormData(updated);
+    updateSiteDefault(nextVal);
+
+    try {
+      publishRealtimeUpdate({
+        type: 'about',
+        op: 'UPDATE',
+        data: updated
+      });
+
+      await fetch('/api/about', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+      setMessage(`Site default typewriter effect turned ${nextVal ? 'ON' : 'OFF'} and saved!`);
+      setTimeout(() => setMessage(null), 3500);
+    } catch (_err) {}
+  };
+
+  const handleToggleDefaultTheme = async () => {
+    const nextTheme = formData.default_theme === 'dark' ? 'light' : 'dark';
+    const updated = { ...formData, default_theme: nextTheme };
+    setFormData(updated);
+    if (updateSiteDefaultTheme) updateSiteDefaultTheme(nextTheme);
+
+    try {
+      localStorage.setItem('site_default_theme', nextTheme);
+      localStorage.removeItem('theme_user_override');
+      publishRealtimeUpdate({
+        type: 'about',
+        op: 'UPDATE',
+        data: updated
+      });
+
+      await fetch('/api/about', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+      setMessage(`Site default theme changed to ${nextTheme === 'light' ? 'Light' : 'Dark'} Mode and saved!`);
+      setTimeout(() => setMessage(null), 3500);
+    } catch (_err) {}
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -121,6 +175,7 @@ export default function AboutEdit() {
       try {
         localStorage.removeItem('cached_about_data');
         localStorage.setItem('site_default_theme', formData.default_theme);
+        localStorage.removeItem('theme_user_override');
         publishRealtimeUpdate({
           type: 'about',
           op: 'UPDATE',
@@ -228,11 +283,7 @@ export default function AboutEdit() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              const nextVal = !formData.default_typewriter_enabled;
-              setFormData(prev => ({ ...prev, default_typewriter_enabled: nextVal }));
-              updateSiteDefault(nextVal);
-            }}
+            onClick={handleToggleTypewriterDefault}
             className={`px-3 py-1.5 rounded text-xs font-sans font-medium transition-colors border cursor-pointer ${
               formData.default_typewriter_enabled
                 ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
@@ -258,11 +309,7 @@ export default function AboutEdit() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              const nextTheme = formData.default_theme === 'dark' ? 'light' : 'dark';
-              setFormData(prev => ({ ...prev, default_theme: nextTheme }));
-              if (updateSiteDefaultTheme) updateSiteDefaultTheme(nextTheme);
-            }}
+            onClick={handleToggleDefaultTheme}
             className="px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)] hover:opacity-90"
           >
             {formData.default_theme === 'dark' ? (

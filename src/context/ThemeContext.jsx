@@ -57,13 +57,36 @@ export function ThemeProvider({ children }) {
             localStorage.setItem('site_default_theme', newDefault);
           } catch {}
           // If visitor has NOT set a manual preference, follow the site default
-          if (!hasUserOverride) {
+          const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
+          if (!userOverride) {
             setTheme(newDefault);
           }
         }
       })
       .catch(() => {});
   }, [hasUserOverride]);
+
+  // Listen for realtime updates from Supabase and broadcast channels
+  useEffect(() => {
+    const handleAboutUpdate = (e) => {
+      const data = e.detail?.data || e.detail?.payload || e.detail;
+      const newDefault = data?.default_theme;
+      if (newDefault === 'light' || newDefault === 'dark') {
+        setSiteDefaultTheme(newDefault);
+        try {
+          localStorage.setItem('site_default_theme', newDefault);
+        } catch {}
+        // If visitor has NOT set a manual preference, switch them in realtime!
+        const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
+        if (!userOverride) {
+          setTheme(newDefault);
+        }
+      }
+    };
+
+    window.addEventListener('about-data-updated', handleAboutUpdate);
+    return () => window.removeEventListener('about-data-updated', handleAboutUpdate);
+  }, []);
 
   // Sync state across browser tabs
   useEffect(() => {
@@ -76,7 +99,8 @@ export function ThemeProvider({ children }) {
       } else if (e.key === 'site_default_theme') {
         if (e.newValue === 'light' || e.newValue === 'dark') {
           setSiteDefaultTheme(e.newValue);
-          if (!hasUserOverride) {
+          const userOverride = typeof window !== 'undefined' && localStorage.getItem('theme_user_override') === 'true';
+          if (!userOverride) {
             setTheme(e.newValue);
           }
         }
@@ -118,9 +142,10 @@ export function ThemeProvider({ children }) {
     if (newDefault !== 'light' && newDefault !== 'dark') return;
     setSiteDefaultTheme(newDefault);
     setTheme(newDefault);
+    setHasUserOverride(false);
     try {
       localStorage.setItem('site_default_theme', newDefault);
-      localStorage.setItem('theme_user_override', 'true');
+      localStorage.removeItem('theme_user_override');
       localStorage.setItem('diary-theme', newDefault);
       localStorage.setItem('theme', newDefault);
     } catch {}
