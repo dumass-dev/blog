@@ -1091,7 +1091,7 @@ const defaultAboutData = {
     { label: 'GitHub', url: 'https://github.com/q04ti' }
   ],
   default_typewriter_enabled: false,
-  default_theme: 'dark'
+  default_theme: 'light'
 };
 
 // GET /api/about

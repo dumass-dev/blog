@@ -2,10 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 
 const ThemeContext = createContext({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
   setTheme: () => {},
-  siteDefaultTheme: 'dark',
+  siteDefaultTheme: 'light',
   updateSiteDefaultTheme: () => {},
   hasUserOverride: false
 });
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }) {
         if (cached === 'light' || cached === 'dark') return cached;
       }
     } catch {}
-    return 'dark';
+    return 'light';
   });
 
   const [theme, setTheme] = useState(() => {
@@ -48,8 +48,11 @@ export function ThemeProvider({ children }) {
           return cachedDefault;
         }
       }
+      if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+        return 'dark';
+      }
     } catch {}
-    return 'dark';
+    return 'light';
   });
 
   // Apply default theme to the document and state
@@ -157,7 +160,7 @@ export function ThemeProvider({ children }) {
     };
   }, [siteDefaultTheme]);
 
-  // Apply dark class to document root
+  // Apply dark class to document root and enable smooth transitions once ready
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -167,6 +170,11 @@ export function ThemeProvider({ children }) {
       root.classList.remove('dark');
       if (document.body) document.body.classList.remove('dark');
     }
+
+    const timer = setTimeout(() => {
+      root.classList.add('theme-ready');
+    }, 50);
+    return () => clearTimeout(timer);
   }, [theme]);
 
   // When a user toggles the button on the main website

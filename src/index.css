@@ -212,6 +212,14 @@ body {
   word-break: break-word;
 }
 
+/* Disable transitions on initial paint to completely prevent theme flash */
+html:not(.theme-ready) body,
+html:not(.theme-ready) *,
+html:not(.theme-ready) *::before,
+html:not(.theme-ready) *::after {
+  transition: none !important;
+}
+
 /* Typography utilities */
 .font-serif { font-family: var(--font-serif); }
 .font-sans { font-family: var(--font-sans); }

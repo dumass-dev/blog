@@ -429,7 +429,7 @@ const defaultAboutData = {
     { label: 'GitHub', url: 'https://github.com/q04ti' }
   ],
   default_typewriter_enabled: false,
-  default_theme: 'dark'
+  default_theme: 'light'
 };
 
 // GET /api/about
@@ -1836,6 +1836,74 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
   }
 });
 
+// Serve application HTML with injected site default theme to guarantee zero theme flash
+async function serveInjectedHtml(req, res, extraHead = '') {
+  let html = '';
+  try {
+    html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
+  } catch (_e) {
+    try {
+      html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
+    } catch (_e2) {
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const host = req.headers.host;
+      const htmlRes = await fetch(`${protocol}://${host}/?_static=1`);
+      if (htmlRes.ok) html = await htmlRes.text();
+    }
+  }
+
+  if (!html) return res.status(500).send('Unable to load application shell.');
+
+  let defaultTheme = 'light';
+  try {
+    const supabase = getSupabaseClient(req);
+    const { data: syncRow } = await supabase
+      .from('realtime_sync')
+      .select('payload')
+      .eq('id', 'site_settings')
+      .maybeSingle();
+    if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
+      defaultTheme = syncRow.payload.default_theme;
+    } else {
+      const { data: aboutRow } = await supabase
+        .from('about')
+        .select('default_theme')
+        .limit(1);
+      if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
+        defaultTheme = aboutRow[0].default_theme;
+      }
+    }
+  } catch {}
+
+  // Inject theme into server token and html tag
+  html = html.replace(/\/\*SERVER_DEFAULT_THEME\*\/.*?\/\*END\*\//g, defaultTheme);
+  if (defaultTheme === 'dark') {
+    html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
+      if (attrs.includes('class=')) {
+        return attrs.includes('dark') ? m : `<html${attrs.replace(/class=["'](.*?)["']/, 'class="$1 dark"')}>`;
+      }
+      return `<html${attrs} class="dark">`;
+    });
+  } else {
+    html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
+      return `<html${attrs.replace(/\s*class=["'][^"']*dark[^"']*["']/i, '')}>`;
+    });
+  }
+
+  if (extraHead) {
+    html = html.replace('</head>', `${extraHead}</head>`);
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+  return res.send(html);
+}
+
+// Root and SPA HTML Shell with zero theme flash
+app.get(['/', '/index.html'], async (req, res) => {
+  return serveInjectedHtml(req, res);
+});
+
 // SSR for Open Graph (OG) tags on /entry/:slug (Link Previews for WhatsApp, Twitter, etc.)
 app.get('/entry/:slug', async (req, res) => {
   try {
@@ -1846,36 +1914,20 @@ app.get('/entry/:slug', async (req, res) => {
       .eq('slug', slug);
 
     const post = posts && posts[0];
-    
-    // Get raw index.html (fallback to fetch if fs fails in Vercel)
-    let html = '';
-    try {
-      html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
-    } catch (_e) {
-      const protocol = req.headers['x-forwarded-proto'] || 'http';
-      const host = req.headers.host;
-      const htmlRes = await fetch(`${protocol}://${host}/?_static=1`);
-      if (htmlRes.ok) html = await htmlRes.text();
-    }
-
-    if (!html) return res.redirect(`/?entry=${slug}`);
-
+    let ogTags = '';
     if (post && !post.has_passcode) {
       const escapeHtml = (str) => String(str || '').replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]);
-      
       const title = escapeHtml(post.title || 'Untitled');
       const excerpt = escapeHtml(post.excerpt || 'Personal diary entry');
       let image = post.cover_image ? escapeHtml(post.cover_image) : '';
-      
       if (image && !image.startsWith('http')) {
         if (image.includes('backblazeb2.com') || image.startsWith('images/')) {
-           const match = image.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
-           if (match) image = `/api/media/file/${match[0]}`;
+          const match = image.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
+          if (match) image = `/api/media/file/${match[0]}`;
         }
         image = `https://${req.headers.host}${image}`;
       }
-
-      const ogTags = `
+      ogTags = `
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${excerpt}" />
         ${image ? `<meta property="og:image" content="${image}" />` : ''}
@@ -1885,16 +1937,11 @@ app.get('/entry/:slug', async (req, res) => {
         <meta name="twitter:description" content="${excerpt}" />
         ${image ? `<meta name="twitter:image" content="${image}" />` : ''}
       `;
-      
-      html = html.replace('</head>', `${ogTags}</head>`);
-      html = html.replace(/<title>.*?<\/title>/, `<title>${title} — q04ti</title>`);
     }
-
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    res.send(html);
+    return serveInjectedHtml(req, res, ogTags);
   } catch (err) {
     console.error('OG Tag Error:', err);
-    res.redirect(`/?entry=${req.params.slug}`);
+    return res.redirect(`/?entry=${req.params.slug}`);
   }
 });
 
