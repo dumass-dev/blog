@@ -4,6 +4,8 @@ export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isBrave, setIsBrave] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
@@ -18,10 +20,21 @@ export function usePWAInstall() {
 
     checkStandalone();
 
-    // 2. Check if iOS device
+    // 2. Platform & Browser Detection
     const userAgent = window.navigator.userAgent || '';
     const iOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    const android = /Android/i.test(userAgent);
     setIsIOS(iOS);
+    setIsAndroid(android);
+
+    // Detect Brave Browser
+    if (window.navigator.brave && typeof window.navigator.brave.isBrave === 'function') {
+      window.navigator.brave.isBrave().then(brave => {
+        if (brave) setIsBrave(true);
+      }).catch(() => {});
+    } else if (/Brave/i.test(userAgent)) {
+      setIsBrave(true);
+    }
 
     // 3. Listen for browser beforeinstallprompt event (Android / Chromium)
     const handleBeforeInstallPrompt = (e) => {
@@ -63,6 +76,8 @@ export function usePWAInstall() {
     isInstallable,
     isStandalone,
     isIOS,
+    isAndroid,
+    isBrave,
     promptInstall,
     hasNativePrompt: Boolean(deferredPrompt)
   };
