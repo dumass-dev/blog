@@ -26,7 +26,7 @@ export default function Activity() {
 
       {/* GitHub Contributions Component */}
       <section className="mb-10" aria-label="GitHub Contribution Heatmap">
-        <GitHubContributions username="q04ti" showHeader={true} compact={false} />
+        <GitHubContributions username="shuaib-mk,q04ti" showHeader={true} compact={false} />
       </section>
 
       {/* Info Card / External Link */}

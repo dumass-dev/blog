@@ -19,7 +19,6 @@ import {
   LogOut,
   Eye,
   RotateCw,
-  Lock,
   BarChart2
 } from 'lucide-react';
 
@@ -561,18 +560,17 @@ export default function Dashboard() {
                     <span className="text-[var(--text-muted)] font-mono">
                       {formatDate(item.date)}
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                       {Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== '')) && (
-                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] flex items-center gap-1">
-                          <Lock className="w-2.5 h-2.5" />
-                          <span>Locked</span>
+                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode Protected for public readers">
+                          Protected
                         </span>
                       )}
-                      <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                      <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] whitespace-nowrap shrink-0">
                         {item.type}
                       </span>
                       <span
-                        className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                        className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0"
                       >
                         {item.status}
                       </span>
@@ -632,14 +630,14 @@ export default function Dashboard() {
 
             {/* Desktop Table View (>= 640px) */}
             <div className="hidden sm:block table-responsive">
-              <table className="w-full text-left border-collapse text-xs font-sans">
+              <table className="w-full text-left border-collapse text-xs font-sans min-w-[640px]">
                 <thead>
                   <tr className="bg-[var(--code-bg)] border-b border-[var(--border-subtle)] text-[var(--text-muted)] uppercase tracking-wider">
-                    <th className="py-3 px-4 font-normal">Date</th>
-                    <th className="py-3 px-4 font-normal">Title / Content</th>
-                    <th className="py-3 px-4 font-normal">Type</th>
-                    <th className="py-3 px-4 font-normal">Status</th>
-                    <th className="py-3 px-4 font-normal text-right">Actions</th>
+                    <th className="py-3 px-4 font-normal whitespace-nowrap w-28">Date</th>
+                    <th className="py-3 px-4 font-normal min-w-[200px]">Title / Content</th>
+                    <th className="py-3 px-4 font-normal whitespace-nowrap w-24">Type</th>
+                    <th className="py-3 px-4 font-normal whitespace-nowrap w-36">Status</th>
+                    <th className="py-3 px-4 font-normal text-right whitespace-nowrap w-32">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -658,22 +656,21 @@ export default function Dashboard() {
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] whitespace-nowrap inline-block">
                           {item.type}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
                           <span
-                            className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                            className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0"
                           >
                             {item.status}
                           </span>
                           {Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== '')) && (
-                            <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] flex items-center gap-1" title="Passcode Protected for public readers">
-                              <Lock className="w-2.5 h-2.5" />
-                              <span>Locked</span>
+                            <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode Protected for public readers">
+                              Protected
                             </span>
                           )}
                         </div>

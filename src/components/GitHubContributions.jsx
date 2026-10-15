@@ -197,6 +197,11 @@ export default function GitHubContributions({
         <div className="flex flex-row items-center justify-between gap-3 mb-4 select-none">
           <div className="text-xs sm:text-sm font-sans text-[var(--text-secondary)] font-normal tracking-tight">
             <span className="text-[var(--text-primary)] font-medium">{totalForYear.toLocaleString()}</span> contributions in {selectedYear}
+            {data?.hasPrivateContributions && (
+              <span className="ml-1.5 text-[10px] text-[var(--accent-warm)] font-medium opacity-85" title="Includes private repository contributions">
+                (incl. private)
+              </span>
+            )}
           </div>
 
           {/* Minimal Year Selector */}

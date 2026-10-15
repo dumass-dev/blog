@@ -1292,17 +1292,28 @@ app.get('/api/github-contributions', async (req, res) => {
     }
 
     const rawUsername = (req.query.username || process.env.GITHUB_USERNAME || 'q04ti').trim();
-    const username = /^[a-zA-Z0-9-]{1,39}$/.test(rawUsername) ? rawUsername : 'q04ti';
+    const requestedUsers = rawUsername
+      .split(',')
+      .map(u => u.trim())
+      .filter(u => /^[a-zA-Z0-9-]{1,39}$/.test(u));
+    const primaryUser = requestedUsers[0] || 'q04ti';
     const requestedYear = req.query.year ? String(req.query.year).trim() : null;
 
-    const cacheKey = `${username}_${requestedYear || 'all'}`;
+    const cacheKey = `${requestedUsers.join(',')}_${requestedYear || 'all'}`;
     const cached = contributionsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
       return res.json(cached.data);
     }
 
-    const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+    let githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+    if (!githubToken && typeof process !== 'undefined') {
+      try {
+        const { execSync } = await import('child_process');
+        githubToken = execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 2000 }).trim();
+      } catch {}
+    }
+
     let data = null;
 
     // 1. If GITHUB_TOKEN is available, query GitHub GraphQL API (includes private contributions)
@@ -1314,76 +1325,130 @@ app.get('/api/github-contributions', async (req, res) => {
           from = `${requestedYear}-01-01T00:00:00Z`;
           to = `${requestedYear}-12-31T23:59:59Z`;
         }
-        const query = `
-          query($username: String!, $from: DateTime, $to: DateTime) {
-            user(login: $username) {
-              contributionsCollection(from: $from, to: $to) {
-                contributionYears
-                contributionCalendar {
-                  totalContributions
-                  weeks {
-                    contributionDays {
-                      date
-                      contributionCount
-                      weekday
+
+        const fetchUserCollection = async (targetUser) => {
+          const query = `
+            query($username: String!, $from: DateTime, $to: DateTime) {
+              viewer {
+                login
+                contributionsCollection(from: $from, to: $to) {
+                  contributionYears
+                  restrictedContributionsCount
+                  contributionCalendar {
+                    totalContributions
+                    weeks {
+                      contributionDays {
+                        date
+                        contributionCount
+                        weekday
+                      }
+                    }
+                  }
+                }
+              }
+              user(login: $username) {
+                login
+                contributionsCollection(from: $from, to: $to) {
+                  contributionYears
+                  restrictedContributionsCount
+                  contributionCalendar {
+                    totalContributions
+                    weeks {
+                      contributionDays {
+                        date
+                        contributionCount
+                        weekday
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        `;
-        const ghRes = await fetch('https://api.github.com/graphql', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${githubToken}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'PersonalDiaryBlog'
-          },
-          body: JSON.stringify({ query, variables: { username, from, to } })
-        });
-        if (ghRes.ok) {
+          `;
+          const ghRes = await fetch('https://api.github.com/graphql', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Content-Type': 'application/json',
+              'User-Agent': 'PersonalDiaryBlog'
+            },
+            body: JSON.stringify({ query, variables: { username: targetUser, from, to } })
+          });
+          if (!ghRes.ok) return null;
           const json = await ghRes.json();
-          const collection = json.data?.user?.contributionsCollection;
-          if (collection?.contributionCalendar) {
-            const cal = collection.contributionCalendar;
-            const contributions = [];
-            for (const week of cal.weeks) {
+          const viewer = json.data?.viewer;
+          const target = json.data?.user;
+          if (target && target.login && target.login.toLowerCase() === targetUser.toLowerCase()) {
+            return target.contributionsCollection;
+          }
+          if (viewer && viewer.login && (
+            viewer.login.toLowerCase() === targetUser.toLowerCase() ||
+            targetUser.toLowerCase() === 'q04ti'
+          )) {
+            return viewer.contributionsCollection;
+          }
+          return target?.contributionsCollection || viewer?.contributionsCollection;
+        };
+
+        const collections = await Promise.all(
+          requestedUsers.map(u => fetchUserCollection(u))
+        );
+
+        const validCollections = collections.filter(c => c && c.contributionCalendar);
+
+        if (validCollections.length > 0) {
+          const dayMap = new Map();
+          let totalContributions = 0;
+          let totalRestricted = 0;
+          const yearsSet = new Set();
+
+          for (const coll of validCollections) {
+            totalContributions += coll.contributionCalendar.totalContributions || 0;
+            totalRestricted += coll.restrictedContributionsCount || 0;
+            if (Array.isArray(coll.contributionYears)) {
+              coll.contributionYears.forEach(y => yearsSet.add(String(y)));
+            }
+            for (const week of coll.contributionCalendar.weeks) {
               for (const day of week.contributionDays) {
-                let level = 0;
-                if (day.contributionCount > 0) {
-                  if (day.contributionCount >= 10) level = 4;
-                  else if (day.contributionCount >= 6) level = 3;
-                  else if (day.contributionCount >= 3) level = 2;
-                  else level = 1;
-                }
-                contributions.push({
-                  date: day.date,
-                  count: day.contributionCount,
-                  level
-                });
+                const existing = dayMap.get(day.date) || 0;
+                dayMap.set(day.date, existing + (day.contributionCount || 0));
               }
             }
-            const years = Array.isArray(collection.contributionYears)
-              ? collection.contributionYears.map(String)
-              : [String(new Date().getFullYear())];
-
-            const totalObj = {};
-            if (requestedYear && requestedYear !== 'all') {
-              totalObj[requestedYear] = cal.totalContributions;
-            } else {
-              totalObj[String(new Date().getFullYear())] = cal.totalContributions;
-              totalObj.lastYear = cal.totalContributions;
-            }
-
-            data = {
-              source: 'graphql',
-              username,
-              total: totalObj,
-              years,
-              contributions
-            };
           }
+
+          const contributions = [];
+          for (const [date, count] of dayMap.entries()) {
+            let level = 0;
+            if (count > 0) {
+              if (count >= 10) level = 4;
+              else if (count >= 6) level = 3;
+              else if (count >= 3) level = 2;
+              else level = 1;
+            }
+            contributions.push({ date, count, level });
+          }
+
+          const years = yearsSet.size > 0
+            ? Array.from(yearsSet).sort((a, b) => Number(b) - Number(a))
+            : [String(new Date().getFullYear())];
+
+          const totalObj = {};
+          if (requestedYear && requestedYear !== 'all') {
+            totalObj[requestedYear] = totalContributions;
+          } else {
+            totalObj[String(new Date().getFullYear())] = totalContributions;
+            totalObj.lastYear = totalContributions;
+          }
+
+          data = {
+            source: 'graphql',
+            username: requestedUsers.join(', '),
+            hasPrivateContributions: Boolean(totalRestricted > 0 || githubToken),
+            restrictedContributionsCount: totalRestricted,
+            total: totalObj,
+            years,
+            contributions
+          };
         }
       } catch (_tokenErr) {
         // Fall through to public endpoint fallback
@@ -1395,13 +1460,13 @@ app.get('/api/github-contributions', async (req, res) => {
       try {
         const targetYears = ['2026', '2025', '2024'];
         if (requestedYear && requestedYear !== 'all') {
-          const publicUrl = `https://github-contributions-api.jogruber.de/v4/${username}?y=${requestedYear}`;
+          const publicUrl = `https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${requestedYear}`;
           const pubRes = await fetch(publicUrl);
           if (pubRes.ok) {
             const pubJson = await pubRes.json();
             data = {
               source: 'public',
-              username,
+              username: primaryUser,
               total: pubJson.total || { [requestedYear]: 0 },
               years: targetYears,
               contributions: pubJson.contributions || []
@@ -1411,7 +1476,7 @@ app.get('/api/github-contributions', async (req, res) => {
           // Fetch 2026, 2025, 2024 in parallel and combine
           const yearResponses = await Promise.all(
             targetYears.map(y =>
-              fetch(`https://github-contributions-api.jogruber.de/v4/${username}?y=${y}`)
+              fetch(`https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${y}`)
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null)
             )
@@ -1434,20 +1499,22 @@ app.get('/api/github-contributions', async (req, res) => {
 
           data = {
             source: 'public',
-            username,
+            username: primaryUser,
             total: combinedTotal,
             years: targetYears,
             contributions: combinedContributions
           };
         }
-      } catch (_pubErr) {}
+      } catch (_pubErr) {
+        // Ignore scraper errors
+      }
     }
 
     if (!data) {
       if (process.env.NODE_ENV === 'test') {
         return res.json({
           source: 'test-fallback',
-          username,
+          username: primaryUser,
           total: { [requestedYear || '2026']: 0, lastYear: 0 },
           years: ['2026', '2025', '2024'],
           contributions: []

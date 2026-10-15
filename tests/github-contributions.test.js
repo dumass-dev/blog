@@ -81,4 +81,29 @@ describe('GitHub Contributions API Route Tests (/api/github-contributions)', () 
     assert.strictEqual(data.total['2026'], 577);
     assert.strictEqual(data.contributions[0].count, 5);
   });
+
+  test('GET /api/github-contributions handles multiple comma-separated usernames', async () => {
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/github-contributions?username=shuaib-mk,q04ti',
+      method: 'GET'
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => { body += chunk; });
+        r.on('end', () => resolve({ status: r.statusCode, body }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 200);
+    const data = JSON.parse(res.body);
+    assert.ok(data.username.includes('shuaib-mk'), 'Username should reflect requested accounts');
+    assert.ok(Array.isArray(data.years), 'Should include years array');
+    assert.ok(Array.isArray(data.contributions), 'Should include contributions array');
+  });
 });

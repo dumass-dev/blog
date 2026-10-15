@@ -122,7 +122,7 @@ export default function Photos() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-4 text-center">
                     <span className="font-serif text-xs text-[var(--text-muted)] italic">
-                      {isProtected ? '🔒 Passcode Protected' : item.title}
+                      {isProtected ? 'Passcode Protected' : item.title}
                     </span>
                   </div>
                 )}

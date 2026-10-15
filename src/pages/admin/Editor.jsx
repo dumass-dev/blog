@@ -483,9 +483,8 @@ export default function Editor() {
               </span>
             )}
             {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)]" title="Passcode protected for public readers">
-                <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Passcode Locked</span>
+              <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode protected for public readers">
+                <span>Protected</span>
               </span>
             )}
           </div>
@@ -867,7 +866,7 @@ export default function Editor() {
                   <span>Passcode Lock (Optional)</span>
                 </span>
                 {hasExistingPasscode && !removePasscodeFlag && (
-                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">🔒 passcode set</span>
+                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">passcode set</span>
                 )}
               </label>
               <input

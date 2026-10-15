@@ -184,7 +184,7 @@ export default function Home() {
                         to={effectiveType === 'photo' ? '/photos' : `/entry/${item.slug || item.id}`}
                         className="hover:text-[var(--text-primary)] transition-colors text-inherit"
                       >
-                        <TypewriterText text={stripMarkdown(item.excerpt)} />
+                        <TypewriterText text={stripMarkdown(item.excerpt).replace(/^🔒\s*/, '')} />
                       </Link>
                     </div>
                   )}
@@ -211,7 +211,7 @@ export default function Home() {
       {/* GitHub Contributions Section at the bottom of Chrono Feed */}
       {!loading && (
         <section className="mt-14 pt-8 border-t border-[var(--border-subtle)]" aria-label="GitHub Activity">
-          <GitHubContributions username="q04ti" showHeader={true} minimal={true} />
+          <GitHubContributions username="shuaib-mk,q04ti" showHeader={true} minimal={true} />
         </section>
       )}
     </div>
