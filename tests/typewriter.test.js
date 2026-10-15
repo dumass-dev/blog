@@ -1,4 +1,4 @@
-/* global localStorage */
+/* global localStorage, window, CustomEvent */
 import './setup-offline.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
@@ -140,6 +140,45 @@ describe('Typewriter Effect Tests', () => {
     // Text should be instantly 100% visible even at frame 0 (no hidden span)
     const hiddenSpans = await page.locator('h1 span[style*="visibility: hidden"]').count();
     assert.strictEqual(hiddenSpans, 0, 'No hidden animation spans should exist when prefers-reduced-motion is active');
+
+    await context.close();
+  });
+
+  test('5. Admin site default updates typewriter state in real time across pages without reloading', async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.goto(`${baseUrl}/about`, { waitUntil: 'domcontentloaded' });
+
+    // Open dropdown to check typewriter toggle button status initially
+    const menuButton = page.locator('button[aria-label="Toggle navigation menu"]').first();
+    await menuButton.click();
+    const toggleButton = page.locator('button[aria-label="Toggle typewriter text reveal"]').first();
+    await toggleButton.waitFor({ state: 'visible' });
+
+    const initialPressed = await toggleButton.getAttribute('aria-pressed');
+    assert.strictEqual(initialPressed, 'false', 'Initially OFF by default');
+
+    // Simulate real-time site_settings_updated event broadcast from admin toggle
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('site-settings-updated', {
+        detail: {
+          data: {
+            default_typewriter_enabled: true
+          }
+        }
+      }));
+    });
+
+    // Wait a brief tick for react context state propagation
+    await page.waitForTimeout(100);
+
+    const updatedPressed = await toggleButton.getAttribute('aria-pressed');
+    assert.strictEqual(updatedPressed, 'true', 'Typewriter effect should instantly switch to ON via real-time site settings update');
+
+    // Verify localStorage was updated with the new site default
+    const siteDefaultVal = await page.evaluate(() => localStorage.getItem('site_default_typewriter'));
+    assert.strictEqual(siteDefaultVal, 'true', 'site_default_typewriter should be updated in localStorage');
 
     await context.close();
   });

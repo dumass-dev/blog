@@ -110,8 +110,13 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     return;
   }
 
-  // 2. About page changes
-  if (eventType === 'about' || eventType === 'about_updated') {
+  // 2. About page & Site settings changes (Theme, Typewriter, View count)
+  if (
+    eventType === 'about' ||
+    eventType === 'about_updated' ||
+    eventType === 'site_settings' ||
+    eventType === 'site_settings_updated'
+  ) {
     try {
       localStorage.removeItem('cached_about_data');
     } catch {}
@@ -119,6 +124,7 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     if (typeof window !== 'undefined') {
       try {
         window.dispatchEvent(new CustomEvent('about-data-updated', { detail: payload }));
+        window.dispatchEvent(new CustomEvent('site-settings-updated', { detail: payload }));
       } catch {}
     }
   }
@@ -242,6 +248,7 @@ function setupSSEConnection() {
       es.addEventListener('entry_deleted', handleEvent);
       es.addEventListener('entry_view_updated', handleEvent);
       es.addEventListener('about_updated', handleEvent);
+      es.addEventListener('site_settings_updated', handleEvent);
       es.addEventListener('comment_created', handleEvent);
       es.addEventListener('comment_deleted', handleEvent);
       es.addEventListener('reaction_updated', handleEvent);

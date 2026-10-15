@@ -53,6 +53,27 @@ export default function AboutEdit() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Listen to realtime settings updates so admin UI updates seamlessly across tabs & devices
+  useEffect(() => {
+    const handleSettingsUpdate = (e) => {
+      const data = e.detail?.data || e.detail?.payload || e.detail;
+      if (!data) return;
+      setFormData(prev => ({
+        ...prev,
+        ...(typeof data.default_typewriter_enabled === 'boolean' ? { default_typewriter_enabled: data.default_typewriter_enabled } : {}),
+        ...(data.default_theme === 'light' || data.default_theme === 'dark' ? { default_theme: data.default_theme } : {}),
+        ...(typeof data.show_view_count === 'boolean' ? { show_view_count: data.show_view_count } : {})
+      }));
+    };
+
+    window.addEventListener('about-data-updated', handleSettingsUpdate);
+    window.addEventListener('site-settings-updated', handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('about-data-updated', handleSettingsUpdate);
+      window.removeEventListener('site-settings-updated', handleSettingsUpdate);
+    };
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -110,6 +131,21 @@ export default function AboutEdit() {
         op: 'UPDATE',
         data: updated
       });
+
+      // 1. Direct write to Supabase for instant persistence & realtime sync across all visitors
+      if (supabase && typeof supabase.from === 'function') {
+        supabase.from('realtime_sync').upsert({
+          id: 'site_settings',
+          version: Date.now(),
+          event: 'site_settings_updated',
+          payload: {
+            default_theme: formData.default_theme,
+            default_typewriter_enabled: nextVal,
+            show_view_count: formData.show_view_count
+          },
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(() => {});
+      }
 
       await fetch('/api/about', {
         method: 'PUT',

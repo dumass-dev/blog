@@ -118,6 +118,37 @@ describe('Realtime Client Engine Unit Tests', () => {
     global.window.removeEventListener('about-data-updated', aboutHandler);
   });
 
+  test('dispatchRealtimeMutation dispatches site-settings-updated and about-data-updated events', async () => {
+    let siteSettingsReceived = false;
+    let aboutReceived = false;
+    let payloadReceived = null;
+
+    const siteSettingsHandler = (e) => {
+      siteSettingsReceived = true;
+      payloadReceived = e.detail;
+    };
+    const aboutHandler = () => {
+      aboutReceived = true;
+    };
+
+    global.window.addEventListener('site-settings-updated', siteSettingsHandler);
+    global.window.addEventListener('about-data-updated', aboutHandler);
+
+    realtimeModule.dispatchRealtimeMutation({
+      type: 'site_settings_updated',
+      data: { default_typewriter_enabled: true, default_theme: 'dark' }
+    }, { isLocal: true });
+
+    await new Promise(r => setTimeout(r, 20));
+
+    assert.ok(siteSettingsReceived, 'site-settings-updated event fired');
+    assert.ok(aboutReceived, 'about-data-updated event fired');
+    assert.strictEqual(payloadReceived.data.default_typewriter_enabled, true);
+
+    global.window.removeEventListener('site-settings-updated', siteSettingsHandler);
+    global.window.removeEventListener('about-data-updated', aboutHandler);
+  });
+
   test('dispatchRealtimeMutation dispatches comments-updated and reactions-updated events', async () => {
     let commentsReceived = false;
     let reactionsReceived = false;
