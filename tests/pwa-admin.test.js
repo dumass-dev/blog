@@ -103,12 +103,12 @@ describe('Admin PWA App Specification Tests', () => {
     assert.ok(htmlContent.includes('href="/icon-192.png"'), 'Must link icon-192.png as favicon');
   });
 
-  test('6. Header component renders circular site logo next to author wordmark', () => {
+  test('6. Header component preserves clean serif wordmark', () => {
     const headerPath = path.resolve(process.cwd(), 'src/components/Header.jsx');
     const headerContent = fs.readFileSync(headerPath, 'utf8');
 
-    assert.ok(headerContent.includes('src="/icon-192.png"'), 'Header must render site logo img');
-    assert.ok(headerContent.includes('rounded-full'), 'Logo should be styled nicely');
+    assert.ok(headerContent.includes('{siteMeta.author_name}'), 'Header must render author name wordmark');
+    assert.ok(!headerContent.includes('src="/icon-192.png"'), 'Header should not have inserted logo img');
   });
 
   test('7. PWAInstallButton triggers direct install and does not display tutorial guides', () => {
