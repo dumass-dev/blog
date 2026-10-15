@@ -6,6 +6,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
   const [data, setData] = useState(null);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [authorName, setAuthorName] = useState('q04ti');
+  const [imgError, setImgError] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         const json = await safeApiFetch(`/api/now-playing?t=${Date.now()}`);
         if (json) {
           setData(json);
+          setImgError(false);
         } else {
           setData(null);
         }
@@ -86,8 +88,13 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
             onClick={() => setIsExpanded(true)}
             title={displayData.isPaused ? `Last listened to ${displayData.title}` : `Listening to ${displayData.title}`}
           >
-            {displayData.coverUrl ? (
-              <img src={displayData.coverUrl} alt="Album Art" className="w-full h-full object-cover block" />
+            {displayData.coverUrl && !imgError ? (
+              <img 
+                src={displayData.coverUrl} 
+                alt="Album Art" 
+                className="w-full h-full object-cover block"
+                onError={() => setImgError(true)}
+              />
             ) : (
               <Music className="now-playing-fallback-icon" />
             )}
@@ -99,8 +106,12 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
             </div>
             <div className="now-playing-card-body">
               <div className="now-playing-card-cover">
-                {displayData.coverUrl ? (
-                  <img src={displayData.coverUrl} alt="Album Art" />
+                {displayData.coverUrl && !imgError ? (
+                  <img 
+                    src={displayData.coverUrl} 
+                    alt="Album Art"
+                    onError={() => setImgError(true)} 
+                  />
                 ) : (
                   <Music className="now-playing-fallback-icon" />
                 )}
@@ -122,8 +133,12 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
   return (
     <div className="now-playing-pill animate-content-fade" title={displayData.title}>
       <div className="now-playing-cover">
-        {displayData.coverUrl ? (
-          <img src={displayData.coverUrl} alt="Album Art" />
+        {displayData.coverUrl && !imgError ? (
+          <img 
+            src={displayData.coverUrl} 
+            alt="Album Art"
+            onError={() => setImgError(true)} 
+          />
         ) : (
           <Music className="now-playing-fallback-icon" />
         )}

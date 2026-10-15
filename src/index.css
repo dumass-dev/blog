@@ -1646,6 +1646,7 @@ html.dark .now-playing-cover {
 .now-playing-compact {
   cursor: pointer;
   border-radius: 14px;
+  overflow: hidden;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   border: 1px solid var(--border-subtle);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
@@ -1662,6 +1663,10 @@ html.dark .now-playing-cover {
 }
 
 .now-playing-compact img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
   border-radius: 12px;
 }
 

@@ -33,11 +33,18 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. Bypass all API routes, Supabase endpoints, Backblaze B2, and SSE streams
+  // 1. Never intercept cross-origin requests (Spotify/Apple Music album art, Supabase, Backblaze B2, external CDNs)
+  if (
+    url.origin !== self.location.origin ||
+    url.hostname.includes('supabase.co') ||
+    url.hostname.includes('backblazeb2.com')
+  ) {
+    return;
+  }
+
+  // 2. Bypass all API routes, SSE streams, and non-GET requests
   if (
     url.pathname.startsWith('/api/') ||
-    url.hostname.includes('supabase.co') ||
-    url.hostname.includes('backblazeb2.com') ||
     url.pathname.includes('realtime') ||
     event.request.method !== 'GET'
   ) {
