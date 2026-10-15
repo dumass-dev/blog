@@ -94,5 +94,57 @@ describe('Photo Lightbox & Quote Card Cover Fix Tests', () => {
       );
     }
   });
+
+  test('Floating quote pill calculation centers directly above text and clamps for mobile', () => {
+    const calculatePillCoords = (rect, windowWidth, windowHeight) => {
+      if (!rect || rect.width === 0 || rect.height === 0) return null;
+      if (rect.bottom < 0 || rect.top > windowHeight) return null;
+
+      const rawCenterX = rect.left + rect.width / 2;
+      const pillHalfWidth = 46;
+      const margin = 12;
+      const minX = pillHalfWidth + margin;
+      const maxX = Math.max(minX, windowWidth - pillHalfWidth - margin);
+      const clampedX = Math.max(minX, Math.min(maxX, rawCenterX));
+
+      const isNearTop = rect.top < 56;
+      const topPos = isNearTop ? rect.bottom + 8 : rect.top - 8;
+      const placement = isNearTop ? 'bottom' : 'top';
+
+      return {
+        top: Math.round(topPos),
+        left: Math.round(clampedX),
+        placement
+      };
+    };
+
+    // Standard centered text on desktop
+    const desktopRect = { top: 300, bottom: 320, left: 400, width: 200, height: 20 };
+    const desktopPos = calculatePillCoords(desktopRect, 1200, 800);
+    assert.strictEqual(desktopPos.left, 500, 'Horizontal center must be rect.left + width / 2');
+    assert.strictEqual(desktopPos.top, 292, 'Top pos must be 8px above rect.top');
+    assert.strictEqual(desktopPos.placement, 'top');
+
+    // Mobile screen (360px wide) - text near left edge
+    const mobileLeftRect = { top: 200, bottom: 220, left: 10, width: 40, height: 20 };
+    const mobileLeftPos = calculatePillCoords(mobileLeftRect, 360, 640);
+    assert.ok(mobileLeftPos.left >= 58, 'Pill must be clamped away from mobile left edge');
+
+    // Mobile screen (360px wide) - text near right edge
+    const mobileRightRect = { top: 200, bottom: 220, left: 320, width: 35, height: 20 };
+    const mobileRightPos = calculatePillCoords(mobileRightRect, 360, 640);
+    assert.ok(mobileRightPos.left <= 302, 'Pill must be clamped away from mobile right edge');
+
+    // Text near top of viewport (< 56px) - flips below selection
+    const topEdgeRect = { top: 30, bottom: 50, left: 150, width: 100, height: 20 };
+    const topEdgePos = calculatePillCoords(topEdgeRect, 1200, 800);
+    assert.strictEqual(topEdgePos.top, 58, 'Top pos must flip to rect.bottom + 8 when near top');
+    assert.strictEqual(topEdgePos.placement, 'bottom');
+
+    // Scrolled out of view
+    const offScreenRect = { top: -100, bottom: -80, left: 100, width: 100, height: 20 };
+    const offScreenPos = calculatePillCoords(offScreenRect, 1200, 800);
+    assert.strictEqual(offScreenPos, null, 'Must return null when selection is scrolled out of viewport');
+  });
 });
 
