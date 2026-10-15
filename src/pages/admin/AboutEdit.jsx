@@ -3,15 +3,17 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTypewriter } from '../../context/TypewriterContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useViewCount } from '../../context/ViewCountContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import { supabase } from '../../supabase';
-import { Save, ArrowLeft, Plus, Trash2, Moon, Sun } from 'lucide-react';
+import { Save, ArrowLeft, Plus, Trash2, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 
 export default function AboutEdit() {
   const { token } = useAuth();
   const { updateSiteDefault } = useTypewriter();
   const { updateSiteDefaultTheme } = useTheme();
+  const { updateSiteDefault: updateSiteDefaultViews } = useViewCount();
 
   const [formData, setFormData] = useState({
     author_name: '',
@@ -19,6 +21,7 @@ export default function AboutEdit() {
     bio: '',
     default_typewriter_enabled: false,
     default_theme: 'dark',
+    show_view_count: true,
     projects: [],
     links: []
   });
@@ -34,12 +37,14 @@ export default function AboutEdit() {
       .then(data => {
         const defaultEnabled = Boolean(data.default_typewriter_enabled);
         const defaultTheme = (data.default_theme === 'light' || data.default_theme === 'dark') ? data.default_theme : 'dark';
+        const defaultShowViews = typeof data.show_view_count === 'boolean' ? data.show_view_count : true;
         setFormData({
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
           bio: data.bio || '',
           default_typewriter_enabled: defaultEnabled,
           default_theme: defaultTheme,
+          show_view_count: defaultShowViews,
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
         });
@@ -119,6 +124,48 @@ export default function AboutEdit() {
     } catch (_err) {}
   };
 
+  const handleToggleViewCountDefault = async () => {
+    const nextVal = !formData.show_view_count;
+    const updated = { ...formData, show_view_count: nextVal };
+    setFormData(updated);
+    if (updateSiteDefaultViews) updateSiteDefaultViews(nextVal);
+
+    try {
+      publishRealtimeUpdate({
+        type: 'about',
+        op: 'UPDATE',
+        data: updated
+      });
+
+      // 1. Direct write to Supabase for instant persistence
+      if (supabase && typeof supabase.from === 'function') {
+        supabase.from('realtime_sync').upsert({
+          id: 'site_settings',
+          version: Date.now(),
+          event: 'site_settings_updated',
+          payload: {
+            default_theme: formData.default_theme,
+            default_typewriter_enabled: formData.default_typewriter_enabled,
+            show_view_count: nextVal
+          },
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(() => {});
+      }
+
+      // 2. Also persist via API endpoint
+      await fetch('/api/about', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updated)
+      });
+      setMessage(`Site default view count visibility set to ${nextVal ? 'Visible' : 'Hidden'} by default!`);
+      setTimeout(() => setMessage(null), 3500);
+    } catch (_err) {}
+  };
+
   const handleToggleDefaultTheme = async () => {
     const nextTheme = formData.default_theme === 'dark' ? 'light' : 'dark';
     const updated = { ...formData, default_theme: nextTheme };
@@ -143,7 +190,8 @@ export default function AboutEdit() {
           event: 'site_settings_updated',
           payload: {
             default_theme: nextTheme,
-            default_typewriter_enabled: formData.default_typewriter_enabled
+            default_typewriter_enabled: formData.default_typewriter_enabled,
+            show_view_count: formData.show_view_count
           },
           updated_at: new Date().toISOString()
         }).then(() => {}).catch(() => {});
@@ -178,7 +226,8 @@ export default function AboutEdit() {
           event: 'site_settings_updated',
           payload: {
             default_theme: formData.default_theme,
-            default_typewriter_enabled: formData.default_typewriter_enabled
+            default_typewriter_enabled: formData.default_typewriter_enabled,
+            show_view_count: formData.show_view_count
           },
           updated_at: new Date().toISOString()
         }).then(() => {}).catch(() => {});
@@ -201,6 +250,9 @@ export default function AboutEdit() {
       updateSiteDefault(formData.default_typewriter_enabled);
       if (updateSiteDefaultTheme) {
         updateSiteDefaultTheme(formData.default_theme);
+      }
+      if (updateSiteDefaultViews) {
+        updateSiteDefaultViews(formData.show_view_count);
       }
       // Bust the About page localStorage cache so public site reflects changes immediately
       try {
@@ -353,6 +405,42 @@ export default function AboutEdit() {
               <>
                 <Sun className="w-3.5 h-3.5" />
                 <span>Default: Light Mode</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Site Default View Count Visibility Setting */}
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+          <div>
+            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex items-center gap-2">
+              <span>View Count Visibility on Main Website</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase">
+                {formData.show_view_count ? 'Visible' : 'Hidden'}
+              </span>
+            </div>
+            <div className="text-xs font-sans text-[var(--text-muted)] mt-0.5">
+              Default visibility for visitors on entries before they toggle it themselves.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleViewCountDefault}
+            className={`px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 ${
+              formData.show_view_count
+                ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
+                : 'bg-[var(--code-bg)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {formData.show_view_count ? (
+              <>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Visible by Default</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Hidden by Default</span>
               </>
             )}
           </button>

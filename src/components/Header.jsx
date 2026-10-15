@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import TypewriterToggle from './TypewriterToggle';
+import ViewCountToggle from './ViewCountToggle';
 import NowPlaying from './NowPlaying';
 import { Menu, X } from 'lucide-react';
 
@@ -212,10 +213,11 @@ export default function Header() {
                 );
               })}
 
-              {/* Theme & Typewriter Toggles */}
+              {/* Theme, Typewriter & View Count Toggles */}
               <div className="pt-1.5 mt-1 border-t border-[var(--border-subtle)] flex items-center justify-center space-x-1 py-0.5">
                 <ThemeToggle />
                 <TypewriterToggle />
+                <ViewCountToggle />
               </div>
             </div>
           )}

@@ -1091,7 +1091,8 @@ const defaultAboutData = {
     { label: 'GitHub', url: 'https://github.com/q04ti' }
   ],
   default_typewriter_enabled: false,
-  default_theme: 'light'
+  default_theme: 'light',
+  show_view_count: true
 };
 
 // GET /api/about
@@ -1140,12 +1141,19 @@ app.get('/api/about', async (req, res) => {
             ? Boolean(syncSettings.default_typewriter_enabled)
             : false);
 
+      const effectiveShowViews = row.show_view_count !== undefined
+        ? Boolean(row.show_view_count)
+        : (syncSettings?.show_view_count !== undefined
+            ? Boolean(syncSettings.show_view_count)
+            : true);
+
       return res.json({
         author_name: row.author_name !== undefined ? row.author_name : defaultAboutData.author_name,
         tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
         bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
         default_typewriter_enabled: effectiveTypewriter,
         default_theme: effectiveTheme,
+        show_view_count: effectiveShowViews,
         projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
         links: Array.isArray(links) ? links : defaultAboutData.links
       });
@@ -1155,7 +1163,8 @@ app.get('/api/about', async (req, res) => {
       return res.json({
         ...defaultAboutData,
         default_theme: syncSettings.default_theme || defaultAboutData.default_theme,
-        default_typewriter_enabled: syncSettings.default_typewriter_enabled !== undefined ? Boolean(syncSettings.default_typewriter_enabled) : defaultAboutData.default_typewriter_enabled
+        default_typewriter_enabled: syncSettings.default_typewriter_enabled !== undefined ? Boolean(syncSettings.default_typewriter_enabled) : defaultAboutData.default_typewriter_enabled,
+        show_view_count: syncSettings.show_view_count !== undefined ? Boolean(syncSettings.show_view_count) : defaultAboutData.show_view_count
       });
     }
 
@@ -1368,6 +1377,7 @@ async function handleSaveAbout(req, res) {
       bio: payload.bio || '',
       default_typewriter_enabled: Boolean(payload.default_typewriter_enabled),
       default_theme: payload.default_theme === 'light' ? 'light' : 'dark',
+      show_view_count: payload.show_view_count !== undefined ? Boolean(payload.show_view_count) : true,
       projects: Array.isArray(payload.projects) ? payload.projects : [],
       links: Array.isArray(payload.links) ? payload.links : [],
       updated_at: new Date().toISOString()
@@ -1380,16 +1390,16 @@ async function handleSaveAbout(req, res) {
     let result;
     if (existing && existing.length > 0) {
       let resData = await supabase.from('about').update(saveData).eq('id', existing[0].id).select('*').single();
-      if (resData.error && resData.error.message && resData.error.message.includes('default_theme')) {
-        const { default_theme: _dt, ...safeData } = saveData;
+      if (resData.error && resData.error.message && (resData.error.message.includes('default_theme') || resData.error.message.includes('show_view_count'))) {
+        const { default_theme: _dt, show_view_count: _svc, ...safeData } = saveData;
         resData = await supabase.from('about').update(safeData).eq('id', existing[0].id).select('*').single();
       }
       result = resData.data;
       error = resData.error;
     } else {
       let resData = await supabase.from('about').insert([saveData]).select('*').single();
-      if (resData.error && resData.error.message && resData.error.message.includes('default_theme')) {
-        const { default_theme: _dt, ...safeData } = saveData;
+      if (resData.error && resData.error.message && (resData.error.message.includes('default_theme') || resData.error.message.includes('show_view_count'))) {
+        const { default_theme: _dt, show_view_count: _svc, ...safeData } = saveData;
         resData = await supabase.from('about').insert([safeData]).select('*').single();
       }
       result = resData.data;
@@ -1406,7 +1416,8 @@ async function handleSaveAbout(req, res) {
         event: 'site_settings_updated',
         payload: {
           default_theme: saveData.default_theme,
-          default_typewriter_enabled: saveData.default_typewriter_enabled
+          default_typewriter_enabled: saveData.default_typewriter_enabled,
+          show_view_count: saveData.show_view_count
         },
         updated_at: new Date().toISOString()
       });
@@ -1415,7 +1426,8 @@ async function handleSaveAbout(req, res) {
     const broadcastPayload = {
       ...(result || saveData),
       default_theme: saveData.default_theme,
-      default_typewriter_enabled: saveData.default_typewriter_enabled
+      default_typewriter_enabled: saveData.default_typewriter_enabled,
+      show_view_count: saveData.show_view_count
     };
 
     broadcastRealtimeEvent('about_updated', {
@@ -1428,6 +1440,7 @@ async function handleSaveAbout(req, res) {
       bio: result?.bio || saveData.bio,
       default_typewriter_enabled: saveData.default_typewriter_enabled,
       default_theme: saveData.default_theme,
+      show_view_count: saveData.show_view_count,
       projects: result?.projects || saveData.projects,
       links: result?.links || saveData.links
     });

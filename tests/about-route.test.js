@@ -299,8 +299,87 @@ describe('About Page API Route Tests (/api/about)', () => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.data.default_theme, 'light');
     assert.strictEqual(res.data.default_typewriter_enabled, true);
+    assert.strictEqual(res.data.show_view_count, true);
     assert.ok(savedSync, 'must have persisted to realtime_sync');
     assert.strictEqual(savedSync.payload.default_theme, 'light');
+    assert.strictEqual(savedSync.payload.show_view_count, true);
+  });
+
+  test('PUT /api/about with admin token saves show_view_count false and returns it', async () => {
+    let savedSync = null;
+    global.__mockSupabaseClient = () => ({
+      auth: {
+        getUser: async (token) => {
+          if (token === 'admin-test-token') {
+            return { data: { user: { id: '00000000-0000-0000-0000-000000000000' } }, error: null };
+          }
+          return { data: null, error: new Error('Invalid token') };
+        }
+      },
+      from: (tableName) => {
+        if (tableName === 'about') {
+          return {
+            select: () => ({
+              limit: async () => ({
+                data: [{ id: 'about-uuid-1' }],
+                error: null
+              })
+            }),
+            update: (payload) => ({
+              eq: () => ({
+                select: () => ({
+                  single: async () => ({
+                    data: { id: 'about-uuid-1', ...payload },
+                    error: null
+                  })
+                })
+              })
+            })
+          };
+        }
+        if (tableName === 'realtime_sync') {
+          return {
+            upsert: async (row) => {
+              if (row && row.id === 'site_settings') {
+                savedSync = row;
+              }
+              return { data: row, error: null };
+            }
+          };
+        }
+        return { select: () => ({ limit: async () => ({ data: [], error: null }) }) };
+      }
+    });
+
+    const options = {
+      hostname: '127.0.0.1',
+      port: PORT,
+      path: '/api/about',
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer admin-test-token'
+      }
+    };
+
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(options, (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve({ status: r.statusCode, data: JSON.parse(body || '{}') }));
+      });
+      req.on('error', reject);
+      req.write(JSON.stringify({
+        author_name: 'q04ti',
+        show_view_count: false
+      }));
+      req.end();
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.show_view_count, false);
+    assert.ok(savedSync, 'must have persisted to realtime_sync');
+    assert.strictEqual(savedSync.payload.show_view_count, false);
   });
 
   test('Teardown test server', () => {
