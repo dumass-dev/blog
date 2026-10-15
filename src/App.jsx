@@ -99,6 +99,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/admin/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/new"
                 element={
                   <ProtectedRoute>

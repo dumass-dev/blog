@@ -119,4 +119,11 @@ describe('Admin PWA App Specification Tests', () => {
     assert.ok(!btnContent.includes('three dots menu'), 'Must not display manual tutorial guide steps');
     assert.ok(!btnContent.includes('Share'), 'Must not contain manual Safari guide');
   });
+
+  test('8. App.jsx defines route for /admin/dashboard to prevent 404 on launch', () => {
+    const appPath = path.resolve(process.cwd(), 'src/App.jsx');
+    const appContent = fs.readFileSync(appPath, 'utf8');
+
+    assert.ok(appContent.includes('path="/admin/dashboard"'), 'Must define route for /admin/dashboard');
+  });
 });
