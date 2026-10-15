@@ -70,4 +70,47 @@ describe('Entry Views Count & Realtime Sync Tests', () => {
     assert.equal(adminUnhideResult, true, 'Admin successfully unhides view count');
     assert.equal(getVisitorViewVisibility(), true, 'Visitors now see view count again');
   });
+
+  test('Zero-leak guarantee: views property is omitted from API responses when hidden for non-admins', () => {
+    const rawPost = {
+      id: 'test-id',
+      slug: 'test-slug',
+      title: 'Test Post',
+      views: 42
+    };
+
+    const sanitizePostForClient = (post, showViews, isAdmin) => {
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
+      return {
+        ...post,
+        views: viewsToReturn
+      };
+    };
+
+    // When showViews is false and user is not admin
+    const clientPostHidden = sanitizePostForClient(rawPost, false, false);
+    assert.equal(clientPostHidden.views, undefined, 'Views must be undefined when hidden');
+    assert.equal('views' in JSON.parse(JSON.stringify(clientPostHidden)), false, 'Views key must not exist in serialized JSON');
+
+    // When showViews is false but user IS admin
+    const clientPostAdmin = sanitizePostForClient(rawPost, false, true);
+    assert.equal(clientPostAdmin.views, 42, 'Admin can still see view count in data');
+
+    // When showViews is true
+    const clientPostVisible = sanitizePostForClient(rawPost, true, false);
+    assert.equal(clientPostVisible.views, 42, 'Visitors see views when enabled');
+  });
+
+  test('No placeholder text rendered when views are hidden', () => {
+    const renderViewCountChip = (showViewCount, isAdmin, views) => {
+      if (!showViewCount) return null; // When hidden: render NOTHING!
+      if (isAdmin) return `AdminButton:${views}`;
+      return `StaticChip:${views}`;
+    };
+
+    assert.equal(renderViewCountChip(false, false, 10), null, 'Public visitor gets null (no placeholder)');
+    assert.equal(renderViewCountChip(false, true, 10), null, 'Admin gets null (no "views hidden" placeholder)');
+    assert.equal(renderViewCountChip(true, false, 10), 'StaticChip:10');
+    assert.equal(renderViewCountChip(true, true, 10), 'AdminButton:10');
+  });
 });

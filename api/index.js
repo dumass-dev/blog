@@ -765,6 +765,7 @@ async function handleSaveAbout(req, res) {
     if (saveData.default_theme === 'light' || saveData.default_theme === 'dark') {
       setCachedDefaultTheme(saveData.default_theme);
     }
+    setCachedShowViews(saveData.show_view_count);
 
     const broadcastPayload = {
       ...(result || saveData),
@@ -839,6 +840,8 @@ app.get('/api/posts', async (req, res) => {
     let { data: posts, error } = await query;
     if (error) throw error;
 
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
+
     const processed = await Promise.all((posts || []).map(async post => {
       const isPhoto = Boolean(
         post.type === 'photo' ||
@@ -846,6 +849,7 @@ app.get('/api/posts', async (req, res) => {
       );
       const effectiveType = isPhoto ? 'photo' : post.type;
       const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
 
       let freshCover = post.cover_image;
       if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
@@ -867,6 +871,7 @@ app.get('/api/posts', async (req, res) => {
       if (!isAdmin && has_passcode) {
         return {
           ...post,
+          views: viewsToReturn,
           type: effectiveType,
           has_passcode: true,
           passcode: undefined,
@@ -876,6 +881,7 @@ app.get('/api/posts', async (req, res) => {
       }
       return {
         ...post,
+        views: viewsToReturn,
         type: effectiveType,
         cover_image: freshCover || post.cover_image || '',
         has_passcode: has_passcode,
@@ -1074,10 +1080,14 @@ app.get('/api/posts/:slug', async (req, res) => {
       }
     }
 
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
+    const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
+
     if (!isAdmin && has_passcode) {
       return res.json({
         entry: {
           ...post,
+          views: viewsToReturn,
           type: isPhoto ? 'photo' : post.type,
           has_passcode: true,
           passcode: undefined,
@@ -1093,6 +1103,7 @@ app.get('/api/posts/:slug', async (req, res) => {
     return res.json({
       entry: {
         ...post,
+        views: viewsToReturn,
         type: isPhoto ? 'photo' : post.type,
         cover_image: freshCover || post.cover_image || '',
         content: freshContent || post.content || '',
@@ -1314,12 +1325,22 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       }
     } catch {}
 
-    // 4. Broadcast realtime event so all open tabs and visitors see the updated count instantly
-    broadcastRealtimeEvent('entry_view_updated', {
-      id: post.id,
-      slug: post.slug,
-      views: newViews
-    }, client);
+    const showViews = await getEffectiveShowViews(client);
+    const auth = await verifyAdminUser(req);
+    const isAdmin = auth.authorized;
+
+    // 4. Only broadcast realtime view update if view count is visible
+    if (showViews) {
+      broadcastRealtimeEvent('entry_view_updated', {
+        id: post.id,
+        slug: post.slug,
+        views: newViews
+      }, client);
+    }
+
+    if (!showViews && !isAdmin) {
+      return res.json({ success: true, id: post.id, slug: post.slug });
+    }
 
     res.json({ success: true, id: post.id, slug: post.slug, views: newViews });
   } catch (err) {
@@ -1855,6 +1876,8 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
 
 let cachedDefaultTheme = null;
 let lastThemeFetch = 0;
+let cachedShowViews = null;
+let lastShowViewsFetch = 0;
 
 export function setCachedDefaultTheme(theme) {
   if (theme === 'light' || theme === 'dark') {
@@ -1863,7 +1886,43 @@ export function setCachedDefaultTheme(theme) {
   }
 }
 
-// Serve application HTML with injected site default theme to guarantee zero theme flash
+export function setCachedShowViews(show) {
+  if (typeof show === 'boolean') {
+    cachedShowViews = show;
+    lastShowViewsFetch = Date.now();
+  }
+}
+
+export async function getEffectiveShowViews(supabase) {
+  const now = Date.now();
+  if (cachedShowViews !== null && (now - lastShowViewsFetch < 3000)) {
+    return cachedShowViews;
+  }
+  try {
+    const { data: syncRow } = await supabase
+      .from('realtime_sync')
+      .select('payload')
+      .eq('id', 'site_settings')
+      .maybeSingle();
+    if (syncRow?.payload && typeof syncRow.payload.show_view_count === 'boolean') {
+      cachedShowViews = syncRow.payload.show_view_count;
+      lastShowViewsFetch = now;
+      return cachedShowViews;
+    }
+    const { data: aboutRow } = await supabase
+      .from('about')
+      .select('show_view_count')
+      .limit(1);
+    if (aboutRow && aboutRow[0] && typeof aboutRow[0].show_view_count === 'boolean') {
+      cachedShowViews = aboutRow[0].show_view_count;
+      lastShowViewsFetch = now;
+      return cachedShowViews;
+    }
+  } catch {}
+  return true;
+}
+
+// Serve application HTML with injected site default theme and view count visibility to guarantee zero flash
 async function serveInjectedHtml(req, res, extraHead = '') {
   let html = '';
   try {
@@ -1885,9 +1944,10 @@ async function serveInjectedHtml(req, res, extraHead = '') {
 
   let defaultTheme = cachedDefaultTheme;
   const now = Date.now();
+  const supabase = getSupabaseClient(req);
+
   if (!defaultTheme || (now - lastThemeFetch > 3000)) {
     try {
-      const supabase = getSupabaseClient(req);
       const queryPromise = (async () => {
         const { data: syncRow } = await supabase
           .from('realtime_sync')
@@ -1919,20 +1979,27 @@ async function serveInjectedHtml(req, res, extraHead = '') {
 
   if (!defaultTheme) defaultTheme = 'light';
 
-  // Inject theme and data-theme-injected attribute directly into <html>
+  const effectiveShowViews = await getEffectiveShowViews(supabase);
+
+  // Inject theme and view count attributes directly into <html> to guarantee ZERO flash
   html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
     const clean = attrs
       .replace(/\s*data-theme-injected=["'][^"']*["']/gi, '')
+      .replace(/\s*data-show-views-injected=["'][^"']*["']/gi, '')
       .replace(/\s*class=["'][^"']*["']/gi, '');
+    const showViewsAttr = ` data-show-views-injected="${effectiveShowViews ? 'true' : 'false'}"`;
     if (defaultTheme === 'dark') {
-      return `<html${clean} class="dark" data-theme-injected="dark">`;
+      return `<html${clean} class="dark" data-theme-injected="dark"${showViewsAttr}>`;
     } else {
-      return `<html${clean} class="" data-theme-injected="light">`;
+      return `<html${clean} class="" data-theme-injected="light"${showViewsAttr}>`;
     }
   });
 
+  const syncScript = `<script>window.__SITE_SHOW_VIEWS__=${effectiveShowViews ? 'true' : 'false'};</script>`;
   if (extraHead) {
-    html = html.replace('</head>', `${extraHead}</head>`);
+    html = html.replace('</head>', `${syncScript}${extraHead}</head>`);
+  } else {
+    html = html.replace('</head>', `${syncScript}</head>`);
   }
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

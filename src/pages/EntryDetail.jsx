@@ -124,12 +124,19 @@ export default function EntryDetail() {
       return;
     }
 
+    // When views are hidden by admin, completely strip views from non-admin state
+    if (!showViewCount && !isAdmin) {
+      delete postData.views;
+    }
+
     // Increment view count on initial view (deduplicated per slug per navigation)
     const viewKey = `${slug || postData.id || postData.slug}`;
     if (!isSilent && !viewedSlugsRef.current.has(viewKey)) {
       viewedSlugsRef.current.add(viewKey);
-      const optimisticViews = (postData.views || 0) + 1;
-      postData.views = optimisticViews;
+      if (showViewCount || isAdmin) {
+        const optimisticViews = (postData.views || 0) + 1;
+        postData.views = optimisticViews;
+      }
       cacheEntry(postData);
 
       const identifier = postData.id || postData.slug || slug;
@@ -137,7 +144,7 @@ export default function EntryDetail() {
         .then(async (res) => {
           if (res.ok) {
             const json = await res.json();
-            if (json && typeof json.views === 'number') {
+            if ((showViewCount || isAdmin) && json && typeof json.views === 'number') {
               setData(prev => {
                 if (!prev?.entry) return prev;
                 return {
@@ -497,35 +504,26 @@ export default function EntryDetail() {
           )}
 
           {/* View Count Display (Admin Toggle vs Public Visitor Static View) */}
-          {isAdmin ? (
-            <button
-              type="button"
-              onClick={toggleViewCount}
-              className={`meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors border-0 rounded px-2 py-0.5 select-none ${
-                !showViewCount ? 'opacity-65 hover:opacity-100 italic' : ''
-              }`}
-              title={showViewCount ? 'Admin: View count visible on site (click to hide for visitors)' : 'Admin: View count hidden on site (click to show for visitors)'}
-              aria-label={showViewCount ? 'Admin: Hide view count on site' : 'Admin: Show view count on site'}
-              aria-pressed={showViewCount}
-            >
-              {showViewCount ? (
-                <>
-                  <Eye className="w-3 h-3 opacity-60 shrink-0" />
-                  <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
-                </>
-              ) : (
-                <>
-                  <EyeOff className="w-3 h-3 opacity-60 shrink-0" />
-                  <span className="text-[11px]">views hidden (admin)</span>
-                </>
-              )}
-            </button>
-          ) : (
-            showViewCount && (
-              <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+          {/* View Count Display: Only rendered when showViewCount is true! When hidden, render nothing (no 'views hidden' text) */}
+          {showViewCount && (
+            isAdmin ? (
+              <button
+                type="button"
+                onClick={toggleViewCount}
+                className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors border-0 rounded px-2 py-0.5 select-none"
+                title="Admin: Click to hide view counts across website"
+                aria-label="Hide view count on site"
+              >
                 <Eye className="w-3 h-3 opacity-60 shrink-0" />
                 <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
-              </span>
+              </button>
+            ) : (
+              (entry.views !== undefined && entry.views !== null) && (
+                <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                  <Eye className="w-3 h-3 opacity-60 shrink-0" />
+                  <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
+                </span>
+              )
             )
           )}
 

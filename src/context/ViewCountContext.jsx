@@ -12,7 +12,23 @@ const ViewCountContext = createContext({
 
 export function ViewCountProvider({ children }) {
   const { isAdmin, token } = useAuth();
-  const [showViewCount, setShowViewCount] = useState(true);
+  const [showViewCount, setShowViewCount] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (typeof window.__SITE_SHOW_VIEWS__ === 'boolean') {
+          return window.__SITE_SHOW_VIEWS__;
+        }
+        const injectedAttr = document.documentElement.getAttribute('data-show-views-injected');
+        if (injectedAttr === 'true') return true;
+        if (injectedAttr === 'false') return false;
+        const cached = localStorage.getItem('site_show_views');
+        if (cached === 'true') return true;
+        if (cached === 'false') return false;
+      }
+    } catch (_e) {}
+    // Strict safety default: hidden by default so it can NEVER flash visible before settings load!
+    return false;
+  });
 
   // Fetch initial site view count visibility from /api/about
   useEffect(() => {
@@ -21,6 +37,11 @@ export function ViewCountProvider({ children }) {
       .then(data => {
         if (data && typeof data.show_view_count === 'boolean') {
           setShowViewCount(data.show_view_count);
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem('site_show_views', String(data.show_view_count));
+            }
+          } catch (_e) {}
         }
       })
       .catch(() => {});
@@ -32,6 +53,11 @@ export function ViewCountProvider({ children }) {
       const data = e.detail?.data || e.detail?.payload || e.detail;
       if (data && typeof data.show_view_count === 'boolean') {
         setShowViewCount(data.show_view_count);
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('site_show_views', String(data.show_view_count));
+          }
+        } catch (_e) {}
       }
     };
 
@@ -45,6 +71,11 @@ export function ViewCountProvider({ children }) {
     if (!isAdmin) return;
     const nextVal = !showViewCount;
     setShowViewCount(nextVal);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('site_show_views', String(nextVal));
+      }
+    } catch (_e) {}
 
     try {
       publishRealtimeUpdate({

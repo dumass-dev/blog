@@ -35,6 +35,13 @@
               }
             }
           }
+          // Synchronously cache server-injected view count setting to guarantee zero flash
+          var showViewsAttr = document.documentElement.getAttribute('data-show-views-injected');
+          if (showViewsAttr === 'true') {
+            try { localStorage.setItem('site_show_views', 'true'); } catch(e) {}
+          } else if (showViewsAttr === 'false') {
+            try { localStorage.setItem('site_show_views', 'false'); } catch(e) {}
+          }
         } catch(e) {}
       })();
     </script>

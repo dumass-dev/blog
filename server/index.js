@@ -910,12 +910,52 @@ async function checkIsAdmin(req) {
   return false;
 }
 
+let cachedShowViews = null;
+let lastShowViewsFetch = 0;
+
+export function setCachedShowViews(show) {
+  if (typeof show === 'boolean') {
+    cachedShowViews = show;
+    lastShowViewsFetch = Date.now();
+  }
+}
+
+export async function getEffectiveShowViews(supabase) {
+  const now = Date.now();
+  if (cachedShowViews !== null && (now - lastShowViewsFetch < 3000)) {
+    return cachedShowViews;
+  }
+  try {
+    const { data: syncRow } = await supabase
+      .from('realtime_sync')
+      .select('payload')
+      .eq('id', 'site_settings')
+      .maybeSingle();
+    if (syncRow?.payload && typeof syncRow.payload.show_view_count === 'boolean') {
+      cachedShowViews = syncRow.payload.show_view_count;
+      lastShowViewsFetch = now;
+      return cachedShowViews;
+    }
+    const { data: aboutRow } = await supabase
+      .from('about')
+      .select('show_view_count')
+      .limit(1);
+    if (aboutRow && aboutRow[0] && typeof aboutRow[0].show_view_count === 'boolean') {
+      cachedShowViews = aboutRow[0].show_view_count;
+      lastShowViewsFetch = now;
+      return cachedShowViews;
+    }
+  } catch {}
+  return true;
+}
+
 // GET /api/posts — List entries with filtering
 app.get('/api/posts', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { status, type, category, tag, limit } = req.query;
     const isAdmin = await checkIsAdmin(req);
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
 
     // HIGH-2: Non-admins always query through the safe view, never the raw entries table
     const table = isAdmin ? 'entries' : 'public_published_entries';
@@ -1019,10 +1059,12 @@ app.get('/api/posts', async (req, res) => {
       }
       freshCover = await refreshB2Url(freshCover);
       const freshContent = await refreshB2Url(post.content);
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
 
       if (!isAdmin && has_passcode) {
         return {
           ...post,
+          views: viewsToReturn,
           type: effectiveType,
           has_passcode: true,
           passcode: undefined,
@@ -1033,6 +1075,7 @@ app.get('/api/posts', async (req, res) => {
       }
       return {
         ...post,
+        views: viewsToReturn,
         type: effectiveType,
         cover_image: freshCover || post.cover_image || '',
         content: freshContent || post.content || '',
@@ -1423,6 +1466,8 @@ async function handleSaveAbout(req, res) {
       });
     } catch (_syncErr) {}
 
+    setCachedShowViews(saveData.show_view_count);
+
     const broadcastPayload = {
       ...(result || saveData),
       default_theme: saveData.default_theme,
@@ -1516,6 +1561,8 @@ app.get('/api/posts/:identifier', async (req, res) => {
     }
     freshCover = await refreshB2Url(freshCover);
 
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
+    const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
     const isUnlocked = isAdmin || !has_passcode || (req.query.unlocked === 'true');
 
     if (!isUnlocked) {
@@ -1532,7 +1579,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
         weather: post.weather,
         mood: post.mood,
         is_pinned: post.is_pinned,
-        views: post.views,
+        views: viewsToReturn,
         created_at: post.created_at,
         updated_at: post.updated_at,
         has_passcode: true,
@@ -1547,6 +1594,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     res.json({
       ...post,
+      views: viewsToReturn,
       type: effectiveType,
       cover_image: freshCover || post.cover_image || '',
       content: freshContent || post.content || '',
@@ -1654,12 +1702,21 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       }
     } catch {}
 
-    // 4. Broadcast realtime event so all open tabs and visitors see the updated count instantly
-    broadcastRealtimeEvent('entry_view_updated', {
-      id: post.id,
-      slug: post.slug,
-      views: newViews
-    }, client);
+    const showViews = await getEffectiveShowViews(client);
+    const isAdmin = await checkIsAdmin(req);
+
+    // 4. Only broadcast realtime view update if view count is visible
+    if (showViews) {
+      broadcastRealtimeEvent('entry_view_updated', {
+        id: post.id,
+        slug: post.slug,
+        views: newViews
+      }, client);
+    }
+
+    if (!showViews && !isAdmin) {
+      return res.json({ success: true, id: post.id, slug: post.slug });
+    }
 
     res.json({ success: true, id: post.id, slug: post.slug, views: newViews });
   } catch (err) {
