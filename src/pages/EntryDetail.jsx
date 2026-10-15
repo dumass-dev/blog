@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
@@ -65,7 +64,6 @@ export default function EntryDetail() {
   const [selectedQuote, setSelectedQuote] = useState('');
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [floatingBtnPos, setFloatingBtnPos] = useState(null);
-  const articleRef = useRef(null);
   const viewedSlugsRef = useRef(new Set());
 
   const loadEntry = useCallback(async (isSilent = false) => {
@@ -299,128 +297,35 @@ export default function EntryDetail() {
   }, [slug, data?.entry?.id, data?.entry?.slug]);
 
 
-  // Helper to calculate exact floating pill coordinates
-  const calculatePillPosition = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      return null;
-    }
+  // Listen for text selection to show Floating "Quote Card" pill
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      const text = selection ? selection.toString().trim() : '';
 
-    const text = selection.toString().trim();
-    if (!text || text.length < 4) {
-      return null;
-    }
-
-    try {
-      const range = selection.getRangeAt(0);
-
-      // Ensure selection is inside the journal/blog article container
-      if (articleRef.current && !articleRef.current.contains(range.commonAncestorContainer)) {
-        return null;
+      if (text && text.length >= 6) {
+        try {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            setSelectedQuote(text);
+            const isNearTop = rect.top < 65;
+            const topPos = isNearTop ? rect.bottom + 10 : rect.top - 46;
+            const leftPos = Math.max(75, Math.min(window.innerWidth - 75, rect.left + rect.width / 2));
+            setFloatingBtnPos({
+              top: topPos,
+              left: leftPos
+            });
+            return;
+          }
+        } catch (_e) {}
       }
+      setFloatingBtnPos(null);
+    };
 
-      // Do not show popup if selection is inside form inputs, buttons, or editable elements
-      const containerNode = range.commonAncestorContainer.nodeType === 1
-        ? range.commonAncestorContainer
-        : range.commonAncestorContainer.parentElement;
-      if (containerNode && containerNode.closest('input, textarea, button, [contenteditable="true"]')) {
-        return null;
-      }
-
-      const rect = range.getBoundingClientRect();
-      if (!rect || rect.width === 0 || rect.height === 0) {
-        return null;
-      }
-
-      // If selection is scrolled completely outside the visible viewport, hide
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        return null;
-      }
-
-      // Centered directly above the selected text range
-      const rawCenterX = rect.left + rect.width / 2;
-
-      // Safe screen clamping for mobile devices & small screens
-      // Pill width is approx 75px, half width ~38px. 12px screen margin -> 50px clamp boundary.
-      const pillHalfWidth = 46;
-      const margin = 12;
-      const minX = pillHalfWidth + margin;
-      const maxX = Math.max(minX, window.innerWidth - pillHalfWidth - margin);
-      const clampedX = Math.max(minX, Math.min(maxX, rawCenterX));
-
-      // Vertical positioning: 8px above selection, or flipped 8px below if close to top edge
-      const isNearTop = rect.top < 56;
-      const topPos = isNearTop ? rect.bottom + 8 : rect.top - 8;
-      const placement = isNearTop ? 'bottom' : 'top';
-
-      return {
-        top: Math.round(topPos),
-        left: Math.round(clampedX),
-        placement,
-        text
-      };
-    } catch (_e) {
-      return null;
-    }
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, []);
-
-  // Selection change listener to display floating quote pill
-  useEffect(() => {
-    let timer = null;
-
-    const handleSelection = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const pos = calculatePillPosition();
-        if (pos) {
-          setSelectedQuote(pos.text);
-          setFloatingBtnPos({
-            top: pos.top,
-            left: pos.left,
-            placement: pos.placement
-          });
-        } else {
-          setFloatingBtnPos(null);
-        }
-      }, 30);
-    };
-
-    document.addEventListener('selectionchange', handleSelection);
-    return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener('selectionchange', handleSelection);
-    };
-  }, [calculatePillPosition]);
-
-  // Keep floating pill locked smoothly to the text position when scrolling or resizing
-  useEffect(() => {
-    if (!floatingBtnPos) return;
-
-    let rafId = null;
-    const handleScrollOrResize = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        const pos = calculatePillPosition();
-        if (pos) {
-          setFloatingBtnPos({
-            top: pos.top,
-            left: pos.left,
-            placement: pos.placement
-          });
-        } else {
-          setFloatingBtnPos(null);
-        }
-      });
-    };
-
-    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
-    window.addEventListener('resize', handleScrollOrResize, { passive: true });
-    return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      window.removeEventListener('scroll', handleScrollOrResize);
-      window.removeEventListener('resize', handleScrollOrResize);
-    };
-  }, [floatingBtnPos, calculatePillPosition]);
 
   const handleImageClick = (e) => {
     if (e.target.tagName === 'IMG') {
@@ -521,7 +426,7 @@ export default function EntryDetail() {
   };
 
   return (
-    <article ref={articleRef} className="notebook-container relative animate-content-fade">
+    <article className="notebook-container relative animate-content-fade">
       {/* Top Reading Progress Bar */}
       <ReadingProgressBar />
 
@@ -541,44 +446,28 @@ export default function EntryDetail() {
         onClose={() => setShowQuoteModal(false)}
       />
 
-      {/* Ultra-Minimal Floating Quote Pill */}
-      {typeof document !== 'undefined' &&
-        floatingBtnPos &&
-        createPortal(
-          <div
-            style={{
-              top: `${floatingBtnPos.top}px`,
-              left: `${floatingBtnPos.left}px`,
+      {/* Ultra-Minimal Floating Quote Card Pill */}
+      {floatingBtnPos && (
+        <div
+          style={{
+            top: `${floatingBtnPos.top}px`,
+            left: `${floatingBtnPos.left}px`,
+          }}
+          className="fixed z-50 -translate-x-1/2 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
+        >
+          <button
+            onClick={() => {
+              setShowQuoteModal(true);
+              setFloatingBtnPos(null);
             }}
-            className={`fixed z-50 pointer-events-auto -translate-x-1/2 ${
-              floatingBtnPos.placement === 'bottom' ? 'translate-y-0' : '-translate-y-full'
-            } animate-in fade-in zoom-in-95 duration-150 select-none`}
+            className="group relative flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-900/90 dark:bg-stone-100/90 text-stone-100 dark:text-stone-900 border border-stone-700/40 dark:border-stone-300/40 backdrop-blur-md shadow-xl text-xs font-sans font-medium tracking-wide hover:scale-105 active:scale-95 transition-all cursor-pointer select-none"
           >
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                // Prevent click from clearing the active text selection
-                e.preventDefault();
-              }}
-              onTouchStart={(e) => {
-                // Prevent touch propagation from clearing selection
-                e.stopPropagation();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowQuoteModal(true);
-                setFloatingBtnPos(null);
-              }}
-              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-900/95 dark:bg-stone-100/95 text-stone-100 dark:text-stone-900 border border-stone-700/40 dark:border-stone-300/40 backdrop-blur-md shadow-lg text-xs font-sans font-medium tracking-tight hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="Create quote card from selected text"
-              aria-label="Create quote card"
-            >
-              <Quote className="w-3 h-3 text-[var(--accent-warm)] shrink-0 transition-transform group-hover:rotate-12" />
-              <span>Quote</span>
-            </button>
-          </div>,
-          document.body
-        )}
+            <Quote className="w-3.5 h-3.5 text-[var(--accent-warm)] shrink-0 transition-transform group-hover:rotate-12" />
+            <span>Quote Card</span>
+            <span className="text-[10px] font-mono opacity-50 font-normal">✦</span>
+          </button>
+        </div>
+      )}
 
       {/* Back button */}
       <div className="mb-8">
