@@ -102,9 +102,16 @@ export default function Header() {
       <div className="flex items-center space-x-6 sm:space-x-8">
         <Link
           to="/"
-          className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal leading-none"
+          className="flex items-center gap-2.5 sm:gap-3 group hover:opacity-85 transition-opacity leading-none"
         >
-          {siteMeta.author_name}
+          <img
+            src="/icon-192.png"
+            alt="Site Logo"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0 border border-[var(--border-subtle)] shadow-sm"
+          />
+          <span className="font-serif text-2xl sm:text-3xl tracking-tight text-[var(--text-primary)] font-normal leading-none">
+            {siteMeta.author_name}
+          </span>
         </Link>
 
         {/* Inline Text Links (desktop only) */}

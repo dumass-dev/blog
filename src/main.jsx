@@ -12,19 +12,16 @@ import './index.css';
 // Initialize multi-transport realtime sync engine (SSE, Supabase Realtime, BroadcastChannel)
 initRealtimeSync();
 
-// Register PWA service worker strictly for Admin App
+// Register PWA service worker cleanly for installability and offline support
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV !== 'test') {
-  if (window.location.pathname.startsWith('/admin')) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    });
+  const registerSW = () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    registerSW();
   } else {
-    // Ensure public site is never controlled or cached by service worker
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const reg of registrations) {
-        reg.unregister().catch(() => {});
-      }
-    }).catch(() => {});
+    window.addEventListener('load', registerSW);
   }
 }
 

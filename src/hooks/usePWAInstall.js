@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(() => {
+    return typeof window !== 'undefined' ? window.deferredInstallPrompt : null;
+  });
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isBrave, setIsBrave] = useState(false);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstallable, setIsInstallable] = useState(() => {
+    return typeof window !== 'undefined' ? Boolean(window.deferredInstallPrompt) : false;
+  });
 
   useEffect(() => {
     // 1. Check if running in standalone PWA mode
@@ -36,11 +40,25 @@ export function usePWAInstall() {
       setIsBrave(true);
     }
 
+    // Check if globally captured before React mount
+    if (window.deferredInstallPrompt) {
+      setDeferredPrompt(window.deferredInstallPrompt);
+      setIsInstallable(true);
+    }
+
     // 3. Listen for browser beforeinstallprompt event (Android / Chromium)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
+      window.deferredInstallPrompt = e;
       setDeferredPrompt(e);
       setIsInstallable(true);
+    };
+
+    const handlePromptReady = () => {
+      if (window.deferredInstallPrompt) {
+        setDeferredPrompt(window.deferredInstallPrompt);
+        setIsInstallable(true);
+      }
     };
 
     // 4. Listen for appinstalled event
@@ -48,29 +66,40 @@ export function usePWAInstall() {
       setIsStandalone(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      window.deferredInstallPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-prompt-ready', handlePromptReady);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-prompt-ready', handlePromptReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  const promptInstall = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstallable(false);
-        setDeferredPrompt(null);
+  const promptInstall = useCallback(async () => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? window.deferredInstallPrompt : null);
+    if (promptEvent && typeof promptEvent.prompt === 'function') {
+      try {
+        await promptEvent.prompt();
+        const choiceResult = await promptEvent.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          setIsInstallable(false);
+          setDeferredPrompt(null);
+          if (typeof window !== 'undefined') {
+            window.deferredInstallPrompt = null;
+          }
+        }
+        return choiceResult ? choiceResult.outcome : null;
+      } catch (err) {
+        console.error('PWA install prompt error:', err);
       }
-      return choiceResult.outcome;
     }
     return null;
-  };
+  }, [deferredPrompt]);
 
   return {
     isInstallable,
@@ -79,6 +108,6 @@ export function usePWAInstall() {
     isAndroid,
     isBrave,
     promptInstall,
-    hasNativePrompt: Boolean(deferredPrompt)
+    hasNativePrompt: Boolean(deferredPrompt || (typeof window !== 'undefined' && window.deferredInstallPrompt))
   };
 }

@@ -93,4 +93,30 @@ describe('Admin PWA App Specification Tests', () => {
       assert.ok(stat.size > 500, `${file} must not be empty`);
     }
   });
+
+  test('5. index.html globally captures beforeinstallprompt and links icon-192.png favicon', () => {
+    const htmlPath = path.resolve(process.cwd(), 'index.html');
+    const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(htmlContent.includes('window.deferredInstallPrompt'), 'Must define window.deferredInstallPrompt');
+    assert.ok(htmlContent.includes('beforeinstallprompt'), 'Must listen to beforeinstallprompt in head');
+    assert.ok(htmlContent.includes('href="/icon-192.png"'), 'Must link icon-192.png as favicon');
+  });
+
+  test('6. Header component renders circular site logo next to author wordmark', () => {
+    const headerPath = path.resolve(process.cwd(), 'src/components/Header.jsx');
+    const headerContent = fs.readFileSync(headerPath, 'utf8');
+
+    assert.ok(headerContent.includes('src="/icon-192.png"'), 'Header must render site logo img');
+    assert.ok(headerContent.includes('rounded-full'), 'Logo should be styled nicely');
+  });
+
+  test('7. PWAInstallButton triggers direct install and does not display tutorial guides', () => {
+    const btnPath = path.resolve(process.cwd(), 'src/components/PWAInstallButton.jsx');
+    const btnContent = fs.readFileSync(btnPath, 'utf8');
+
+    assert.ok(btnContent.includes('promptInstall'), 'Must trigger promptInstall directly');
+    assert.ok(!btnContent.includes('three dots menu'), 'Must not display manual tutorial guide steps');
+    assert.ok(!btnContent.includes('Share'), 'Must not contain manual Safari guide');
+  });
 });
