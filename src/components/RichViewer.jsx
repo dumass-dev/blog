@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useTypewriterEffect } from '../hooks/useTypewriterEffect';
+import { escapeNonStandardTags } from '../utils/markdown';
 
 // Configure DOMPurify hooks once for iframe host allowlist enforcement
 if (typeof window !== 'undefined') {
@@ -26,8 +27,6 @@ if (typeof window !== 'undefined') {
     }
   });
 }
-
-import { escapeNonStandardTags } from '../utils/markdown';
 
 export default function RichViewer({ content = '' }) {
   const containerRef = useRef(null);
@@ -68,7 +67,9 @@ export default function RichViewer({ content = '' }) {
     // Convert images followed by "Caption: " into HTML figure blocks
     const captionRegex = /!\[(.*?)\]\((.*?)\)\nCaption:\s*(.+)/gi;
     processed = processed.replace(captionRegex, (match, alt, url, captionText) => {
-      return `\n<figure class="media-figure"><img src="${url}" alt="${alt}"><figcaption>${captionText}</figcaption></figure>\n`;
+      const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
+      const safeAlt = alt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `\n<figure class="media-figure"><img src="${safeUrl}" alt="${safeAlt}"><figcaption>${captionText}</figcaption></figure>\n`;
     });
 
     // Handle [grid] shortcode for side-by-side media layouts

@@ -393,6 +393,10 @@ app.get('/api/posts/on-this-day', async (req, res) => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
 
+    const auth = await verifyAdminUser(req);
+    const isAdmin = auth.authorized;
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
+
     const { data: supaPosts, error } = await getSupabaseClient(req)
       .from('public_published_entries')
       .select('*')
@@ -408,7 +412,57 @@ app.get('/api/posts/on-this-day', async (req, res) => {
       return postMonth === month && postDay === day && d.getFullYear() < today.getFullYear();
     });
 
-    res.json(matched);
+    const processed = await Promise.all(matched.map(async post => {
+      const isPhoto = Boolean(
+        post.type === 'photo' ||
+        (post.category && post.category.toLowerCase() === 'photos')
+      );
+      const effectiveType = isPhoto ? 'photo' : post.type;
+      const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
+
+      let freshCover = post.cover_image || '';
+      if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
+        const matches = post.content ? (
+          [...post.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+            .concat([...post.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]))
+        ) : [];
+        const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url));
+        if (realImg) {
+          freshCover = realImg;
+        } else if (!freshCover || /q04ti-quote|quote-/i.test(freshCover)) {
+          freshCover = matches[0] || '';
+        }
+      }
+
+      freshCover = await refreshB2Url(freshCover);
+      const freshContent = await refreshB2Url(post.content);
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
+
+      if (!isAdmin && has_passcode) {
+        return {
+          ...post,
+          views: viewsToReturn,
+          type: effectiveType,
+          has_passcode: true,
+          passcode: undefined,
+          content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
+          excerpt: '🔒 Protected entry',
+          cover_image: ''
+        };
+      }
+
+      return {
+        ...post,
+        views: viewsToReturn,
+        type: effectiveType,
+        cover_image: freshCover || post.cover_image || '',
+        content: freshContent || post.content || '',
+        has_passcode: has_passcode,
+        passcode: isAdmin ? (post.passcode || '') : undefined
+      };
+    }));
+
+    res.json(processed);
   } catch (_err) {
     res.status(500).json({ error: _err.message });
   }
@@ -814,7 +868,7 @@ app.get('/api/posts', async (req, res) => {
       : 'id, slug, title, date, category, tags, read_time, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
 
     const table = isAdmin ? 'entries' : 'public_published_entries';
-    let query = getSupabaseClient(req).from(table).select(fields).order('date', { ascending: false }).order('created_at', { ascending: false });
+    let query = getSupabaseClient(req).from(table).select(fields);
 
     if (status === 'all' || status === 'draft') {
       if (!isAdmin) {
@@ -835,6 +889,11 @@ app.get('/api/posts', async (req, res) => {
     }
     if (category) query = query.ilike('category', `%${category}%`);
     if (tag) query = query.ilike('tags', `%${tag}%`);
+
+    query = query.order('date', { ascending: false });
+    if (typeof query.order === 'function') {
+      query = query.order('created_at', { ascending: false });
+    }
     if (limit) query = query.limit(parseInt(limit, 10));
 
     let { data: posts, error } = await query;

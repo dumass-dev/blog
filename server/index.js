@@ -92,6 +92,12 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '');
 }
 
+// Strip HTML tags from plain-text fields before they reach the DB
+function stripHtmlTags(str) {
+  if (!str || typeof str !== 'string') return str;
+  return str.replace(/<(?:[a-zA-Z/!][^>]*)>/g, '');
+}
+
 const serverStartTime = Date.now();
 
 // Realtime SSE Manager
@@ -959,7 +965,7 @@ app.get('/api/posts', async (req, res) => {
 
     // HIGH-2: Non-admins always query through the safe view, never the raw entries table
     const table = isAdmin ? 'entries' : 'public_published_entries';
-    let query = getSupabaseClient(req).from(table).select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
+    let query = getSupabaseClient(req).from(table).select('*');
 
     // Restrict status=all or status=draft to authenticated admin only
     if (status === 'all' || status === 'draft') {
@@ -987,6 +993,11 @@ app.get('/api/posts', async (req, res) => {
 
     if (tag) {
       query = query.ilike('tags', `%${tag}%`);
+    }
+
+    query = query.order('date', { ascending: false });
+    if (typeof query.order === 'function') {
+      query = query.order('created_at', { ascending: false });
     }
 
     if (limit) {
@@ -1098,6 +1109,9 @@ app.get('/api/posts/on-this-day', async (req, res) => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
 
+    const isAdmin = await checkIsAdmin(req);
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
+
     const { data: posts, error } = await getSupabaseClient(req)
       .from('public_published_entries')
       .select('*')
@@ -1110,10 +1124,60 @@ app.get('/api/posts/on-this-day', async (req, res) => {
       const d = new Date(post.date);
       const postMonth = String(d.getMonth() + 1).padStart(2, '0');
       const postDay = String(d.getDate()).padStart(2, '0');
-      return postMonth === month && postDay === day;
+      return postMonth === month && postDay === day && d.getFullYear() < today.getFullYear();
     });
 
-    res.json(matched);
+    const processed = await Promise.all(matched.map(async post => {
+      const isPhoto = Boolean(
+        post.type === 'photo' ||
+        (post.category && post.category.toLowerCase() === 'photos')
+      );
+      const effectiveType = isPhoto ? 'photo' : post.type;
+      const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
+
+      let freshCover = post.cover_image || '';
+      if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
+        const matches = post.content ? (
+          [...post.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+            .concat([...post.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]))
+        ) : [];
+        const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url));
+        if (realImg) {
+          freshCover = realImg;
+        } else if (!freshCover || /q04ti-quote|quote-/i.test(freshCover)) {
+          freshCover = matches[0] || '';
+        }
+      }
+
+      freshCover = await refreshB2Url(freshCover);
+      const freshContent = await refreshB2Url(post.content);
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
+
+      if (!isAdmin && has_passcode) {
+        return {
+          ...post,
+          views: viewsToReturn,
+          type: effectiveType,
+          has_passcode: true,
+          passcode: undefined,
+          content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
+          excerpt: '🔒 Protected entry',
+          cover_image: ''
+        };
+      }
+
+      return {
+        ...post,
+        views: viewsToReturn,
+        type: effectiveType,
+        cover_image: freshCover || post.cover_image || '',
+        content: freshContent || post.content || '',
+        has_passcode: has_passcode,
+        passcode: isAdmin ? (post.passcode || '') : undefined
+      };
+    }));
+
+    res.json(processed);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2115,23 +2179,37 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { author_name, content } = req.body;
 
-    if (!content || !content.trim()) {
+    // Strip HTML tags from plain-text fields — comments are plain text, never markup.
+    const rawName = author_name && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
+    const rawContent = stripHtmlTags(content).trim();
+
+    if (!rawContent) {
       return res.status(400).json({ error: 'Comment text cannot be empty.' });
+    }
+    if (rawContent.length > 2000) {
+      return res.status(400).json({ error: 'Comment must be 2000 characters or fewer.' });
+    }
+    if (rawName && rawName.length > 100) {
+      return res.status(400).json({ error: 'Author name must be 100 characters or fewer.' });
     }
 
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      if (!posts || !posts[0]) {
+        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+        if (rawPosts && rawPosts[0]) posts = rawPosts;
+      }
       if (!posts || !posts[0]) return res.status(404).json({ error: 'Entry not found.' });
       postId = posts[0].id;
     }
 
-    const name = author_name && author_name.trim() ? author_name.trim() : 'Anonymous Reader';
+    const name = rawName || 'Anonymous Reader';
 
     const { data, error } = await getSupabaseClient(req)
       .from('comments')
-      .insert([{ post_id: postId, author_name: name, content: content.trim() }])
+      .insert([{ post_id: postId, author_name: name, content: rawContent }])
       .select('*')
       .single();
 
@@ -2145,6 +2223,9 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     res.status(201).json(data);
   } catch (err) {
+    if (err.message && /rate limit exceeded/i.test(err.message)) {
+      return res.status(429).json({ error: "You're posting too fast. Try again in a few minutes." });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -2233,7 +2314,11 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
     let postId = id;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
+      if (!posts || !posts[0]) {
+        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
+        if (rawPosts && rawPosts[0]) posts = rawPosts;
+      }
       if (!posts || !posts[0]) return res.status(404).json({ error: 'Post not found.' });
       postId = posts[0].id;
     }
@@ -2268,6 +2353,9 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       counts: updatedCounts
     });
   } catch (err) {
+    if (err.message && /rate limit exceeded/i.test(err.message)) {
+      return res.status(429).json({ error: "You're reacting too fast. Try again in a few minutes." });
+    }
     res.status(500).json({ error: err.message });
   }
 });

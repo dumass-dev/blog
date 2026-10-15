@@ -11,7 +11,7 @@ import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
-import { Clock, MapPin, Cloud, Smile, Eye, EyeOff, Quote, Share2 } from 'lucide-react';
+import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
 import { useViewCount } from '../context/ViewCountContext';
 import { useAuth } from '../context/AuthContext';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -133,8 +133,8 @@ export default function EntryDetail() {
     const viewKey = `${slug || postData.id || postData.slug}`;
     if (!isSilent && !viewedSlugsRef.current.has(viewKey)) {
       viewedSlugsRef.current.add(viewKey);
+      const optimisticViews = (postData.views || 0) + 1;
       if (showViewCount || isAdmin) {
-        const optimisticViews = (postData.views || 0) + 1;
         postData.views = optimisticViews;
       }
       cacheEntry(postData);
@@ -158,12 +158,14 @@ export default function EntryDetail() {
             // Direct RPC fallback if server endpoint is unavailable
             supabase.rpc('increment_views', { target_slug: postData.id || identifier })
               .then(() => {
-                publishRealtimeUpdate({
-                  type: 'entry_view_updated',
-                  id: postData.id,
-                  slug: postData.slug,
-                  views: optimisticViews
-                });
+                if (showViewCount || isAdmin) {
+                  publishRealtimeUpdate({
+                    type: 'entry_view_updated',
+                    id: postData.id,
+                    slug: postData.slug,
+                    views: optimisticViews
+                  });
+                }
               })
               .catch(() => {});
           }
@@ -172,12 +174,14 @@ export default function EntryDetail() {
           // Network failure fallback
           supabase.rpc('increment_views', { target_slug: postData.id || identifier })
             .then(() => {
-              publishRealtimeUpdate({
-                type: 'entry_view_updated',
-                id: postData.id,
-                slug: postData.slug,
-                views: optimisticViews
-              });
+              if (showViewCount || isAdmin) {
+                publishRealtimeUpdate({
+                  type: 'entry_view_updated',
+                  id: postData.id,
+                  slug: postData.slug,
+                  views: optimisticViews
+                });
+              }
             })
             .catch(() => {});
         });
@@ -198,7 +202,9 @@ export default function EntryDetail() {
         ? (prevData.entry.cover_image || postData.cover_image)
         : (hasPasscode && !alreadyUnlocked ? '' : postData.cover_image);
 
-      const effectiveViews = Math.max(postData.views || 0, prevData?.entry?.views || 0, 1);
+      const effectiveViews = (showViewCount || isAdmin)
+        ? Math.max(postData.views || 0, prevData?.entry?.views || 0, 1)
+        : undefined;
 
       return {
         entry: {
@@ -218,7 +224,7 @@ export default function EntryDetail() {
       setIsUnlocked(true);
     }
     setLoading(false);
-  }, [slug]);
+  }, [slug, isAdmin, showViewCount]);
 
   useEffect(() => {
     const cached = getCachedEntry(slug);

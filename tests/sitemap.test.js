@@ -5,7 +5,7 @@ import http from 'http';
 import app from '../api/index.js';
 import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
 
-const PORT = 3899;
+const PORT = 3905;
 
 describe('Dynamic XML Sitemap & Robots.txt Route Tests (/sitemap.xml, /robots.txt)', () => {
   let server;
