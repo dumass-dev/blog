@@ -16,13 +16,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <TypewriterProvider>
-          <ViewCountProvider>
-            <AuthProvider>
+        <AuthProvider>
+          <TypewriterProvider>
+            <ViewCountProvider>
               <App />
-            </AuthProvider>
-          </ViewCountProvider>
-        </TypewriterProvider>
+            </ViewCountProvider>
+          </TypewriterProvider>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>

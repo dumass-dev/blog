@@ -13,6 +13,7 @@ import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, EyeOff, Quote, Share2 } from 'lucide-react';
 import { useViewCount } from '../context/ViewCountContext';
+import { useAuth } from '../context/AuthContext';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import { resolveMediaUrl } from '../utils/media';
@@ -42,6 +43,7 @@ export default function EntryDetail() {
 
   const [data, setData] = useState(initialState.data);
   const { showViewCount, toggleViewCount } = useViewCount();
+  const { isAdmin } = useAuth();
 
   useDocumentMeta({
     title: data?.entry?.title || 'Entry',
@@ -494,29 +496,38 @@ export default function EntryDetail() {
             </span>
           )}
 
-          {/* View Count Chip / Hide-Unhide Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleViewCount}
-            className={`meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors border-0 rounded px-2 py-0.5 select-none ${
-              !showViewCount ? 'opacity-65 hover:opacity-100 italic' : ''
-            }`}
-            title={showViewCount ? 'View count visible (Click to hide)' : 'View count hidden (Click to unhide)'}
-            aria-label={showViewCount ? 'Hide view count' : 'Unhide view count'}
-            aria-pressed={showViewCount}
-          >
-            {showViewCount ? (
-              <>
+          {/* View Count Display (Admin Toggle vs Public Visitor Static View) */}
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={toggleViewCount}
+              className={`meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors border-0 rounded px-2 py-0.5 select-none ${
+                !showViewCount ? 'opacity-65 hover:opacity-100 italic' : ''
+              }`}
+              title={showViewCount ? 'Admin: View count visible on site (click to hide for visitors)' : 'Admin: View count hidden on site (click to show for visitors)'}
+              aria-label={showViewCount ? 'Admin: Hide view count on site' : 'Admin: Show view count on site'}
+              aria-pressed={showViewCount}
+            >
+              {showViewCount ? (
+                <>
+                  <Eye className="w-3 h-3 opacity-60 shrink-0" />
+                  <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3 h-3 opacity-60 shrink-0" />
+                  <span className="text-[11px]">views hidden (admin)</span>
+                </>
+              )}
+            </button>
+          ) : (
+            showViewCount && (
+              <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
                 <Eye className="w-3 h-3 opacity-60 shrink-0" />
                 <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-3 h-3 opacity-60 shrink-0" />
-                <span className="text-[11px]">views hidden</span>
-              </>
-            )}
-          </button>
+              </span>
+            )
+          )}
 
           <button 
             onClick={handleShare}

@@ -39,39 +39,35 @@ describe('Entry Views Count & Realtime Sync Tests', () => {
     assert.equal(getCachedEntry('test-safe-entry').views, 10);
   });
 
-  test('View count visibility toggle logic and localStorage persistence simulation', () => {
-    const mockStorage = new Map();
-    const fakeLocalStorage = {
-      getItem: (key) => mockStorage.get(key) ?? null,
-      setItem: (key, val) => mockStorage.set(key, String(val)),
-      removeItem: (key) => mockStorage.delete(key)
+  test('Admin-only view count visibility toggle and site-wide propagation', () => {
+    let siteSettingShowViews = true;
+
+    // Simulation function for public visitors
+    const getVisitorViewVisibility = () => siteSettingShowViews;
+
+    // Simulation function for admin toggling
+    const toggleAdminViewVisibility = (isAdmin) => {
+      if (!isAdmin) return siteSettingShowViews;
+      siteSettingShowViews = !siteSettingShowViews;
+      return siteSettingShowViews;
     };
 
-    // Initial state: no preference set -> defaults to site default (true)
-    let siteDefaultShowViews = true;
-    let userPref = fakeLocalStorage.getItem('show_view_count');
-    let effectiveShow = userPref !== null ? userPref === 'true' : siteDefaultShowViews;
-    assert.equal(effectiveShow, true, 'Default view count visibility should be true');
+    // 1. Initial state: site view count is visible
+    assert.equal(getVisitorViewVisibility(), true, 'Visitors see views when site setting is true');
 
-    // User toggles to hide view count
-    let nextVal = !effectiveShow;
-    fakeLocalStorage.setItem('show_view_count', String(nextVal));
-    assert.equal(fakeLocalStorage.getItem('show_view_count'), 'false');
-    effectiveShow = fakeLocalStorage.getItem('show_view_count') === 'true';
-    assert.equal(effectiveShow, false, 'View count should be hidden after toggle');
+    // 2. Non-admin tries to toggle -> ignored / no effect
+    const nonAdminAttempt = toggleAdminViewVisibility(false);
+    assert.equal(nonAdminAttempt, true, 'Non-admin cannot toggle view count visibility');
+    assert.equal(getVisitorViewVisibility(), true, 'Visitor visibility remains unchanged');
 
-    // User toggles to unhide view count
-    nextVal = !effectiveShow;
-    fakeLocalStorage.setItem('show_view_count', String(nextVal));
-    assert.equal(fakeLocalStorage.getItem('show_view_count'), 'true');
-    effectiveShow = fakeLocalStorage.getItem('show_view_count') === 'true';
-    assert.equal(effectiveShow, true, 'View count should be visible after unhide');
+    // 3. Admin toggles view count to false
+    const adminToggleResult = toggleAdminViewVisibility(true);
+    assert.equal(adminToggleResult, false, 'Admin successfully toggles view count to hidden');
+    assert.equal(getVisitorViewVisibility(), false, 'Visitors now see view count as completely hidden');
 
-    // If site default is configured as false by admin
-    fakeLocalStorage.removeItem('show_view_count');
-    siteDefaultShowViews = false;
-    userPref = fakeLocalStorage.getItem('show_view_count');
-    effectiveShow = userPref !== null ? userPref === 'true' : siteDefaultShowViews;
-    assert.equal(effectiveShow, false, 'Without preference, follows admin site default false');
+    // 4. Admin toggles view count back to true
+    const adminUnhideResult = toggleAdminViewVisibility(true);
+    assert.equal(adminUnhideResult, true, 'Admin successfully unhides view count');
+    assert.equal(getVisitorViewVisibility(), true, 'Visitors now see view count again');
   });
 });
