@@ -36,7 +36,7 @@ function getPhotoSrc(item) {
   }
   if (!src && item.content) {
     const matches = [...item.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
-      .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+      .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
     src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
   }
   return resolveMediaUrl(src);

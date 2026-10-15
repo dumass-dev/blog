@@ -263,7 +263,7 @@ export default function Editor() {
     const newCursorPos = start + textToInsert.length;
 
     const rawUrl = media.url || media.storageKey || media.signed_url || '';
-    const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i);
+    const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
     const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
 
     setFormData(prev => ({
@@ -570,7 +570,7 @@ export default function Editor() {
               formData.content && (
                 (formData.cover_image && formData.content.includes(formData.cover_image)) ||
                 /!\[.*?\]\((.*?)\)/.test(formData.content) ||
-                /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i.test(formData.content)
+                /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(formData.content)
               )
             );
             return formData.cover_image && !contentHasImage ? (

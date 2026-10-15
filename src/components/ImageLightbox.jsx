@@ -10,8 +10,8 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
     <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox" maxWidthClass="max-w-4xl w-full">
       <div className="flex flex-col space-y-4 select-none touch-action-none">
         {/* Top Header with Top-Left Close Button */}
-        <div className="flex justify-between items-center text-[var(--text-primary)] relative">
-          <div className="flex items-center gap-2 text-xs font-sans font-medium">
+        <div className="flex justify-between items-center text-[var(--text-primary)] relative min-h-[44px]">
+          <div className="flex items-center gap-2 text-xs font-sans font-medium pl-12">
             <button
               onClick={onClose}
               className="lightbox-close-btn w-11 h-11 min-w-[44px] min-h-[44px] shrink-0"
@@ -19,7 +19,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
               aria-label="Close photo view"
               title="Close photo"
             >
-              <X className="w-5 h-5 text-white" />
+              <X className="w-5 h-5 text-[var(--text-primary)]" />
             </button>
             <Camera className="w-4 h-4 text-[var(--accent-warm)]" />
             <span>Editorial Photo Lightbox</span>

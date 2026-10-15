@@ -1474,6 +1474,11 @@ html, body {
   transform: scale(0.95) !important;
 }
 
+.modal-card .lightbox-close-btn {
+  color: var(--text-primary) !important;
+  filter: none !important;
+}
+
 /* ============================================================
    SKELETON SHIMMER LOADING ANIMATION & STYLES
    ============================================================ */

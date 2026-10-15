@@ -395,7 +395,7 @@ export default function EntryDetail() {
     entry.content && (
       (entry.cover_image && entry.content.includes(entry.cover_image)) ||
       /!\[.*?\]\((.*?)\)/.test(entry.content) ||
-      /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+/i.test(entry.content)
+      /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(entry.content)
     )
   );
 

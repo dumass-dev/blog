@@ -1873,7 +1873,7 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       if (extracted) finalCoverImage = extracted;
     }
     if (!finalCoverImage && content) {
-      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/i);
+      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
       if (imgMatch) {
         const rawMatch = imgMatch[1] || imgMatch[0];
         finalCoverImage = extractB2StorageKey(rawMatch) || rawMatch;

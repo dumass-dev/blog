@@ -63,25 +63,40 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
     ctx.fillStyle = textColor;
     ctx.font = 'italic 34px Newsreader, Georgia, serif';
 
-    const words = quoteText.split(' ');
-    let line = '';
-    let y = 220;
-    const maxWidth = 1040;
-    const lineHeight = 52;
+    const cleanQuote = quoteText ? quoteText.trim().replace(/^[“"']+|[”"']+$/g, '') : '';
+    if (cleanQuote) {
+      const words = cleanQuote.split(/\s+/);
+      const lines = [];
+      let currentLine = '';
+      const maxWidth = 1040;
+      const lineHeight = 52;
 
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && n > 0) {
-        ctx.fillText('“' + line.trim(), 80, y);
-        line = words[n] + ' ';
-        y += lineHeight;
+      for (let n = 0; n < words.length; n++) {
+        const testLine = currentLine ? `${currentLine} ${words[n]}` : words[n];
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          lines.push(currentLine);
+          currentLine = words[n];
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+
+      if (lines.length > 0) {
+        lines[0] = '“' + lines[0];
+        lines[lines.length - 1] = lines[lines.length - 1] + '”';
+      }
+
+      let y = 220;
+      for (const l of lines) {
         if (y > 500) break;
-      } else {
-        line = testLine;
+        ctx.fillText(l, 80, y);
+        y += lineHeight;
       }
     }
-    ctx.fillText(line.trim() + '”', 80, y);
 
     // Post Title & Date Footer
     ctx.fillStyle = subTextColor;

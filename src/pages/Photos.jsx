@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon, Send, Heart } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { shouldShowCommentsAndReactions } from '../utils/entry';
-import { supabase } from '../supabase';
-
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -23,62 +20,9 @@ export default function Photos() {
   });
 
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
-  
-  // Interactions for active lightbox photo
-  const [reactions, setReactions] = useState({ hearts: 0, userLiked: false });
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState({ name: '', text: '' });
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentError, setCommentError] = useState(null);
-  
-  // Passcode modal state
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
 
   const activePhoto = selectedPhotoIndex !== null ? photos[selectedPhotoIndex] : null;
-
-  // Load interactions when a lightbox photo is selected
-  useEffect(() => {
-    if (!activePhoto) return;
-
-    const loadInteractions = () => {
-      // Fetch reactions
-      fetch(`/api/posts/${activePhoto.id}/reactions`)
-        .then(res => res.json())
-        .then(data => {
-          setReactions(prev => ({ ...prev, hearts: data.hearts || 0 }));
-        })
-        .catch(() => {});
-
-      // Fetch comments
-      fetch(`/api/posts/${activePhoto.id}/comments`)
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) setComments(data);
-        })
-        .catch(() => {});
-    };
-
-    loadInteractions();
-
-    const handleComments = (e) => {
-      if (!e.detail?.postId || e.detail.postId === activePhoto.id) {
-        loadInteractions();
-      }
-    };
-
-    const handleReactions = (e) => {
-      if (!e.detail?.postId || e.detail.postId === activePhoto.id) {
-        loadInteractions();
-      }
-    };
-
-    window.addEventListener('comments-updated', handleComments);
-    window.addEventListener('reactions-updated', handleReactions);
-    return () => {
-      window.removeEventListener('comments-updated', handleComments);
-      window.removeEventListener('reactions-updated', handleReactions);
-    };
-  }, [activePhoto]);
 
   const navigatePhoto = useCallback((direction) => {
     if (selectedPhotoIndex === null) return;
@@ -100,102 +44,6 @@ export default function Photos() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedPhotoIndex, photos.length, navigatePhoto]);
 
-  const handleLike = async (photoId, e) => {
-    if (e) e.stopPropagation();
-    if (reactions.userLiked) return;
-
-    // Optimistic UI update
-    setReactions(prev => ({
-      hearts: prev.hearts + 1,
-      userLiked: true
-    }));
-
-    try {
-      const res = await fetch(`/api/posts/${photoId}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reaction_type: 'loved', type: 'heart' })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setReactions({
-          hearts: data.hearts !== undefined ? data.hearts : (data.loved || 1),
-          userLiked: true
-        });
-      }
-    } catch (err) {
-      console.error('Error liking photo:', err);
-    }
-  };
-
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    if (!newComment.text.trim() || !activePhoto) return;
-
-    setCommentError(null);
-    setSubmittingComment(true);
-
-    const name = newComment.name.trim() || 'Anonymous Reader';
-    const content = newComment.text.trim();
-    const tempId = `temp-${Date.now()}`;
-    const optimisticComment = {
-      id: tempId,
-      post_id: activePhoto.id,
-      author_name: name,
-      content,
-      created_at: new Date().toISOString()
-    };
-
-    setComments(prev => [...prev, optimisticComment]);
-    setNewComment({ name: '', text: '' });
-
-    let realComment = null;
-    let apiErrorMsg = null;
-
-    try {
-      const res = await fetch(`/api/posts/${activePhoto.id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          author_name: name,
-          content
-        })
-      });
-
-      if (res.ok) {
-        realComment = await res.json();
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        apiErrorMsg = errJson.error || 'Failed to post comment.';
-      }
-    } catch {
-      // API call failed, fallback to direct Supabase client
-    }
-
-    if (!realComment) {
-      try {
-        const { data: supaInserted, error: supaErr } = await supabase
-          .from('comments')
-          .insert([{ post_id: activePhoto.id, author_name: name, content }])
-          .select('*')
-          .single();
-
-        if (supaErr) throw supaErr;
-        realComment = supaInserted;
-      } catch (err) {
-        setComments(prev => prev.filter(c => c.id !== tempId));
-        setCommentError(apiErrorMsg || err.message || 'Failed posting comment.');
-        setSubmittingComment(false);
-        return;
-      }
-    }
-
-    if (realComment) {
-      setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
-    }
-    setSubmittingComment(false);
-  };
-
   const openPhoto = (photo, index) => {
     if (photo.has_passcode && photo.content && photo.content.includes('🔒')) {
       setPasscodeModalPhoto(photo);
@@ -212,7 +60,7 @@ export default function Photos() {
     }
     if (!src && item.content) {
       const matches = [...item.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
-        .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+        .concat([...item.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
       src = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0] || null;
     }
     return resolveMediaUrl(src);
@@ -326,9 +174,9 @@ export default function Photos() {
           )}
 
           {/* Main Modal Layout Card */}
-          <div className="relative w-full max-w-4xl max-h-[85vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
+          <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
             {/* Image Viewport Column */}
-            <div className="md:w-7/12 lg:w-7/12 bg-black flex items-center justify-center relative min-h-[260px] max-h-[50vh] md:max-h-[85vh] p-4 select-none">
+            <div className="md:flex-1 bg-black flex items-center justify-center relative min-h-[260px] max-h-[58vh] md:max-h-[85vh] p-4 select-none">
               {/* High-visibility Close Button strictly on Photo Container Top-Left */}
               <button
                 onClick={() => setSelectedPhotoIndex(null)}
@@ -345,15 +193,15 @@ export default function Photos() {
                   src={getPhotoSrc(activePhoto)}
                   alt={activePhoto.title || 'Photo'}
                   objectFit="object-contain"
-                  className="max-w-full max-h-[48vh] md:max-h-[75vh] rounded shadow-lg"
+                  className="max-w-full max-h-[52vh] md:max-h-[80vh] rounded shadow-lg"
                 />
               ) : (
                 <div className="text-white/60 font-serif italic text-sm">No preview available</div>
               )}
             </div>
 
-            {/* Sidebar Details & Comments Column */}
-            <div className="md:w-5/12 lg:w-4/12 flex flex-col h-full max-h-[40vh] md:max-h-[85vh] border-t md:border-t-0 md:border-l border-[var(--border-subtle)] bg-[var(--bg-main)]">
+            {/* Sidebar Details Column */}
+            <div className="md:w-72 lg:w-80 flex flex-col shrink-0 border-t md:border-t-0 md:border-l border-[var(--border-subtle)] bg-[var(--bg-main)]">
               {/* Header */}
               <div className="p-4 border-b border-[var(--border-subtle)] flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -375,88 +223,11 @@ export default function Photos() {
                 </div>
               </div>
 
-              {/* Caption & Comments List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans">
-                {getCleanCaption(activePhoto) && (
-                  <div className="pb-3 text-[var(--text-primary)] leading-relaxed break-words">
-                    {getCleanCaption(activePhoto)}
-                  </div>
-                )}
-
-                {shouldShowCommentsAndReactions(activePhoto) && (
-                  <>
-                    {/* Reactions counter */}
-                    <div className="flex items-center justify-between py-1 border-b border-[var(--border-subtle)]">
-                      <button
-                        onClick={() => handleLike(activePhoto.id)}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md border text-xs transition-colors cursor-pointer ${
-                          reactions.userLiked
-                            ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:border-red-900/50'
-                            : 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                        }`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${reactions.userLiked ? 'fill-current text-red-500' : ''}`} />
-                        <span>{reactions.hearts} {reactions.hearts === 1 ? 'like' : 'likes'}</span>
-                      </button>
-
-                      <span className="text-[11px] text-[var(--text-muted)]">
-                        {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
-                      </span>
-                    </div>
-
-                    {/* Comments Stream */}
-                    <div className="space-y-3 pt-1">
-                      {comments.length === 0 ? (
-                        <p className="text-center text-[var(--text-muted)] italic text-[11px] py-4">
-                          No comments yet. Be the first to comment!
-                        </p>
-                      ) : (
-                        comments.map((c, i) => (
-                          <div key={c.id || i} className="space-y-0.5 bg-[var(--card-bg)] p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-[var(--text-primary)] truncate max-w-[120px]">{c.author_name}</span>
-                              <span className="text-[10px] text-[var(--text-muted)] shrink-0">{formatDate(c.created_at)}</span>
-                            </div>
-                            <p className="text-[var(--text-secondary)] break-words">{c.content}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Add Comment Input Form */}
-              {shouldShowCommentsAndReactions(activePhoto) && (
-                <form onSubmit={handleCommentSubmit} className="p-3 border-t border-[var(--border-subtle)] bg-[var(--card-bg)] space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Your name (optional)..."
-                    value={newComment.name}
-                    onChange={e => setNewComment(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
-                  />
-                  <div className="flex space-x-1.5">
-                    <input
-                      type="text"
-                      placeholder="Write a comment..."
-                      value={newComment.text}
-                      onChange={e => setNewComment(prev => ({ ...prev, text: e.target.value }))}
-                      className="flex-1 text-xs px-2.5 py-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      disabled={submittingComment || !newComment.text.trim()}
-                      className="px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-main)] text-xs rounded font-medium disabled:opacity-50 transition-opacity flex items-center justify-center cursor-pointer shrink-0"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  {commentError && (
-                    <p className="text-red-500 text-[11px] font-sans px-1 pt-0.5">{commentError}</p>
-                  )}
-                </form>
+              {/* Caption */}
+              {getCleanCaption(activePhoto) && (
+                <div className="flex-1 overflow-y-auto p-4 text-xs font-sans text-[var(--text-primary)] leading-relaxed break-words">
+                  {getCleanCaption(activePhoto)}
+                </div>
               )}
             </div>
           </div>
