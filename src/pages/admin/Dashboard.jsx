@@ -6,6 +6,7 @@ import { publishRealtimeUpdate } from '../../utils/realtime';
 import Modal from '../../components/Modal';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
+import PWAInstallButton from '../../components/PWAInstallButton';
 import {
   Plus,
   FileText,
@@ -366,6 +367,8 @@ export default function Dashboard() {
               <ExternalLink className="w-3.5 h-3.5" />
               <span>View Public Site</span>
             </Link>
+
+            <PWAInstallButton />
 
             <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
               <ThemeToggle />
