@@ -1326,7 +1326,7 @@ app.put('/api/posts/:id', async (req, res) => {
       if (payload.passcode && payload.passcode.trim() !== '') {
         updateData.passcode = payload.passcode.trim();
       } else {
-        delete updateData.passcode;
+        updateData.passcode = null;
       }
     }
 

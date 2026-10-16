@@ -1694,7 +1694,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     const showViews = await getEffectiveShowViews(getSupabaseClient(req));
     const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
-    const isUnlocked = isAdmin || !has_passcode || (req.query.unlocked === 'true');
+    const isUnlocked = isAdmin || !has_passcode;
 
     if (!isUnlocked) {
       return res.json({
