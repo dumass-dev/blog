@@ -865,17 +865,17 @@ export default function Editor() {
                   }
                   setShowMediaPicker(true);
                 }}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1 shrink-0 whitespace-nowrap"
                 title="Insert Photo/GIF/Video"
               >
                 <ImageIcon className="w-4 h-4" />
-                <span className="text-[11px]">Add Media</span>
+                <span className="text-[11px] whitespace-nowrap">Add Media</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Embed YouTube Video"
               >
                 <Video className="w-4 h-4" />
@@ -884,58 +884,58 @@ export default function Editor() {
               <button
                 type="button"
                 onClick={() => insertFormatting('\n[grid]\n', '\n[/grid]\n')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
-                title="Insert Split Screen Grid for side-by-side images"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1 shrink-0 whitespace-nowrap"
+                title="Insert 2-column Media Grid for side-by-side images"
               >
                 <Columns className="w-4 h-4" />
-                <span className="text-[11px]">Split Layout</span>
+                <span className="hidden xl:inline text-[11px] whitespace-nowrap">Grid</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyImageWrap('left')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
                 title="Float image on the left and wrap text around it (or format selected image)"
               >
                 <AlignLeft className="w-4 h-4 text-[var(--accent-warm)]" />
-                <span className="text-[11px]">Wrap Left</span>
+                <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Left</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyImageWrap('right')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
                 title="Float image on the right and wrap text around it (or format selected image)"
               >
                 <AlignRight className="w-4 h-4 text-[var(--accent-warm)]" />
-                <span className="text-[11px]">Wrap Right</span>
+                <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Right</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => insertFormatting('\n[clear]\n')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer shrink-0 whitespace-nowrap"
                 title="End floating wrap and resume full-width text"
               >
-                <span className="text-[11px] font-mono px-1 py-0.5 rounded bg-black/5 dark:bg-white/5">Clear</span>
+                <span className="text-[11px] font-sans px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 whitespace-nowrap font-medium">Clear Float</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => insertFormatting('\n---\n')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Horizontal Rule"
               >
                 <Minus className="w-4 h-4" />
               </button>
 
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1 shrink-0" />
 
               {/* Voice Dictation Button */}
               <button
                 type="button"
                 onClick={toggleDictation}
-                className={`p-1.5 rounded flex items-center gap-1 font-medium transition-colors cursor-pointer ${
+                className={`p-1.5 rounded flex items-center gap-1 font-medium transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                   isListening
                     ? 'bg-[var(--text-primary)] text-[var(--bg-main)] animate-pulse'
                     : 'hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-primary)]'
@@ -943,7 +943,7 @@ export default function Editor() {
                 title={isListening ? "Stop Voice Dictation" : "Start Speech-to-Text Voice Dictation"}
               >
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                <span className="text-[11px]">{isListening ? 'Recording Voice...' : 'Voice Dictate'}</span>
+                <span className="text-[11px] whitespace-nowrap">{isListening ? 'Listening...' : 'Dictate'}</span>
               </button>
             </div>
 

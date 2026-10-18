@@ -627,9 +627,6 @@ html {
 }
 
 .prose-editorial h1 { font-size: 2.35rem; line-height: 1.25; }
-.prose-editorial h1,
-.prose-editorial h2,
-.prose-editorial h3,
 .prose-editorial hr {
   clear: both;
 }
@@ -666,26 +663,45 @@ html {
   width: 100%;
   height: auto;
   border-radius: 4px;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
   display: block;
   background-color: var(--code-bg);
   transition: opacity 300ms ease-out;
 }
 
-/* Sized Image Wrappers & Figures */
-.prose-editorial .image-wrapper {
-  margin-top: 2rem;
-  margin-bottom: 2rem;
-  width: 100%;
-  clear: both;
+.prose-editorial p > img:only-child {
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
 }
 
-.prose-editorial .image-wrapper img {
+/* Sized Image Wrappers & Figures */
+.prose-editorial .image-wrapper {
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  width: 100%;
+}
+
+.prose-editorial .image-wrapper img,
+.prose-editorial .media-figure img {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   width: 100%;
   height: auto;
+  display: block;
+}
+
+.prose-editorial .media-figure {
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  text-align: center;
+}
+
+.prose-editorial .media-figure figcaption {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  font-style: italic;
+  text-align: center;
 }
 
 .prose-editorial .media-figure.image-size-small,
@@ -720,22 +736,24 @@ html {
 .prose-editorial .image-wrapper.image-align-left {
   float: left !important;
   margin-left: 0 !important;
-  margin-right: 1.75rem !important;
+  margin-right: 1.5rem !important;
   margin-top: 0.35rem !important;
-  margin-bottom: 1.25rem !important;
+  margin-bottom: 0.85rem !important;
   max-width: 48%;
-  clear: left;
+  clear: none !important;
+  width: auto;
 }
 
 .prose-editorial .media-figure.image-align-right,
 .prose-editorial .image-wrapper.image-align-right {
   float: right !important;
-  margin-left: 1.75rem !important;
+  margin-left: 1.5rem !important;
   margin-right: 0 !important;
   margin-top: 0.35rem !important;
-  margin-bottom: 1.25rem !important;
+  margin-bottom: 0.85rem !important;
   max-width: 48%;
-  clear: right;
+  clear: none !important;
+  width: auto;
 }
 
 .prose-editorial .media-figure.image-align-center,
@@ -789,17 +807,17 @@ html {
 
 .prose-editorial .editorial-wrap-left {
   float: left;
-  margin-right: 2rem;
+  margin-right: 1.5rem;
   margin-top: 0.35rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   max-width: 45%;
 }
 
 .prose-editorial .editorial-wrap-right {
   float: right;
-  margin-left: 2rem;
+  margin-left: 1.5rem;
   margin-top: 0.35rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   max-width: 45%;
 }
 
@@ -823,19 +841,41 @@ html {
 }
 
 @media (max-width: 640px) {
+  /* On mobile screens, left & right floats stay floated with proportionate width and compact margins */
   .prose-editorial .media-figure.image-align-left,
   .prose-editorial .image-wrapper.image-align-left,
+  .prose-editorial .editorial-wrap-left {
+    float: left !important;
+    max-width: 48% !important;
+    margin-left: 0 !important;
+    margin-right: 0.85rem !important;
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.65rem !important;
+    clear: none !important;
+  }
+
   .prose-editorial .media-figure.image-align-right,
   .prose-editorial .image-wrapper.image-align-right,
-  .prose-editorial .editorial-wrap-left,
   .prose-editorial .editorial-wrap-right {
+    float: right !important;
+    max-width: 48% !important;
+    margin-right: 0 !important;
+    margin-left: 0.85rem !important;
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.65rem !important;
+    clear: none !important;
+  }
+
+  .prose-editorial .media-figure.image-align-center,
+  .prose-editorial .image-wrapper.image-align-center,
+  .prose-editorial .editorial-wrap-center {
     float: none !important;
     max-width: 100% !important;
     width: 100% !important;
     margin-left: auto !important;
     margin-right: auto !important;
     margin-top: 1.25rem !important;
-    margin-bottom: 1.5rem !important;
+    margin-bottom: 1.25rem !important;
     clear: both !important;
   }
 }
