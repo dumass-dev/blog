@@ -1,4 +1,4 @@
-﻿// -------------------------------------------------------------------
+// -------------------------------------------------------------------
 // FIX 3: COOP and COEP headers in vercel.json
 // Reads vercel.json and asserts both headers are present with the
 // correct values. No Express server needed — this is a static config test.
@@ -27,10 +27,10 @@ const byKey = Object.fromEntries(globalHeaders.map(h => [h.key, h.value]));
 assert(byKey['Cross-Origin-Opener-Policy'] !== undefined, 'Cross-Origin-Opener-Policy header is present');
 assert(byKey['Cross-Origin-Opener-Policy'] === 'same-origin', 'COOP value is "same-origin"');
 
-// COEP
-assert(byKey['Cross-Origin-Embedder-Policy'] !== undefined, 'Cross-Origin-Embedder-Policy header is present');
-assert(byKey['Cross-Origin-Embedder-Policy'] === 'credentialless',
-  `COEP value is "credentialless" (not require-corp, which would break B2/Google Fonts) — got: ${byKey['Cross-Origin-Embedder-Policy']}`);
+// COEP: Must NOT be present, otherwise cross-origin iframes (YouTube, Vimeo)
+// are blocked by Firefox and other browsers due to missing CORP headers on embed endpoints
+assert(byKey['Cross-Origin-Embedder-Policy'] === undefined,
+  'Cross-Origin-Embedder-Policy header is omitted so YouTube and third-party iframe embeds work');
 
 // Existing headers still intact (regression)
 assert(byKey['Strict-Transport-Security']?.startsWith('max-age=31536000'), 'HSTS still present');
