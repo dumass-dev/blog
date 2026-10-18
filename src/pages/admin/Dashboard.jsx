@@ -24,7 +24,6 @@ import {
   Copy,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -566,9 +565,9 @@ export default function Dashboard() {
         </div>
 
         {/* Search & Sort Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
           {/* Search Bar (Left) */}
-          <div className="relative flex-1 sm:w-64 min-w-[180px]">
+          <div className="relative flex-1 md:w-64 min-w-0">
             <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -582,11 +581,20 @@ export default function Dashboard() {
 
           {/* Sort Dropdown (Right) */}
           {filter !== 'comments' && (
-            <div className="relative w-full sm:w-40 shrink-0">
+            <div className="relative w-36 sm:w-40 shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full text-xs py-2 pl-3 pr-8 font-sans cursor-pointer appearance-none bg-[var(--bg-main)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
+                style={{
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.65rem center',
+                  paddingRight: '1.75rem'
+                }}
+                className="w-full text-xs py-2 pl-3 font-sans cursor-pointer bg-[var(--bg-main)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
                 title="Sort entries"
               >
                 <option value="newest">Newest First</option>
@@ -594,7 +602,6 @@ export default function Dashboard() {
                 <option value="views">Most Views</option>
                 <option value="title">Title (A–Z)</option>
               </select>
-              <ArrowUpDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           )}
         </div>
@@ -762,7 +769,7 @@ export default function Dashboard() {
                     <th className="py-3 px-4 font-normal min-w-[200px]">Title / Content</th>
                     <th className="py-3 px-4 font-normal whitespace-nowrap w-24">Type</th>
                     <th className="py-3 px-4 font-normal whitespace-nowrap w-36">Status</th>
-                    <th className="py-3 px-4 font-normal text-right whitespace-nowrap w-32">Actions</th>
+                    <th className="py-3 px-4 font-normal text-right whitespace-nowrap w-64 min-w-[260px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -804,54 +811,60 @@ export default function Dashboard() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                        <button
-                          onClick={() => setAnalyticsTarget(item)}
-                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-                          title="View Analytics"
-                        >
-                          <BarChart2 className="w-3.5 h-3.5" />
-                        </button>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setAnalyticsTarget(item)}
+                            className="quiet-button py-1 px-2.5 text-xs inline-flex items-center gap-1.5 text-[var(--accent-warm)] font-medium"
+                            title="View Traffic & Device Analytics"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>{item.views || 0}</span>
+                          </button>
 
-                        <Link
-                          to={`/admin/edit/${item.id}`}
-                          state={{ entry: item }}
-                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          title="Edit"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </Link>
+                          <Link
+                            to={`/admin/edit/${item.id}`}
+                            state={{ entry: item }}
+                            className="quiet-button py-1 px-2.5 text-xs inline-flex items-center gap-1.5 font-medium"
+                            title="Edit Entry"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </Link>
 
-                        <Link
-                          to={`/entry/${item.slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          title="Preview Entry"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
+                          <Link
+                            to={`/entry/${item.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="quiet-button py-1 px-2 text-xs inline-flex items-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            title="View Entry"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => handleCopyLink(item)}
-                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-                          title={copiedId === item.id ? "Link copied to clipboard!" : "Copy Shareable Link"}
-                        >
-                          {copiedId === item.id ? (
-                            <span className="text-[10px] text-green-500 font-medium">Copied!</span>
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(item)}
+                            className="quiet-button py-1 px-2 text-xs inline-flex items-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                            title={copiedId === item.id ? "Link copied to clipboard!" : "Copy Shareable Link"}
+                          >
+                            {copiedId === item.id ? (
+                              <span className="text-[10px] text-green-500 font-medium">Copied!</span>
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
 
-                        <button
-                          onClick={() => setDeleteTarget(item)}
-                          className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            className="quiet-button py-1 px-2 text-xs inline-flex items-center text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors"
+                            title="Delete Entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

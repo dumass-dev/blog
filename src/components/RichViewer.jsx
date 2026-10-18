@@ -71,44 +71,53 @@ export default function RichViewer({ content = '' }) {
       let alignClass = '';
       let customStyle = '';
 
+      const applyModifier = (mod) => {
+        let cleanMod = mod.trim().toLowerCase();
+        cleanMod = cleanMod.replace(/^(?:w|width|size)\s*[:=]\s*/i, '');
+
+        if (cleanMod === 'small' || cleanMod === 'sm' || cleanMod === 's') {
+          sizeClass = 'image-size-small';
+        } else if (cleanMod === 'medium' || cleanMod === 'md' || cleanMod === 'm') {
+          sizeClass = 'image-size-medium';
+        } else if (cleanMod === 'large' || cleanMod === 'lg' || cleanMod === 'l') {
+          sizeClass = 'image-size-large';
+        } else if (cleanMod === 'full' || cleanMod === 'xl') {
+          sizeClass = 'image-size-full';
+        } else if (cleanMod === 'left' || cleanMod === 'wrap-left' || cleanMod === 'wrap:left' || cleanMod === 'float-left') {
+          alignClass = 'image-align-left';
+        } else if (cleanMod === 'right' || cleanMod === 'wrap-right' || cleanMod === 'wrap:right' || cleanMod === 'float-right') {
+          alignClass = 'image-align-right';
+        } else if (cleanMod === 'center' || cleanMod === 'middle') {
+          alignClass = 'image-align-center';
+        } else if (/^\d{1,3}%$/.test(cleanMod)) {
+          // Arbitrary percentage (e.g. 25%, 35%, 45%, 60%)
+          customStyle = `width: ${cleanMod}; max-width: 100%;`;
+        } else if (/^\d+(?:px|rem|vw|vh)$/.test(cleanMod)) {
+          // CSS units (e.g. 350px, 20rem, 50vw)
+          customStyle = `width: ${cleanMod}; max-width: 100%;`;
+        } else if (/^\d+$/.test(cleanMod)) {
+          // Raw numbers (e.g. 350, 420) treated as pixels
+          customStyle = `width: ${cleanMod}px; max-width: 100%;`;
+        }
+      };
+
       if (cleanAlt.includes('|')) {
         const parts = cleanAlt.split('|');
         cleanAlt = parts[0].trim();
         for (let i = 1; i < parts.length; i++) {
-          let mod = parts[i].trim().toLowerCase();
-          // Strip optional prefix like w=, width=, size=
-          mod = mod.replace(/^(?:w|width|size)\s*[:=]\s*/i, '');
-
-          if (mod === 'small' || mod === 'sm' || mod === 's') {
-            sizeClass = 'image-size-small';
-          } else if (mod === 'medium' || mod === 'md' || mod === 'm') {
-            sizeClass = 'image-size-medium';
-          } else if (mod === 'large' || mod === 'lg' || mod === 'l') {
-            sizeClass = 'image-size-large';
-          } else if (mod === 'full' || mod === 'xl') {
-            sizeClass = 'image-size-full';
-          } else if (mod === 'left' || mod === 'wrap-left' || mod === 'wrap:left' || mod === 'float-left') {
-            alignClass = 'image-align-left';
-          } else if (mod === 'right' || mod === 'wrap-right' || mod === 'wrap:right' || mod === 'float-right') {
-            alignClass = 'image-align-right';
-          } else if (mod === 'center' || mod === 'middle') {
-            alignClass = 'image-align-center';
-          } else if (/^\d{1,3}%$/.test(mod)) {
-            // Arbitrary percentage (e.g. 20%, 35%, 60%)
-            customStyle = `max-width: ${mod}; width: 100%;`;
-          } else if (/^\d+(?:px|rem|vw|vh)$/.test(mod)) {
-            // CSS units (e.g. 350px, 20rem, 50vw)
-            customStyle = `max-width: ${mod}; width: 100%;`;
-          } else if (/^\d+$/.test(mod)) {
-            // Raw numbers (e.g. 350, 420) treated as pixels
-            customStyle = `max-width: ${mod}px; width: 100%;`;
-          }
+          applyModifier(parts[i]);
+        }
+      } else {
+        const lower = cleanAlt.trim().toLowerCase();
+        if (['left', 'wrap-left', 'wrap:left', 'float-left', 'right', 'wrap-right', 'wrap:right', 'float-right', 'center', 'middle', 'small', 'medium', 'large'].includes(lower) || /^\d{1,3}%$/.test(lower)) {
+          applyModifier(lower);
+          cleanAlt = '';
         }
       }
 
       // Default float width to 45% if aligned left or right without an explicit size
       if ((alignClass === 'image-align-left' || alignClass === 'image-align-right') && !customStyle && !sizeClass) {
-        customStyle = 'max-width: 45%; width: 100%;';
+        customStyle = 'width: 45%; max-width: 45%;';
       }
 
       return { cleanAlt, sizeClass, alignClass, customStyle };
@@ -125,8 +134,8 @@ export default function RichViewer({ content = '' }) {
       return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${captionText}</figcaption></figure>\n`;
     });
 
-    // Convert standalone images with size modifiers (e.g. ![alt|45%](url) or ![alt|350px](url))
-    const sizedImageRegex = /!\[([^\]]*\|[^\]]+)\]\((.*?)\)/gi;
+    // Convert standalone images with size modifiers (e.g. ![alt|45%](url) or ![alt|350px](url) or ![wrap:left](url))
+    const sizedImageRegex = /!\[([^\]]*(?:\||wrap:|wrap-|float-|left|right|center|\d+%)[^\]]*)\]\((.*?)\)/gi;
     processed = processed.replace(sizedImageRegex, (_match, rawAlt, url) => {
       const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
       const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');

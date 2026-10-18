@@ -841,29 +841,33 @@ html {
 }
 
 @media (max-width: 640px) {
-  /* On mobile screens, left & right floats stay floated with proportionate width and compact margins */
+  /* On mobile screens, left & right floats stay floated with 44% width and tight margins so text wraps cleanly beside them */
   .prose-editorial .media-figure.image-align-left,
   .prose-editorial .image-wrapper.image-align-left,
   .prose-editorial .editorial-wrap-left {
     float: left !important;
-    max-width: 48% !important;
+    width: 44% !important;
+    max-width: 44% !important;
     margin-left: 0 !important;
     margin-right: 0.85rem !important;
     margin-top: 0.25rem !important;
     margin-bottom: 0.65rem !important;
     clear: none !important;
+    display: block !important;
   }
 
   .prose-editorial .media-figure.image-align-right,
   .prose-editorial .image-wrapper.image-align-right,
   .prose-editorial .editorial-wrap-right {
     float: right !important;
-    max-width: 48% !important;
+    width: 44% !important;
+    max-width: 44% !important;
     margin-right: 0 !important;
     margin-left: 0.85rem !important;
     margin-top: 0.25rem !important;
     margin-bottom: 0.65rem !important;
     clear: none !important;
+    display: block !important;
   }
 
   .prose-editorial .media-figure.image-align-center,
@@ -877,6 +881,11 @@ html {
     margin-top: 1.25rem !important;
     margin-bottom: 1.25rem !important;
     clear: both !important;
+  }
+
+  .prose-editorial {
+    hyphens: auto;
+    -webkit-hyphens: auto;
   }
 }
 
