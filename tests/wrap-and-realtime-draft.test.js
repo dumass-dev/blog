@@ -87,3 +87,61 @@ test('Realtime draft event resolution: unwrap nested payload and match post', ()
     assert.equal(targetStatus, 'draft', 'Should recognize status as draft');
   }
 });
+
+test('Direct Image Tag Wrap: ![alt|left|40%](url) creates floated image-align-left container', () => {
+  const parseImageSizeAndAlign = (rawAlt) => {
+    let cleanAlt = rawAlt || '';
+    let sizeClass = '';
+    let alignClass = '';
+    let customStyle = '';
+
+    if (cleanAlt.includes('|')) {
+      const parts = cleanAlt.split('|');
+      cleanAlt = parts[0].trim();
+      for (let i = 1; i < parts.length; i++) {
+        let mod = parts[i].trim().toLowerCase().replace(/^(?:w|width|size)\s*[:=]\s*/i, '');
+        if (mod === 'left' || mod === 'wrap-left' || mod === 'wrap:left') {
+          alignClass = 'image-align-left';
+        } else if (mod === 'right' || mod === 'wrap-right' || mod === 'wrap:right') {
+          alignClass = 'image-align-right';
+        } else if (mod === 'center') {
+          alignClass = 'image-align-center';
+        } else if (/^\d{1,3}%$/.test(mod)) {
+          customStyle = `max-width: ${mod}; width: 100%;`;
+        }
+      }
+    }
+    if ((alignClass === 'image-align-left' || alignClass === 'image-align-right') && !customStyle && !sizeClass) {
+      customStyle = 'max-width: 45%; width: 100%;';
+    }
+    return { cleanAlt, sizeClass, alignClass, customStyle };
+  };
+
+  const sizedImageRegex = /!\[([^\]]*\|[^\]]+)\]\((.*?)\)/gi;
+  const input = 'Before text\n\n![My Sunset|left|40%](https://example.com/sunset.jpg)\n\nParagraph text flows on right.';
+  const processed = input.replace(sizedImageRegex, (_match, rawAlt, url) => {
+    const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
+    const classes = ['image-wrapper', sizeClass, alignClass].filter(Boolean).join(' ');
+    const styleAttr = customStyle ? ` style="${customStyle}"` : '';
+    return `\n<div class="${classes}"${styleAttr}><img src="${url}" alt="${cleanAlt}"></div>\n`;
+  });
+
+  assert.ok(processed.includes('class="image-wrapper image-align-left"'));
+  assert.ok(processed.includes('style="max-width: 40%; width: 100%;"'));
+  assert.ok(processed.includes('alt="My Sunset"'));
+});
+
+test('Realtime Now Playing: toggle_home event updates showOnHome state', () => {
+  let isMusicShownOnHome = false;
+  const handleEvent = (payload) => {
+    if (payload.type === 'now_playing' && payload.op === 'TOGGLE_HOME') {
+      isMusicShownOnHome = payload.showOnHome;
+    }
+  };
+
+  handleEvent({ type: 'now_playing', op: 'TOGGLE_HOME', showOnHome: true });
+  assert.equal(isMusicShownOnHome, true);
+
+  handleEvent({ type: 'now_playing', op: 'TOGGLE_HOME', showOnHome: false });
+  assert.equal(isMusicShownOnHome, false);
+});

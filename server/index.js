@@ -2460,6 +2460,36 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
   }
 });
 
+app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!process.env.ADMIN_USER_ID) return res.status(500).json({ error: 'Config missing' });
+    
+    const supabase = getSupabaseClient(req);
+    const { data: userAuth, error: authError } = await supabase.auth.getUser(authHeader?.split(' ')[1] || '');
+    
+    if (authError || userAuth?.user?.id !== process.env.ADMIN_USER_ID) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { showOnHome } = req.body;
+    
+    const { error } = await supabase
+      .from('now_playing')
+      .update({ show_on_home: showOnHome })
+      .eq('id', 1);
+
+    if (error) throw error;
+    try {
+      broadcastRealtimeEvent('now_playing_updated', { showOnHome }, supabase);
+    } catch {}
+    res.json({ success: true, showOnHome });
+  } catch (err) {
+    console.error('Toggle error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // SITEMAP & ROBOTS.TXT
 app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
   try {

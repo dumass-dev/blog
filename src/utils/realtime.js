@@ -156,7 +156,7 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     }
   }
 
-  // 6. Now Playing
+  // 6. Now Playing / Music Card
   if (eventType === 'now_playing' || eventType === 'now_playing_updated') {
     if (typeof window !== 'undefined') {
       try {

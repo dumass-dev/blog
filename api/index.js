@@ -2034,6 +2034,9 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
       .eq('id', 1);
 
     if (error) throw error;
+    try {
+      broadcastRealtimeEvent('now_playing_updated', { showOnHome }, supabase);
+    } catch {}
     res.json({ success: true, showOnHome });
   } catch (err) {
     console.error('Toggle error:', err);

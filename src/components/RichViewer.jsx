@@ -87,11 +87,11 @@ export default function RichViewer({ content = '' }) {
             sizeClass = 'image-size-large';
           } else if (mod === 'full' || mod === 'xl') {
             sizeClass = 'image-size-full';
-          } else if (mod === 'left') {
+          } else if (mod === 'left' || mod === 'wrap-left' || mod === 'wrap:left' || mod === 'float-left') {
             alignClass = 'image-align-left';
-          } else if (mod === 'right') {
+          } else if (mod === 'right' || mod === 'wrap-right' || mod === 'wrap:right' || mod === 'float-right') {
             alignClass = 'image-align-right';
-          } else if (mod === 'center') {
+          } else if (mod === 'center' || mod === 'middle') {
             alignClass = 'image-align-center';
           } else if (/^\d{1,3}%$/.test(mod)) {
             // Arbitrary percentage (e.g. 20%, 35%, 60%)
@@ -106,15 +106,9 @@ export default function RichViewer({ content = '' }) {
         }
       }
 
-      // Merge alignment with customStyle if both are present
-      if (customStyle) {
-        if (alignClass === 'image-align-left') {
-          customStyle += ' margin-left: 0; margin-right: auto;';
-        } else if (alignClass === 'image-align-right') {
-          customStyle += ' margin-left: auto; margin-right: 0;';
-        } else {
-          customStyle += ' margin-left: auto; margin-right: auto;';
-        }
+      // Default float width to 45% if aligned left or right without an explicit size
+      if ((alignClass === 'image-align-left' || alignClass === 'image-align-right') && !customStyle && !sizeClass) {
+        customStyle = 'max-width: 45%; width: 100%;';
       }
 
       return { cleanAlt, sizeClass, alignClass, customStyle };

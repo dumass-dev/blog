@@ -347,15 +347,52 @@ export default function Editor() {
     }, 50);
   };
 
+  const applyImageWrap = (align) => {
+    const textarea = document.getElementById('content-textarea');
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end).trim();
+
+    // If an image tag is selected: ![alt](url)
+    const imgRegex = /^!\[(.*?)\]\((.*?)\)$/;
+    if (selected && imgRegex.test(selected)) {
+      const match = selected.match(imgRegex);
+      const rawAlt = match[1];
+      const url = match[2];
+      const parts = rawAlt.split('|').map(p => p.trim());
+      const baseAlt = parts[0] || 'image';
+      const existingWidth = parts.find(p => /^\d{1,3}%$/.test(p) || /^\d+(?:px|rem)$/.test(p)) || (align === 'center' ? '60%' : '45%');
+      const newAlt = align === 'center' ? `${baseAlt}|${existingWidth}` : `${baseAlt}|${align}|${existingWidth}`;
+      const replacement = `![${newAlt}](${url})`;
+      const newText = text.substring(0, start) + replacement + text.substring(end);
+      setFormData(prev => ({ ...prev, content: newText }));
+      return;
+    }
+
+    if (align === 'left') {
+      insertFormatting('![image|left|45%](', ')');
+    } else if (align === 'right') {
+      insertFormatting('![image|right|45%](', ')');
+    } else {
+      insertFormatting('![image|60%](', ')');
+    }
+  };
+
   const handleSelectMedia = (media) => {
     // Use proxy_url if available — this is a permanent /api/media/file/... URL
     // with no X-Amz-* credentials embedded
     const insertUrl = media.proxy_url || media.url;
-    let sizeSuffix = '';
-    if (media.size && media.size !== 'full' && media.size !== '100%') {
-      sizeSuffix = `|${media.size}`;
+    const parts = [media.original_name || 'image'];
+    if (media.align && media.align !== 'center') {
+      parts.push(media.align); // 'left' or 'right'
     }
-    const altText = `${media.original_name || 'image'}${sizeSuffix}`;
+    if (media.size && media.size !== 'full' && media.size !== '100%') {
+      parts.push(media.size);
+    }
+    const altText = parts.join('|');
     const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
       ? `\n${insertUrl}\n`
       : `\n![${altText}](${insertUrl})\n`;
@@ -626,7 +663,7 @@ export default function Editor() {
         </div>
 
         <div className="flex items-center space-x-3">
-          {/* Edit / Preview Toggle */}
+          {/* Edit / Split / Preview Toggle */}
           <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)]">
             <button
               type="button"
@@ -644,6 +681,24 @@ export default function Editor() {
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('split')}
+              className={`hidden md:flex px-3 py-1 rounded items-center gap-1.5 transition-all cursor-pointer ${
+                mode === 'split'
+                  ? 'font-medium shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              style={
+                mode === 'split'
+                  ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' }
+                  : {}
+              }
+              title="Side-by-side live editor & visual preview"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>Split</span>
             </button>
             <button
               type="button"
@@ -714,10 +769,10 @@ export default function Editor() {
           <RichViewer content={formData.content} />
         </div>
       ) : (
-        /* Edit Mode */
-        <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        /* Edit & Split Mode */
+        <form onSubmit={handleSave} className={mode === 'split' ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "grid grid-cols-1 lg:grid-cols-3 gap-8"}>
           {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className={mode === 'split' ? "space-y-6" : "lg:col-span-2 space-y-6"}>
             {/* Title */}
             <div>
               <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
@@ -838,9 +893,9 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('\n[wrap:left 40%]\n', '\n[/wrap]\n')}
+                onClick={() => applyImageWrap('left')}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
-                title="Wrap media on the left and flow text around it"
+                title="Float image on the left and wrap text around it (or format selected image)"
               >
                 <AlignLeft className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="text-[11px]">Wrap Left</span>
@@ -848,9 +903,9 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('\n[wrap:right 40%]\n', '\n[/wrap]\n')}
+                onClick={() => applyImageWrap('right')}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
-                title="Wrap media on the right and flow text around it"
+                title="Float image on the right and wrap text around it (or format selected image)"
               >
                 <AlignRight className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="text-[11px]">Wrap Right</span>
@@ -1212,6 +1267,21 @@ export default function Editor() {
               />
             </div>
           </div>
+
+          {/* Live Preview Column in Split View Mode */}
+          {mode === 'split' && (
+            <div className="hidden lg:block space-y-6 sticky top-6 h-fit max-h-[calc(100vh-4rem)] overflow-y-auto border border-[var(--border-subtle)] rounded-lg p-6 bg-[var(--card-bg)] shadow-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)] text-xs font-sans text-[var(--text-muted)] uppercase tracking-wider">
+                <span>Live Editorial Preview</span>
+                <span className="font-mono text-[10px] text-[var(--accent-warm)]">Interactive</span>
+              </div>
+              <h1 className="text-2xl font-serif font-medium mb-3">{formData.title || 'Untitled Entry'}</h1>
+              {formData.cover_image && (
+                <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-4 max-h-[300px] object-cover" />
+              )}
+              <RichViewer content={formData.content} />
+            </div>
+          )}
         </form>
       )}
     </div>

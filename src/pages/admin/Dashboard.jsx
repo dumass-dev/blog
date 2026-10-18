@@ -21,7 +21,12 @@ import {
   Eye,
   RotateCw,
   BarChart2,
-  Copy
+  Copy,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -58,6 +63,10 @@ export default function Dashboard() {
   const [statusMessage, setStatusMessage] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest' | 'views' | 'title'
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [showStatsMobile, setShowStatsMobile] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [showOnHome, setShowOnHome] = useState(false);
@@ -316,6 +325,15 @@ export default function Dashboard() {
       if (!res || !res.success) {
         // Revert if API fails
         setShowOnHome(!newValue);
+      } else {
+        publishRealtimeUpdate({
+          type: 'now_playing',
+          op: 'TOGGLE_HOME',
+          showOnHome: newValue
+        });
+        if (typeof window !== 'undefined' && typeof window.CustomEvent === 'function') {
+          window.dispatchEvent(new window.CustomEvent('now-playing-updated', { detail: { showOnHome: newValue } }));
+        }
       }
     } catch {
       // Revert if fetch throws
@@ -323,26 +341,54 @@ export default function Dashboard() {
     }
   };
 
-  // Filtering Logic
-  const filteredEntries = entries.filter(item => {
-    const matchesSearch =
-      !search.trim() ||
-      (item.title && item.title.toLowerCase().includes(search.toLowerCase())) ||
-      (item.content && item.content.toLowerCase().includes(search.toLowerCase())) ||
-      (item.tags && item.tags.toLowerCase().includes(search.toLowerCase()));
+  // Filtering & Sorting Logic
+  const filteredAndSortedEntries = React.useMemo(() => {
+    const list = entries.filter(item => {
+      const matchesSearch =
+        !search.trim() ||
+        (item.title && item.title.toLowerCase().includes(search.toLowerCase())) ||
+        (item.content && item.content.toLowerCase().includes(search.toLowerCase())) ||
+        (item.tags && item.tags.toLowerCase().includes(search.toLowerCase()));
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (filter === 'all') return true;
-    if (filter === 'published') return item.status !== 'draft';
-    if (filter === 'draft') return item.status === 'draft';
-    if (filter === 'photo') return item.type === 'photo';
-    if (filter === 'journal') return item.type === 'journal';
-    if (filter === 'writing') return item.type === 'writing';
-    if (filter === 'update') return item.type === 'update';
+      if (filter === 'all') return true;
+      if (filter === 'published') return item.status !== 'draft';
+      if (filter === 'draft') return item.status === 'draft';
+      if (filter === 'photo') return item.type === 'photo';
+      if (filter === 'journal') return item.type === 'journal';
+      if (filter === 'writing') return item.type === 'writing';
+      if (filter === 'update') return item.type === 'update';
 
-    return true;
-  });
+      return true;
+    });
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'oldest') {
+        return new Date(a.date || a.created_at) - new Date(b.date || b.created_at);
+      }
+      if (sortBy === 'views') {
+        return (b.views || 0) - (a.views || 0);
+      }
+      if (sortBy === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      // Default: newest
+      return new Date(b.date || b.created_at) - new Date(a.date || a.created_at);
+    });
+  }, [entries, search, filter, sortBy]);
+
+  // Reset page when filter, search, sort, or pageSize changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, search, sortBy, pageSize]);
+
+  const totalEntriesCount = filteredAndSortedEntries.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntriesCount / pageSize));
+  const paginatedEntries = filteredAndSortedEntries.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   return (
     <div className="wide-container py-8">
@@ -398,8 +444,24 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Mobile Stats Toggle (< 640px) */}
+      <div className="block sm:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setShowStatsMobile(prev => !prev)}
+          className="w-full flex items-center justify-between p-3 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] text-xs font-sans text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-3.5 h-3.5 text-[var(--accent-warm)]" />
+            <span className="font-medium text-[var(--text-primary)]">Studio Overview</span>
+            <span className="text-[10px] font-mono text-[var(--text-muted)]">({stats.total} entries · {stats.totalViews || 0} views)</span>
+          </div>
+          {showStatsMobile ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
+
       {/* Metrics Row - Using vanilla CSS responsive-card-grid */}
-      <div className="responsive-card-grid mb-8">
+      <div className={`${showStatsMobile ? 'grid' : 'hidden'} sm:grid responsive-card-grid mb-8`}>
         <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
           <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Entries</div>
           <div className="text-2xl font-serif font-medium mt-1">{stats.total}</div>
@@ -476,13 +538,13 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Filter and Search Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center mb-6">
+      {/* Filter, Sort, and Search Controls */}
+      <div className="flex flex-col md:flex-row gap-3 justify-between items-start md:items-center mb-6">
         <div className="admin-filter-tabs">
           {[
-            { id: 'all', label: 'All Entries' },
-            { id: 'published', label: 'Published' },
-            { id: 'draft', label: 'Drafts' },
+            { id: 'all', label: `All (${entries.length})` },
+            { id: 'published', label: `Published (${stats.published || 0})` },
+            { id: 'draft', label: `Drafts (${stats.drafts || 0})` },
             { id: 'photo', label: 'Photos' },
             { id: 'journal', label: 'Journal' },
             { id: 'writing', label: 'Essays' },
@@ -503,16 +565,35 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="relative w-full sm:w-64">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search entries or comments..."
-            className="quiet-input pl-10 text-xs py-1.5"
-          />
-          <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5 pointer-events-none" />
+        {/* Sort & Search Controls */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          {filter !== 'comments' && (
+            <div className="relative w-36 sm:w-40 shrink-0">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="quiet-input text-xs py-1.5 pl-2.5 pr-7 font-sans w-full cursor-pointer appearance-none bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded"
+                title="Sort entries"
+              >
+                <option value="newest">📅 Newest</option>
+                <option value="oldest">⏳ Oldest</option>
+                <option value="views">👁️ Most Views</option>
+                <option value="title">🔤 Title (A–Z)</option>
+              </select>
+              <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)] absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          )}
+
+          <div className="relative flex-1 sm:w-64">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search entries or comments..."
+              className="quiet-input pl-9 text-xs py-1.5 w-full border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
+            />
+            <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-2.5 pointer-events-none" />
+          </div>
         </div>
       </div>
 
@@ -565,7 +646,7 @@ export default function Dashboard() {
                 ))}
             </div>
           )
-        ) : filteredEntries.length === 0 ? (
+        ) : filteredAndSortedEntries.length === 0 ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)]">
             No entries found.
           </div>
@@ -573,33 +654,39 @@ export default function Dashboard() {
           <>
             {/* Mobile Card List View (< 640px) */}
             <div className="block sm:hidden divide-y divide-[var(--border-subtle)]">
-              {filteredEntries.map(item => (
-                <div key={item.id} className="p-4 space-y-3">
+              {paginatedEntries.map(item => (
+                <div key={item.id} className="p-4 space-y-3 bg-[var(--card-bg)]">
+                  {/* Top Header: Date & Badges */}
                   <div className="flex items-center justify-between text-xs font-sans">
-                    <span className="text-[var(--text-muted)] font-mono">
+                    <span className="text-[var(--text-muted)] font-mono text-[11px]">
                       {formatDate(item.date)}
                     </span>
                     <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                       {Boolean(item.has_passcode || (item.passcode && item.passcode.trim() !== '')) && (
-                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode Protected for public readers">
+                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap" title="Passcode Protected">
                           Protected
                         </span>
                       )}
-                      <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] whitespace-nowrap shrink-0">
+                      <span className="uppercase text-[10px] font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] whitespace-nowrap">
                         {item.type}
                       </span>
-                      <span
-                        className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0"
-                      >
+                      <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] whitespace-nowrap ${
+                        item.status === 'draft' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-[var(--code-bg)] text-[var(--text-primary)]'
+                      }`}>
                         {item.status}
                       </span>
                     </div>
                   </div>
 
+                  {/* Title & Preview */}
                   <div>
-                    <h3 className="font-serif text-base font-medium text-[var(--text-primary)] line-clamp-2">
+                    <Link
+                      to={`/admin/edit/${item.id}`}
+                      state={{ entry: item }}
+                      className="font-serif text-base font-medium text-[var(--text-primary)] hover:text-[var(--accent-warm)] transition-colors line-clamp-2 block"
+                    >
                       {item.title || item.content}
-                    </h3>
+                    </Link>
                     {item.excerpt && (
                       <p className="text-[var(--text-muted)] text-xs line-clamp-2 mt-1 font-serif">
                         {stripMarkdown(item.excerpt)}
@@ -607,52 +694,57 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="pt-3 mt-2 grid grid-cols-5 gap-1.5 border-t border-[var(--border-subtle)]/50">
-                      <button
-                        onClick={() => setAnalyticsTarget(item)}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
-                      >
-                        <BarChart2 className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Stats</span>
-                      </button>
+                  {/* Actions & Metrics Row */}
+                  <div className="pt-2.5 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)]/60 text-xs font-sans">
+                    <button
+                      type="button"
+                      onClick={() => setAnalyticsTarget(item)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] text-[11px] font-medium cursor-pointer hover:opacity-80"
+                      title="View Traffic & Device Analytics"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>{item.views || 0} views</span>
+                    </button>
 
+                    <div className="flex items-center gap-1">
                       <Link
                         to={`/admin/edit/${item.id}`}
                         state={{ entry: item }}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 overflow-hidden"
+                        className="quiet-button py-1 px-2.5 text-xs flex items-center gap-1"
+                        title="Edit Entry"
                       >
-                        <Edit className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Edit</span>
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit</span>
                       </Link>
 
                       <Link
                         to={`/entry/${item.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 overflow-hidden"
+                        className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center"
+                        title="View Public Entry"
                       >
-                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">View</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
 
                       <button
                         type="button"
                         onClick={() => handleCopyLink(item)}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
+                        className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center cursor-pointer"
                         title="Copy Shareable Link"
                       >
-                        <Copy className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{copiedId === item.id ? 'Copied' : 'Share'}</span>
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
-                      
+
                       <button
+                        type="button"
                         onClick={() => setDeleteTarget(item)}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center text-red-500 hover:text-red-600 overflow-hidden"
+                        className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center text-red-500 hover:text-red-600 cursor-pointer"
                         title="Delete Entry"
-                        aria-label="Delete Entry"
                       >
-                        <Trash2 className="w-4 h-4 shrink-0" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -671,7 +763,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
-                  {filteredEntries.map(item => (
+                  {paginatedEntries.map(item => (
                     <tr key={item.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                       <td className="py-3 px-4 whitespace-nowrap text-[var(--text-secondary)] font-mono">
                         {formatDate(item.date)}
@@ -694,7 +786,11 @@ export default function Dashboard() {
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
                           <span
-                            className="text-[10px] uppercase font-medium px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--text-primary)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0"
+                            className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] ${
+                              item.status === 'draft'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                : 'bg-[var(--code-bg)] text-[var(--text-primary)]'
+                            }`}
                           >
                             {item.status}
                           </span>
@@ -759,6 +855,57 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalEntriesCount > pageSize && (
+              <div className="p-3.5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-sans text-[var(--text-secondary)]">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Showing <span className="font-mono font-medium text-[var(--text-primary)]">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalEntriesCount)}</span> of <span className="font-mono font-medium text-[var(--text-primary)]">{totalEntriesCount}</span> entries
+                  </span>
+                  <span className="text-[var(--text-muted)]">·</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="quiet-input text-[11px] py-0.5 px-1.5 font-mono cursor-pointer bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded"
+                    title="Entries per page"
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={20}>20 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="quiet-button-secondary text-xs px-2.5 py-1 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  <span className="px-2 font-mono text-[11px] text-[var(--text-primary)]">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="quiet-button-secondary text-xs px-2.5 py-1 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Next Page"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
