@@ -158,10 +158,10 @@ export default function Media() {
 
           <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
-            <span>{uploading ? 'Uploading...' : 'Upload Photo or Video'}</span>
+            <span>{uploading ? 'Uploading...' : 'Upload Photo, GIF, or Video'}</span>
             <input
               type="file"
-              accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
+              accept="image/*,video/*,.gif,.heic,.heif,.jpg,.jpeg,.png,.webp"
               onChange={handleFileUpload}
               disabled={uploading}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
@@ -186,10 +186,10 @@ export default function Media() {
           </p>
           <label className="relative overflow-hidden quiet-button text-xs inline-flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload first image or video</span>
+            <span>Upload first image, GIF, or video</span>
             <input
               type="file"
-              accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
+              accept="image/*,video/*,.gif,.heic,.heif,.jpg,.jpeg,.png,.webp"
               onChange={handleFileUpload}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />

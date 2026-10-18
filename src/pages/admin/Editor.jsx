@@ -676,7 +676,7 @@ export default function Editor() {
                   setShowMediaPicker(true);
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
-                title="Insert Photo/Video"
+                title="Insert Photo/GIF/Video"
               >
                 <ImageIcon className="w-4 h-4" />
                 <span className="text-[11px]">Add Media</span>

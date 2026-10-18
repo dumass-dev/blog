@@ -202,14 +202,14 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         {/* Upload bar */}
         <div className="p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-wrap justify-between items-center gap-2">
           <div className="text-xs font-sans text-[var(--text-secondary)]">
-            Upload new photo or video clip
+            Upload new photo, GIF, or video clip
           </div>
           <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
             <span>{uploading ? 'Uploading...' : 'Choose File'}</span>
             <input
               type="file"
-              accept="image/*,video/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
+              accept="image/*,video/*,.gif,.heic,.heif,.jpg,.jpeg,.png,.webp"
               onChange={handleFileUpload}
               disabled={uploading}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
