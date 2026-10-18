@@ -1746,7 +1746,8 @@ app.get('/api/posts/:identifier', async (req, res) => {
       type: effectiveType,
       cover_image: freshCover || post.cover_image || '',
       content: freshContent || post.content || '',
-      has_passcode
+      has_passcode,
+      passcode: isAdmin ? (post.passcode || '') : undefined
     });
   } catch (err) {
     console.error('Error fetching post:', err.message);

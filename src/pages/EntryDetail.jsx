@@ -391,14 +391,6 @@ export default function EntryDetail() {
     (entry.category && entry.category.toLowerCase() === 'photos')
   );
 
-  const backLink = isPhotoEntry
-    ? '/photos'
-    : (entry.type === 'writing' ? '/writing' : entry.type === 'update' ? '/updates' : '/journal');
-
-  const backLabel = isPhotoEntry
-    ? 'Photos'
-    : (entry.type === 'writing' ? 'Writing' : entry.type === 'update' ? 'Updates' : 'Journal');
-
   const displayType = isPhotoEntry ? 'photo' : entry.type;
 
   // Check if content already includes the image to prevent duplicate image rendering
@@ -480,15 +472,6 @@ export default function EntryDetail() {
         </div>
       )}
 
-      {/* Back button */}
-      <div className="mb-3 sm:mb-5">
-        <Link
-          to={backLink}
-          className="text-xs font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider"
-        >
-          ← Back to {backLabel}
-        </Link>
-      </div>
 
       {/* Header */}
       <header className="mb-6 sm:mb-8">

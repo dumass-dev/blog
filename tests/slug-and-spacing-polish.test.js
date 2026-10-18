@@ -28,11 +28,11 @@ test('Header.jsx has refined bottom margin mb-6 sm:mb-8 without excessive mb-10 
   assert.ok(!content.includes('mb-10 border-b'), 'Header should no longer have loose mb-10');
 });
 
-test('EntryDetail.jsx has compact back link and header margins for minimalistic top spacing', () => {
+test('EntryDetail.jsx removes back link so entry metadata immediately takes up top space', () => {
   const detailPath = path.resolve('src/pages/EntryDetail.jsx');
   const content = fs.readFileSync(detailPath, 'utf8');
 
-  assert.ok(content.includes('mb-3 sm:mb-5'), 'Back button wrapper should have compact mb-3 sm:mb-5');
+  assert.ok(!content.includes('← Back to'), 'Back to journal/writing/updates link should be completely removed');
   assert.ok(content.includes('<header className="mb-6 sm:mb-8">'), 'Entry detail header should have mb-6 sm:mb-8');
 });
 
