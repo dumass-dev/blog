@@ -197,7 +197,7 @@ export default function Media() {
         </div>
       ) : (
         <div className="responsive-card-grid">
-          {mediaList.map(item => (
+          {mediaList.map((item, index) => (
             <div
               key={item.id}
               className="border border-[var(--border-subtle)] rounded overflow-hidden bg-[var(--card-bg)] flex flex-col justify-between"
@@ -211,6 +211,7 @@ export default function Media() {
                     src={item.signed_url || item.url}
                     alt={item.original_name || 'Media'}
                     aspectRatio="aspect-video"
+                    loading={index < 8 ? 'eager' : 'lazy'}
                   />
                 )}
                 <span className="absolute top-2 left-2 p-1 rounded bg-black/60 text-white text-[10px]">

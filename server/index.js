@@ -686,11 +686,11 @@ app.get(/^\/api\/media\/file\/(.+)$/, async (req, res) => {
     if (!VALID_KEY.test(storageKey)) {
       return res.status(400).json({ error: 'Invalid media path.' });
     }
-    const signedUrl = await getB2SignedUrl(storageKey, 3600);
+    const signedUrl = await getB2SignedUrl(storageKey, 86400);
     if (!signedUrl) {
       return res.status(404).json({ error: 'Media not found or storage unavailable.' });
     }
-    res.setHeader('Cache-Control', 'public, max-age=3000');
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800');
     res.redirect(302, signedUrl);
   } catch (err) {
     res.status(500).json({ error: err.message });

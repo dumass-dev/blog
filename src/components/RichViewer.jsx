@@ -75,7 +75,10 @@ export default function RichViewer({ content = '' }) {
         const parts = cleanAlt.split('|');
         cleanAlt = parts[0].trim();
         for (let i = 1; i < parts.length; i++) {
-          const mod = parts[i].trim().toLowerCase();
+          let mod = parts[i].trim().toLowerCase();
+          // Strip optional prefix like w=, width=, size=
+          mod = mod.replace(/^(?:w|width|size)\s*[:=]\s*/i, '');
+
           if (mod === 'small' || mod === 'sm' || mod === 's') {
             sizeClass = 'image-size-small';
           } else if (mod === 'medium' || mod === 'md' || mod === 'm') {
@@ -90,9 +93,27 @@ export default function RichViewer({ content = '' }) {
             alignClass = 'image-align-right';
           } else if (mod === 'center') {
             alignClass = 'image-align-center';
-          } else if (/^\d+(?:px|%|rem|vw)$/.test(mod)) {
-            customStyle = `max-width: ${mod}; margin-left: auto; margin-right: auto;`;
+          } else if (/^\d{1,3}%$/.test(mod)) {
+            // Arbitrary percentage (e.g. 20%, 35%, 60%)
+            customStyle = `max-width: ${mod}; width: 100%;`;
+          } else if (/^\d+(?:px|rem|vw|vh)$/.test(mod)) {
+            // CSS units (e.g. 350px, 20rem, 50vw)
+            customStyle = `max-width: ${mod}; width: 100%;`;
+          } else if (/^\d+$/.test(mod)) {
+            // Raw numbers (e.g. 350, 420) treated as pixels
+            customStyle = `max-width: ${mod}px; width: 100%;`;
           }
+        }
+      }
+
+      // Merge alignment with customStyle if both are present
+      if (customStyle) {
+        if (alignClass === 'image-align-left') {
+          customStyle += ' margin-left: 0; margin-right: auto;';
+        } else if (alignClass === 'image-align-right') {
+          customStyle += ' margin-left: auto; margin-right: 0;';
+        } else {
+          customStyle += ' margin-left: auto; margin-right: auto;';
         }
       }
 
@@ -107,10 +128,10 @@ export default function RichViewer({ content = '' }) {
       const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const classes = ['media-figure', sizeClass, alignClass].filter(Boolean).join(' ');
       const styleAttr = customStyle ? ` style="${customStyle}"` : '';
-      return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}"><figcaption>${captionText}</figcaption></figure>\n`;
+      return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${captionText}</figcaption></figure>\n`;
     });
 
-    // Convert standalone images with size modifiers (e.g. ![alt|small](url) or ![alt|300px](url))
+    // Convert standalone images with size modifiers (e.g. ![alt|45%](url) or ![alt|350px](url))
     const sizedImageRegex = /!\[([^\]]*\|[^\]]+)\]\((.*?)\)/gi;
     processed = processed.replace(sizedImageRegex, (_match, rawAlt, url) => {
       const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
@@ -118,7 +139,7 @@ export default function RichViewer({ content = '' }) {
       const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const classes = ['image-wrapper', sizeClass, alignClass].filter(Boolean).join(' ');
       const styleAttr = customStyle ? ` style="${customStyle}"` : '';
-      return `\n<div class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}"></div>\n`;
+      return `\n<div class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"></div>\n`;
     });
 
     // Handle [grid] shortcode for side-by-side media layouts

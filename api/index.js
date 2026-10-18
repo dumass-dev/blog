@@ -300,13 +300,13 @@ app.get(/^\/api\/media\/file\/(.+)$/, async (req, res) => {
       return res.status(400).json({ error: 'Invalid media path.' });
     }
 
-    const signedUrl = await getB2SignedUrl(storageKey, 3600); // 1-hour TTL, server-side only
+    const signedUrl = await getB2SignedUrl(storageKey, 86400); // 24-hour TTL, server-side only
     if (!signedUrl) {
       return res.status(404).json({ error: 'Media not found or storage unavailable.' });
     }
 
-    // Cache the redirect for 50 minutes (safely within the 1-hour signed URL TTL)
-    res.setHeader('Cache-Control', 'public, max-age=3000');
+    // Cache the redirect for 24h client-side, 7d at Edge CDN with stale-while-revalidate
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800');
     res.redirect(302, signedUrl);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -171,7 +171,7 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
 
   const now = Date.now();
   const cached = b2UrlCache.get(storageKey);
-  if (cached && cached.expiresAt > now + 3600000) {
+  if (cached && cached.expiresAt > now + 60000) {
     return cached.url;
   }
 

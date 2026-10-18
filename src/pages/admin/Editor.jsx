@@ -236,7 +236,7 @@ export default function Editor() {
     // with no X-Amz-* credentials embedded
     const insertUrl = media.proxy_url || media.url;
     let sizeSuffix = '';
-    if (media.size && media.size !== 'full') {
+    if (media.size && media.size !== 'full' && media.size !== '100%') {
       sizeSuffix = `|${media.size}`;
     }
     const altText = `${media.original_name || 'image'}${sizeSuffix}`;

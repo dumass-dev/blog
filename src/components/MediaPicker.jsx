@@ -7,12 +7,22 @@ import Modal from './Modal';
 import FeedSkeleton from './FeedSkeleton';
 import ProgressiveImage from './ProgressiveImage';
 
+function getNumericPercent(val) {
+  if (!val) return 100;
+  if (val === 'small') return 30;
+  if (val === 'medium') return 50;
+  if (val === 'large') return 75;
+  if (val === 'full') return 100;
+  const match = String(val).match(/^(\d{1,3})%?$/);
+  return match ? Math.min(100, Math.max(15, parseInt(match[1], 10))) : 50;
+}
+
 export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const { token } = useAuth();
   const [mediaList, setMediaList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [selectedSize, setSelectedSize] = useState('medium');
+  const [selectedSize, setSelectedSize] = useState('50%');
   const [error, setError] = useState(null);
 
   const fetchMedia = useCallback(async () => {
@@ -218,42 +228,50 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
           </label>
         </div>
 
-        {/* Size Selector for Inserted Media */}
-        <div className="px-3 py-2 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
-          <span className="text-[var(--text-secondary)] font-medium">Image Size:</span>
-          <div className="inline-flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
-            <button
-              type="button"
-              onClick={() => setSelectedSize('small')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'small' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-              title="Small width (approx 320px)"
-            >
-              Small
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedSize('medium')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'medium' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-              title="Medium width (approx 520px)"
-            >
-              Medium
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedSize('large')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'large' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-              title="Large width (approx 760px)"
-            >
-              Large
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedSize('full')}
-              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'full' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-              title="Full width (100%)"
-            >
-              Full
-            </button>
+        {/* Free Image Size Adjustment (Slider & Custom Width) */}
+        <div className="p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-col gap-2 text-xs font-sans">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[var(--text-secondary)] font-medium">Image Width (Freely Adjustable):</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={selectedSize}
+                onChange={(e) => setSelectedSize(e.target.value.trim())}
+                placeholder="50% or 400px"
+                className="quiet-input text-xs px-2 py-0.5 w-24 text-center font-mono border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
+                title="Enter any percentage (e.g. 45%) or pixel width (e.g. 380px)"
+              />
+              <div className="inline-flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
+                {['25%', '50%', '75%', '100%'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setSelectedSize(preset)}
+                    className={`px-1.5 py-0.5 rounded text-[11px] transition-colors ${
+                      selectedSize === preset
+                        ? 'bg-[var(--accent-warm)] text-white font-medium'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Live Range Slider */}
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-[10px] font-mono text-[var(--text-muted)]">15%</span>
+            <input
+              type="range"
+              min="15"
+              max="100"
+              step="1"
+              value={getNumericPercent(selectedSize)}
+              onChange={(e) => setSelectedSize(`${e.target.value}%`)}
+              className="w-full accent-[var(--accent-warm)] cursor-pointer h-1.5 bg-[var(--border-subtle)] rounded-lg"
+            />
+            <span className="text-[10px] font-mono text-[var(--text-muted)]">100%</span>
           </div>
         </div>
 
@@ -272,7 +290,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
               No media uploaded yet. Use the upload button above.
             </div>
           ) : (
-            mediaList.map(item => (
+            mediaList.map((item, index) => (
               <div
                 key={item.id}
                 onClick={() => {
@@ -293,10 +311,11 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                     src={item.signed_url || item.url || item.proxy_url}
                     alt={item.original_name || 'Media'}
                     aspectRatio="aspect-square"
+                    loading={index < 8 ? 'eager' : 'lazy'}
                   />
                 )}
                 <div className="absolute inset-0 bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-sans font-medium text-center p-2">
-                  Tap to insert
+                  Tap to insert ({selectedSize || '100%'})
                 </div>
               </div>
             ))

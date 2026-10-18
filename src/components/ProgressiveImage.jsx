@@ -24,6 +24,15 @@ export default function ProgressiveImage({
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
+  const imgRef = React.useRef(null);
+
+  React.useEffect(() => {
+    setIsLoaded(false);
+    setIsError(false);
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true);
+    }
+  }, [src]);
 
   const handleLoad = (e) => {
     setIsLoaded(true);
@@ -57,12 +66,14 @@ export default function ProgressiveImage({
         </div>
       )}
 
-      {/* Actual Image Element (hidden until fully loaded) */}
+      {/* Actual Image Element (hidden until loaded) */}
       {src && !isError && (
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
           loading={loading}
+          decoding="async"
           onLoad={handleLoad}
           onError={handleError}
           className={`w-full h-full ${objectFit} transition-opacity duration-300 ease-out motion-reduce:transition-none ${

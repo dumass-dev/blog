@@ -40,17 +40,32 @@ describe('RichViewer Non-Standard HTML/XML Tag Escaping Test Suite', () => {
     let cleanAlt = rawAlt;
     let sizeClass = '';
     let alignClass = '';
+    let customStyle = '';
     if (cleanAlt.includes('|')) {
       const parts = cleanAlt.split('|');
       cleanAlt = parts[0].trim();
       for (let i = 1; i < parts.length; i++) {
-        const mod = parts[i].trim().toLowerCase();
+        let mod = parts[i].trim().toLowerCase().replace(/^(?:w|width|size)\s*[:=]\s*/i, '');
         if (mod === 'small') sizeClass = 'image-size-small';
         if (mod === 'left') alignClass = 'image-align-left';
+        if (/^\d{1,3}%$/.test(mod)) customStyle = `max-width: ${mod}; width: 100%;`;
+        if (/^\d+(?:px)?$/.test(mod)) customStyle = `max-width: ${mod.endsWith('px') ? mod : mod + 'px'}; width: 100%;`;
       }
     }
     assert.strictEqual(cleanAlt, 'my image');
     assert.strictEqual(sizeClass, 'image-size-small');
     assert.strictEqual(alignClass, 'image-align-left');
+
+    // Test arbitrary percentage
+    const percentAlt = 'diagram|45%';
+    const percentParts = percentAlt.split('|');
+    const percentVal = percentParts[1].trim();
+    assert.strictEqual(/^\d{1,3}%$/.test(percentVal), true);
+
+    // Test arbitrary pixels
+    const pixelAlt = 'screenshot|380px';
+    const pixelParts = pixelAlt.split('|');
+    const pixelVal = pixelParts[1].trim();
+    assert.strictEqual(/^\d+(?:px)?$/.test(pixelVal), true);
   });
 });
