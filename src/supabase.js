@@ -31,14 +31,11 @@ export function invalidateFeedCache() {
   try {
     const keys = ['home', 'all', 'journal', 'writing', 'photo', 'update'];
     keys.forEach(k => localStorage.removeItem(`feed_cache_${k}`));
-    // Also bust the about page cache
-    localStorage.removeItem('cached_about_data');
   } catch {}
 
   if (typeof window !== 'undefined') {
     try {
       window.dispatchEvent(new CustomEvent('feed-data-invalidated'));
-      window.dispatchEvent(new CustomEvent('about-data-updated'));
     } catch {}
   }
 }

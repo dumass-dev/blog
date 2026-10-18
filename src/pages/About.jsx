@@ -4,6 +4,8 @@ import TypewriterText from '../components/TypewriterText';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
 
+import { supabase } from '../supabase';
+
 const defaultAbout = {
   author_name: 'q04ti',
   tagline: 'thoughts, things I make, places I go, and everything in between.',
@@ -32,45 +34,66 @@ export default function About() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed && typeof parsed === 'object') {
-          return parsed;
+          return {
+            author_name: (parsed.author_name && parsed.author_name.trim() !== '') ? parsed.author_name : defaultAbout.author_name,
+            tagline: (parsed.tagline && parsed.tagline.trim() !== '') ? parsed.tagline : defaultAbout.tagline,
+            bio: (parsed.bio && parsed.bio.trim() !== '') ? parsed.bio : defaultAbout.bio,
+            projects: (Array.isArray(parsed.projects) && parsed.projects.length > 0) ? parsed.projects : defaultAbout.projects,
+            links: (Array.isArray(parsed.links) && parsed.links.length > 0) ? parsed.links : defaultAbout.links
+          };
         }
       }
     } catch {}
     return defaultAbout;
   });
-  const [loading, setLoading] = useState(() => {
-    try {
-      return !localStorage.getItem('cached_about_data');
-    } catch {
-      return true;
-    }
-  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const doFetch = () => {
-      fetch('/api/about')
-        .then(async res => {
-          if (!res.ok) return null;
+    const doFetch = async () => {
+      let data = null;
+      try {
+        const res = await fetch('/api/about');
+        if (res.ok) {
           const text = await res.text();
-          if (!text || text.trim().startsWith('<')) return null;
-          return JSON.parse(text);
-        })
-        .then(data => {
-          if (!data) return;
-          const updated = {
-            author_name: data.author_name !== undefined ? data.author_name : defaultAbout.author_name,
-            tagline: data.tagline !== undefined ? data.tagline : defaultAbout.tagline,
-            bio: data.bio !== undefined ? data.bio : defaultAbout.bio,
-            projects: Array.isArray(data.projects) ? data.projects : defaultAbout.projects,
-            links: Array.isArray(data.links) ? data.links : defaultAbout.links
-          };
-          setAboutData(updated);
-          try {
-            localStorage.setItem('cached_about_data', JSON.stringify(updated));
-          } catch {}
-        })
-        .catch(err => console.error(err))
-        .finally(() => setLoading(false));
+          if (text && !text.trim().startsWith('<')) {
+            data = JSON.parse(text);
+          }
+        }
+      } catch {}
+
+      // Fallback: Direct Supabase query if API server endpoint is not reachable
+      if (!data && supabase && typeof supabase.from === 'function') {
+        try {
+          const { data: supaRows } = await supabase.from('about').select('*').limit(1);
+          if (supaRows && supaRows[0]) {
+            data = supaRows[0];
+          }
+        } catch {}
+      }
+
+      if (data) {
+        let projects = data.projects;
+        if (typeof projects === 'string') {
+          try { projects = JSON.parse(projects); } catch { projects = []; }
+        }
+        let links = data.links;
+        if (typeof links === 'string') {
+          try { links = JSON.parse(links); } catch { links = []; }
+        }
+
+        const updated = {
+          author_name: (data.author_name && data.author_name.trim() !== '') ? data.author_name : defaultAbout.author_name,
+          tagline: (data.tagline && data.tagline.trim() !== '') ? data.tagline : defaultAbout.tagline,
+          bio: (data.bio && data.bio.trim() !== '') ? data.bio : defaultAbout.bio,
+          projects: (Array.isArray(projects) && projects.length > 0) ? projects : defaultAbout.projects,
+          links: (Array.isArray(links) && links.length > 0) ? links : defaultAbout.links
+        };
+        setAboutData(updated);
+        try {
+          localStorage.setItem('cached_about_data', JSON.stringify(updated));
+        } catch {}
+      }
+      setLoading(false);
     };
 
     // Always fetch fresh on mount so projects/bio/links never stay stale
@@ -78,7 +101,6 @@ export default function About() {
 
     // Also refetch if the admin saves changes in the same session
     const handleUpdate = () => {
-      setLoading(false);
       doFetch();
     };
     window.addEventListener('about-data-updated', handleUpdate);

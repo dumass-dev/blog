@@ -1255,9 +1255,9 @@ app.get('/api/about', async (req, res) => {
             : true);
 
       return res.json({
-        author_name: row.author_name !== undefined ? row.author_name : defaultAboutData.author_name,
-        tagline: row.tagline !== undefined ? row.tagline : defaultAboutData.tagline,
-        bio: row.bio !== undefined ? row.bio : defaultAboutData.bio,
+        author_name: (row.author_name && row.author_name.trim() !== '') ? row.author_name : defaultAboutData.author_name,
+        tagline: (row.tagline && row.tagline.trim() !== '') ? row.tagline : defaultAboutData.tagline,
+        bio: (row.bio && row.bio.trim() !== '') ? row.bio : defaultAboutData.bio,
         default_typewriter_enabled: effectiveTypewriter,
         default_theme: effectiveTheme,
         show_view_count: effectiveShowViews,
