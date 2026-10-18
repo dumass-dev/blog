@@ -666,17 +666,37 @@ html {
   display: block;
   background-color: var(--code-bg);
   transition: opacity 300ms ease-out;
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+/* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
+.prose-editorial br + img,
+.prose-editorial img + br,
+.prose-editorial br + .image-wrapper,
+.prose-editorial .image-wrapper + br,
+.prose-editorial br + .media-figure,
+.prose-editorial .media-figure + br,
+.prose-editorial br + .editorial-wrap,
+.prose-editorial .editorial-wrap + br {
+  display: none;
+}
+
+/* Paragraph containing standalone image */
+.prose-editorial p:has(> img:only-child) {
+  margin-top: 0.5rem;
+  margin-bottom: 0.65rem;
 }
 
 .prose-editorial p > img:only-child {
-  margin-top: 1.75rem;
-  margin-bottom: 1.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
-  margin-top: 1.75rem;
-  margin-bottom: 1.75rem;
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
   width: 100%;
 }
 
@@ -690,8 +710,8 @@ html {
 }
 
 .prose-editorial .media-figure {
-  margin-top: 1.75rem;
-  margin-bottom: 1.75rem;
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
   text-align: center;
 }
 
@@ -699,7 +719,7 @@ html {
   font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--text-muted);
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   font-style: italic;
   text-align: center;
 }
@@ -762,8 +782,8 @@ html {
   clear: both;
   margin-left: auto !important;
   margin-right: auto !important;
-  margin-top: 1.75rem !important;
-  margin-bottom: 1.75rem !important;
+  margin-top: 0.85rem !important;
+  margin-bottom: 0.85rem !important;
   text-align: center;
 }
 
@@ -1375,11 +1395,6 @@ body {
     border-radius: 6px;
     max-width: 100%;
     -webkit-overflow-scrolling: touch;
-  }
-
-  .prose-editorial img {
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
   }
 }
 
