@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import TypewriterToggle from './TypewriterToggle';
 import ViewCountToggle from './ViewCountToggle';
-import NowPlaying from './NowPlaying';
 import { useAuth } from '../context/AuthContext';
 import { Menu, X } from 'lucide-react';
 
@@ -183,9 +182,6 @@ export default function Header() {
               }}
               className="absolute top-full mt-3 z-50 bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg p-1.5 flex flex-col space-y-0.5 text-sm font-sans"
             >
-              <div className="mb-1">
-                <NowPlaying forceShow={true} />
-              </div>
               {[
                 { label: 'home', path: '/' },
                 ...navItems
