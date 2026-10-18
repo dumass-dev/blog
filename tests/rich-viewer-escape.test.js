@@ -69,4 +69,56 @@ describe('RichViewer Non-Standard HTML/XML Tag Escaping Test Suite', () => {
     const pixelVal = pixelParts[1].trim();
     assert.strictEqual(/^\d+(?:px)?$/.test(pixelVal), true);
   });
+
+  test('Intentional blank line spacing converts 3+ newlines to content spacers outside code blocks', () => {
+    const inputWithExtraLines = 'First paragraph.\n\n\n\n![my image](https://example.com/photo.jpg)\n\n\nSecond paragraph.';
+
+    // Emulate processEmbeds spacer logic
+    const codeBlockRegex = /(```[\s\S]*?```)/g;
+    const parts = inputWithExtraLines.split(codeBlockRegex);
+    const processed = parts.map((part, index) => {
+      if (index % 2 === 1) return part;
+      const normalized = part.replace(/\n[ \t]+(?=\n)/g, '\n');
+      return normalized.replace(/\n{3,}/g, (match) => {
+        const extraLines = match.length - 2;
+        const spacers = Array(extraLines).fill('<div class="content-spacer" aria-hidden="true"></div>').join('\n');
+        return `\n\n${spacers}\n\n`;
+      });
+    }).join('');
+
+    assert.strictEqual(processed.includes('<div class="content-spacer" aria-hidden="true"></div>'), true);
+    // Two extra lines before image (4 newlines - 2 = 2 spacers)
+    // One extra line after image (3 newlines - 2 = 1 spacer)
+    const spacerCount = (processed.match(/class="content-spacer"/g) || []).length;
+    assert.strictEqual(spacerCount, 3, 'Should have exactly 3 spacers (2 before image, 1 after image)');
+
+    // Ensure standard 2 newlines produces 0 spacers
+    const normalInput = 'Paragraph A.\n\nParagraph B.\n\n![img](url)';
+    const normalParts = normalInput.split(codeBlockRegex);
+    const normalProcessed = normalParts.map((part, index) => {
+      if (index % 2 === 1) return part;
+      const normalized = part.replace(/\n[ \t]+(?=\n)/g, '\n');
+      return normalized.replace(/\n{3,}/g, (match) => {
+        const extraLines = match.length - 2;
+        const spacers = Array(extraLines).fill('<div class="content-spacer" aria-hidden="true"></div>').join('\n');
+        return `\n\n${spacers}\n\n`;
+      });
+    }).join('');
+    assert.strictEqual(normalProcessed.includes('content-spacer'), false, 'Normal 2 newlines must not produce spacers');
+
+    // Code blocks with multiple newlines must not have spacers injected
+    const codeBlockInput = '```js\nconst a = 1;\n\n\n\nconst b = 2;\n```';
+    const codeParts = codeBlockInput.split(codeBlockRegex);
+    const codeProcessed = codeParts.map((part, index) => {
+      if (index % 2 === 1) return part;
+      const normalized = part.replace(/\n[ \t]+(?=\n)/g, '\n');
+      return normalized.replace(/\n{3,}/g, (match) => {
+        const extraLines = match.length - 2;
+        const spacers = Array(extraLines).fill('<div class="content-spacer" aria-hidden="true"></div>').join('\n');
+        return `\n\n${spacers}\n\n`;
+      });
+    }).join('');
+    assert.strictEqual(codeProcessed.includes('content-spacer'), false, 'Code blocks must be untouched');
+  });
 });
+

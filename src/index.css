@@ -490,6 +490,7 @@ html:not(.theme-ready) *::after {
 .bg-black\/10 { background-color: rgba(0, 0, 0, 0.1); }
 .bg-black\/40 { background-color: rgba(0, 0, 0, 0.4); }
 .bg-black\/60 { background-color: rgba(0, 0, 0, 0.6); }
+.pl-10 { padding-left: 2.5rem !important; }
 
 /* Position & Display */
 .relative { position: relative; }
@@ -671,43 +672,22 @@ html {
   display: block;
   background-color: transparent;
   transition: opacity 300ms ease-out;
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 /* If an image or figure is first-child or at the top of editorial, zero top margin */
 .prose-editorial > img:first-child,
-.prose-editorial > figure:first-child {
+.prose-editorial > figure:first-child,
+.prose-editorial > .image-wrapper:first-child,
+.prose-editorial > p:first-child > img:only-child {
   margin-top: 0 !important;
-}
-
-/* Tighten paragraph margin when immediately followed by an image or figure */
-.prose-editorial p:has(+ img),
-.prose-editorial p:has(+ figure) {
-  margin-bottom: 0.35rem;
-}
-
-.prose-editorial p + img,
-.prose-editorial p + figure {
-  margin-top: 0.25rem;
-}
-
-/* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
-.prose-editorial br + img,
-.prose-editorial img + br,
-.prose-editorial br + .image-wrapper,
-.prose-editorial .image-wrapper + br,
-.prose-editorial br + .media-figure,
-.prose-editorial .media-figure + br,
-.prose-editorial br + .editorial-wrap,
-.prose-editorial .editorial-wrap + br {
-  display: none !important;
 }
 
 /* Paragraph containing standalone image */
 .prose-editorial p:has(> img:only-child) {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .prose-editorial p > img:only-child {
@@ -717,8 +697,8 @@ html {
 
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
   width: 100%;
 }
 
@@ -732,9 +712,21 @@ html {
 }
 
 .prose-editorial .media-figure {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
   text-align: center;
+}
+
+/* Intentional blank line spacer */
+.prose-editorial .content-spacer {
+  display: block;
+  height: 1.35rem;
+  width: 100%;
+  pointer-events: none;
+}
+
+.prose-editorial > .content-spacer:first-child {
+  display: none;
 }
 
 .prose-editorial .media-figure figcaption {

@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient, supabase } from '../server/supabase.js';
-import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry } from '../server/b2.js';
+import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry, getVaultStorageStats } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
@@ -1553,12 +1553,13 @@ app.post('/api/b2-upload', async (req, res) => {
   }
 
   try {
-    const { filename, mimeType, sizeBytes } = req.body;
+    const { filename, mimeType, sizeBytes, targetVault, category } = req.body;
     if (!filename || !mimeType) {
       return res.status(400).json({ error: 'filename and mimeType are required.' });
     }
 
-    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600);
+    const resolvedVault = targetVault || (category === 'journal' || category === 'writing' ? 'journal' : 'visuals');
+    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault);
     res.json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
@@ -1572,15 +1573,132 @@ app.post('/api/media/presign', async (req, res) => {
   }
 
   try {
-    const { filename, mimeType, sizeBytes } = req.body;
+    const { filename, mimeType, sizeBytes, targetVault, category } = req.body;
     if (!filename || !mimeType) {
       return res.status(400).json({ error: 'filename and mimeType are required.' });
     }
 
-    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600);
+    const resolvedVault = targetVault || (category === 'journal' || category === 'writing' ? 'journal' : 'visuals');
+    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault);
     res.json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// GET /api/media/vaults — Get multi-vault status and allocated capacities (Admin Only)
+app.get('/api/media/vaults', async (req, res) => {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+  res.json({ vaults: getVaultStorageStats() });
+});
+
+// GET /api/storage/stats — Full breakdown of Backblaze (30 GB) and Supabase DB (500 MB) usage (Admin Only)
+app.get('/api/storage/stats', async (req, res) => {
+  const auth = await verifyAdminUser(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  try {
+    const supa = getSupabaseClient(req);
+
+    const [mediaRes, entriesRes, commentsRes] = await Promise.all([
+      supa.from('media').select('size, url'),
+      supa.from('entries').select('title, content, excerpt, type'),
+      supa.from('comments').select('content, author_name')
+    ]);
+
+    const mediaRows = Array.isArray(mediaRes.data) ? mediaRes.data : [];
+    const entriesRows = Array.isArray(entriesRes.data) ? entriesRes.data : [];
+    const commentsRows = Array.isArray(commentsRes.data) ? commentsRes.data : [];
+
+    // 1. Backblaze B2 (30 GB Unified Pool across 3 accounts)
+    const B2_TOTAL_BYTES = 30 * 1024 * 1024 * 1024; // 30 GB
+    const VAULT_CAP_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB each
+    const totalMediaBytes = mediaRows.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
+
+    const vault1Usage = Math.min(totalMediaBytes, VAULT_CAP_BYTES);
+    const vault2Usage = Math.min(Math.max(0, totalMediaBytes - VAULT_CAP_BYTES), VAULT_CAP_BYTES);
+    const vault3Usage = Math.max(0, totalMediaBytes - (VAULT_CAP_BYTES * 2));
+
+    // 2. Supabase Database (500 MB Free Tier for journals, essays, comments & tables)
+    const SUPABASE_TOTAL_BYTES = 500 * 1024 * 1024; // 500 MB
+    let entriesTextBytes = 0;
+    let journalCount = 0;
+    let writingCount = 0;
+    let photoCount = 0;
+    let updateCount = 0;
+
+    for (const e of entriesRows) {
+      const len = Buffer.byteLength((e.title || '') + (e.content || '') + (e.excerpt || ''), 'utf8');
+      entriesTextBytes += len;
+      if (e.type === 'photo') photoCount++;
+      else if (e.type === 'writing') writingCount++;
+      else if (e.type === 'update') updateCount++;
+      else journalCount++;
+    }
+
+    const commentsTextBytes = commentsRows.reduce(
+      (sum, c) => sum + Buffer.byteLength((c.content || '') + (c.author_name || ''), 'utf8'),
+      0
+    );
+    const dbEstimatedBytes = entriesTextBytes + commentsTextBytes + (mediaRows.length * 160) + (entriesRows.length * 240) + (commentsRows.length * 120);
+
+    res.json({
+      b2: {
+        totalAllocatedBytes: B2_TOTAL_BYTES,
+        usedBytes: totalMediaBytes,
+        percentUsed: Number(((totalMediaBytes / B2_TOTAL_BYTES) * 100).toFixed(2)),
+        fileCount: mediaRows.length,
+        vaults: [
+          {
+            id: 'media1',
+            name: 'Account 1: Visuals Pool 1',
+            bucket: 'q04ti-media-1',
+            allocatedBytes: VAULT_CAP_BYTES,
+            usedBytes: vault1Usage,
+            isFull: vault1Usage >= (9.5 * 1024 * 1024 * 1024)
+          },
+          {
+            id: 'media2',
+            name: 'Account 2: Visuals Pool 2',
+            bucket: 'q04ti-media-2',
+            allocatedBytes: VAULT_CAP_BYTES,
+            usedBytes: vault2Usage,
+            isFull: vault2Usage >= (9.5 * 1024 * 1024 * 1024)
+          },
+          {
+            id: 'journal',
+            name: 'Account 3: Writing & Vault',
+            bucket: 'q04ti-blog',
+            allocatedBytes: VAULT_CAP_BYTES,
+            usedBytes: vault3Usage,
+            isFull: vault3Usage >= (9.5 * 1024 * 1024 * 1024)
+          }
+        ]
+      },
+      supabase: {
+        totalAllocatedBytes: SUPABASE_TOTAL_BYTES,
+        usedBytes: dbEstimatedBytes,
+        percentUsed: Number(((dbEstimatedBytes / SUPABASE_TOTAL_BYTES) * 100).toFixed(2)),
+        breakdown: {
+          entriesCount: entriesRows.length,
+          journalCount,
+          writingCount,
+          photoCount,
+          updateCount,
+          entriesBytes: entriesTextBytes,
+          commentsCount: commentsRows.length,
+          commentsBytes: commentsTextBytes,
+          mediaRowsCount: mediaRows.length
+        }
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1600,7 +1718,8 @@ app.post('/api/media/upload', async (req, res) => {
       const file = req.file;
 
       if (isB2Configured()) {
-        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype);
+        const resolvedVault = req.body?.targetVault || (req.body?.category === 'journal' || req.body?.category === 'writing' ? 'journal' : 'visuals');
+        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype, resolvedVault);
         const mediaRow = {
           filename: path.basename(b2Result.storageKey),
           original_name: file.originalname,
@@ -1619,7 +1738,8 @@ app.post('/api/media/upload', async (req, res) => {
 
         return res.status(201).json({
           ...data,
-          signed_url: b2Result.signedUrl
+          signed_url: b2Result.signedUrl,
+          vault: resolvedVault
         });
       } else {
         return res.status(500).json({ error: 'Backblaze B2 credentials missing in server environment.' });
@@ -2159,7 +2279,23 @@ async function serveInjectedHtml(req, res, extraHead = '') {
     }
   });
 
-  const syncScript = `<script>window.__SITE_SHOW_VIEWS__=${effectiveShowViews ? 'true' : 'false'};</script>`;
+  let authorName = 'q04ti';
+  try {
+    const { data: syncRow } = await supabase
+      .from('realtime_sync')
+      .select('payload')
+      .eq('id', 'site_settings')
+      .maybeSingle();
+    if (syncRow?.payload?.author_name && syncRow.payload.author_name.trim()) {
+      authorName = syncRow.payload.author_name.trim();
+    }
+  } catch {}
+
+  if (authorName && authorName !== 'q04ti') {
+    html = html.replace(/<title>q04ti\s*—/i, `<title>${authorName} —`);
+  }
+
+  const syncScript = `<script>window.__SITE_SHOW_VIEWS__=${effectiveShowViews ? 'true' : 'false'};window.__SITE_AUTHOR_NAME__=${JSON.stringify(authorName)};</script>`;
   if (extraHead) {
     html = html.replace('</head>', `${syncScript}${extraHead}</head>`);
   } else {

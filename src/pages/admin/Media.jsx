@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { supabase, safeApiFetch } from '../../supabase';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
 import ProgressiveImage from '../../components/ProgressiveImage';
+import StorageUsageCard from '../../components/StorageUsageCard';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -25,13 +27,15 @@ function getPersistedMediaCache() {
 
 export default function Media() {
   const { token } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const cachedInitial = getPersistedMediaCache();
   const [mediaList, setMediaList] = useState(cachedInitial);
+  const [storageData, setStorageData] = useState(null);
   const [loading, setLoading] = useState(() => !cachedInitial.length);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
-  const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const mediaListRef = useRef(mediaList);
   mediaListRef.current = mediaList;
@@ -39,7 +43,6 @@ export default function Media() {
   const fetchMedia = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     else if (!mediaListRef.current.length) setLoading(true);
-    setError(null);
 
     let list = [];
 
@@ -69,6 +72,44 @@ export default function Media() {
       localStorage.setItem('cached_admin_media_list', JSON.stringify(list));
     } catch {}
 
+    // Fetch live storage statistics
+    const storageRes = await safeApiFetch('/api/storage/stats', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+
+    if (storageRes?.b2) {
+      setStorageData(storageRes);
+    } else {
+      const totalBytes = list.reduce((sum, item) => sum + (Number(item.size) || 0), 0);
+      const B2_TOTAL = 30 * 1024 * 1024 * 1024;
+      const VAULT_CAP = 10 * 1024 * 1024 * 1024;
+      setStorageData({
+        b2: {
+          totalAllocatedBytes: B2_TOTAL,
+          usedBytes: totalBytes,
+          percentUsed: Number(((totalBytes / B2_TOTAL) * 100).toFixed(2)),
+          fileCount: list.length,
+          vaults: [
+            { id: 'media1', name: 'Pool 1 (q04ti-media-1)', bucket: 'q04ti-media-1', allocatedBytes: VAULT_CAP, usedBytes: Math.min(totalBytes, VAULT_CAP) },
+            { id: 'media2', name: 'Pool 2 (q04ti-media-2)', bucket: 'q04ti-media-2', allocatedBytes: VAULT_CAP, usedBytes: Math.min(Math.max(0, totalBytes - VAULT_CAP), VAULT_CAP) },
+            { id: 'journal', name: 'Vault 3 (q04ti-blog)', bucket: 'q04ti-blog', allocatedBytes: VAULT_CAP, usedBytes: Math.max(0, totalBytes - (VAULT_CAP * 2)) }
+          ]
+        },
+        supabase: {
+          totalAllocatedBytes: 500 * 1024 * 1024,
+          usedBytes: list.length * 200,
+          percentUsed: 0.01,
+          breakdown: {
+            entriesCount: 0,
+            entriesBytes: 0,
+            commentsCount: 0,
+            commentsBytes: 0,
+            mediaRowsCount: list.length
+          }
+        }
+      });
+    }
+
     setLoading(false);
     setRefreshing(false);
   }, [token]);
@@ -82,7 +123,6 @@ export default function Media() {
     if (!file) return;
 
     setUploading(true);
-    setError(null);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -99,9 +139,10 @@ export default function Media() {
         throw new Error(data.error || 'Upload failed.');
       }
 
+      toastSuccess('Media uploaded to Backblaze pool successfully.');
       fetchMedia();
     } catch (err) {
-      setError(err.message);
+      toastError(err.message || 'Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -110,20 +151,31 @@ export default function Media() {
   const handleCopy = (url, id) => {
     navigator.clipboard.writeText(url);
     setCopiedId(id);
+    toastSuccess('Asset URL copied to clipboard.');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleDelete = async (id) => {
+    if (deletingId) return;
     if (!window.confirm('Delete this media file permanently?')) return;
 
+    setDeletingId(id);
     try {
       const res = await fetch(`/api/media/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) fetchMedia();
+      if (res.ok) {
+        toastSuccess('Media file removed.');
+        fetchMedia();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Delete failed.');
+      }
     } catch (err) {
-      console.error(err);
+      toastError(err.message || 'Delete failed.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -170,11 +222,12 @@ export default function Media() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-6 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-          {error}
-        </div>
-      )}
+      {/* Unified Storage Allocation Meter */}
+      <StorageUsageCard
+        storageData={storageData}
+        refreshing={refreshing}
+        onRefresh={() => fetchMedia(true)}
+      />
 
       {/* Media Grid */}
       {loading ? (
@@ -261,7 +314,8 @@ export default function Media() {
                   )}
                   <button
                     onClick={() => handleDelete(item.id)}
-                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1"
+                    disabled={deletingId === item.id}
+                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1 disabled:opacity-40"
                     title="Delete media"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

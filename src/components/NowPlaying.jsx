@@ -5,7 +5,18 @@ import { Music } from 'lucide-react';
 export default function NowPlaying({ forceShow = false, expandable = false, defaultExpanded = true }) {
   const [data, setData] = useState(null);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [authorName, setAuthorName] = useState('q04ti');
+  const [authorName, setAuthorName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('site_author_name');
+      if (stored && stored.trim()) return stored.trim();
+      const cached = localStorage.getItem('cached_about_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.author_name && parsed.author_name.trim()) return parsed.author_name.trim();
+      }
+    } catch {}
+    return 'q04ti';
+  });
   const [imgError, setImgError] = useState(false);
   const containerRef = useRef(null);
 
@@ -13,9 +24,23 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     fetch('/api/about')
       .then(res => res.json())
       .then(info => {
-        if (info && info.author_name) setAuthorName(info.author_name);
+        if (info && info.author_name && info.author_name.trim()) setAuthorName(info.author_name.trim());
       })
       .catch(() => {});
+
+    const handleAuthorUpdate = (e) => {
+      const name = e.detail?.data?.author_name || e.detail?.payload?.author_name || e.detail?.author_name;
+      if (name && name.trim()) {
+        setAuthorName(name.trim());
+      }
+    };
+
+    window.addEventListener('about-data-updated', handleAuthorUpdate);
+    window.addEventListener('site-settings-updated', handleAuthorUpdate);
+    return () => {
+      window.removeEventListener('about-data-updated', handleAuthorUpdate);
+      window.removeEventListener('site-settings-updated', handleAuthorUpdate);
+    };
   }, []);
 
   useEffect(() => {

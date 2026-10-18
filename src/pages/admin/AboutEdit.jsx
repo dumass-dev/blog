@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTypewriter } from '../../context/TypewriterContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useViewCount } from '../../context/ViewCountContext';
+import { useToast } from '../../context/ToastContext';
 import ThemeToggle from '../../components/ThemeToggle';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import { supabase } from '../../supabase';
@@ -11,6 +12,7 @@ import { Save, ArrowLeft, Plus, Trash2, Moon, Sun, Eye, EyeOff } from 'lucide-re
 
 export default function AboutEdit() {
   const { token } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const { updateSiteDefault } = useTypewriter();
   const { updateSiteDefaultTheme } = useTheme();
   const { updateSiteDefault: updateSiteDefaultViews } = useViewCount();
@@ -28,8 +30,6 @@ export default function AboutEdit() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetch('/api/about')
@@ -49,9 +49,9 @@ export default function AboutEdit() {
           links: Array.isArray(data.links) ? data.links : []
         });
       })
-      .catch(_err => setError('Failed loading settings.'))
+      .catch(_err => toastError('Failed loading settings.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [toastError]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -113,8 +113,6 @@ export default function AboutEdit() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setMessage(null);
 
     try {
       // Direct Supabase upsert for instant persistence
@@ -173,9 +171,9 @@ export default function AboutEdit() {
         window.dispatchEvent(new window.CustomEvent('about-data-updated', { detail: { data: formData } }));
         window.dispatchEvent(new window.CustomEvent('site-settings-updated', { detail: { data: formData } }));
       }
-      setMessage('About page and site settings updated successfully!');
+      toastSuccess('About page and site settings updated successfully!');
     } catch (err) {
-      setError(err.message);
+      toastError(err.message || 'Failed to update about page settings.');
     } finally {
       setSaving(false);
     }
@@ -218,18 +216,6 @@ export default function AboutEdit() {
           </button>
         </div>
       </div>
-
-      {message && (
-        <div className="mb-6 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-          {error}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Author Name */}

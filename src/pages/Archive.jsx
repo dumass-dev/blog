@@ -120,20 +120,25 @@ export default function Archive() {
         </p>
 
         {/* Minimal Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="relative max-w-md">
+        <form onSubmit={handleSearchSubmit} className="relative max-w-md flex items-center">
+          <Search
+            className="w-4 h-4 text-[var(--text-muted)] pointer-events-none"
+            style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
+          />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search entries, topics, or tags..."
-            className="quiet-input pl-10 text-sm"
+            style={{ paddingLeft: '2.35rem', paddingRight: searchQuery ? '3.5rem' : '1rem' }}
+            className="quiet-input text-sm w-full"
           />
-          <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-3" />
           {searchQuery && (
             <button
               type="button"
               onClick={clearFilter}
-              className="absolute right-3 top-2.5 text-xs font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
+              className="text-xs font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer py-1 px-1.5"
             >
               Clear
             </button>

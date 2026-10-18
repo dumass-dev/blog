@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { TypewriterProvider } from './context/TypewriterContext';
 import { ViewCountProvider } from './context/ViewCountContext';
+import { ToastProvider } from './context/ToastContext';
 import { initRealtimeSync } from './utils/realtime';
 import App from './App';
 import './index.css';
@@ -32,7 +33,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <TypewriterProvider>
             <ViewCountProvider>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </ViewCountProvider>
           </TypewriterProvider>
         </AuthProvider>

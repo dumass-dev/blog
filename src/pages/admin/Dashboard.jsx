@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
+import StorageUsageCard from '../../components/StorageUsageCard';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -40,7 +41,7 @@ function getPersistedCache() {
     const raw = localStorage.getItem('cached_admin_dashboard_v2');
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { entries: null, stats: null, comments: null };
+  return { entries: null, stats: null, comments: null, storage: null };
 }
 
 function setPersistedCache(data) {
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [cachedData] = useState(() => getPersistedCache());
 
   const [stats, setStats] = useState(() => cachedData.stats || { total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
+  const [storageData, setStorageData] = useState(() => cachedData.storage || null);
   const [entries, setEntries] = useState(() => cachedData.entries || []);
   const [comments, setComments] = useState(() => cachedData.comments || []);
   const [loading, setLoading] = useState(() => !cachedData.entries);
@@ -111,7 +113,7 @@ export default function Dashboard() {
     }
 
     // Fetch all data sources in parallel to eliminate waterfall latency
-    const [postsRes, statsRes, commentsRes, npRes] = await Promise.allSettled([
+    const [postsRes, statsRes, commentsRes, npRes, storageRes] = await Promise.allSettled([
       safeApiFetch('/api/posts?status=all', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       }),
@@ -119,7 +121,10 @@ export default function Dashboard() {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       }),
       supabase.from('comments').select('*, entries(title, slug)').order('created_at', { ascending: false }),
-      safeApiFetch(`/api/now-playing?t=${Date.now()}`)
+      safeApiFetch(`/api/now-playing?t=${Date.now()}`),
+      safeApiFetch('/api/storage/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
     ]);
 
     // 1. Process Posts
@@ -179,10 +184,64 @@ export default function Dashboard() {
       setShowOnHome(npRes.value.showOnHome);
     }
 
+    // 5. Process Storage Allocation Stats
+    let resolvedStorage = (storageRes.status === 'fulfilled' && storageRes.value?.b2)
+      ? storageRes.value
+      : null;
+
+    if (!resolvedStorage) {
+      try {
+        const { data: mediaRows } = await supabase.from('media').select('size, url');
+        const mRows = mediaRows || [];
+        const totalMediaBytes = mRows.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
+        const B2_TOTAL = 30 * 1024 * 1024 * 1024;
+        const VAULT_CAP = 10 * 1024 * 1024 * 1024;
+        const SUPA_TOTAL = 500 * 1024 * 1024;
+
+        let entriesTextBytes = 0;
+        for (const e of postsList) {
+          entriesTextBytes += (e.title || '').length + (e.content || '').length + (e.excerpt || '').length;
+        }
+        const commentsTextBytes = (fetchedComments || []).reduce((sum, c) => sum + (c.content || '').length + (c.author_name || '').length, 0);
+        const dbBytes = entriesTextBytes + commentsTextBytes + (mRows.length * 160) + (postsList.length * 240);
+
+        resolvedStorage = {
+          b2: {
+            totalAllocatedBytes: B2_TOTAL,
+            usedBytes: totalMediaBytes,
+            percentUsed: Number(((totalMediaBytes / B2_TOTAL) * 100).toFixed(2)),
+            fileCount: mRows.length,
+            vaults: [
+              { id: 'media1', name: 'Pool 1 (q04ti-media-1)', bucket: 'q04ti-media-1', allocatedBytes: VAULT_CAP, usedBytes: Math.min(totalMediaBytes, VAULT_CAP) },
+              { id: 'media2', name: 'Pool 2 (q04ti-media-2)', bucket: 'q04ti-media-2', allocatedBytes: VAULT_CAP, usedBytes: Math.min(Math.max(0, totalMediaBytes - VAULT_CAP), VAULT_CAP) },
+              { id: 'journal', name: 'Vault 3 (q04ti-blog)', bucket: 'q04ti-blog', allocatedBytes: VAULT_CAP, usedBytes: Math.max(0, totalMediaBytes - (VAULT_CAP * 2)) }
+            ]
+          },
+          supabase: {
+            totalAllocatedBytes: SUPA_TOTAL,
+            usedBytes: dbBytes,
+            percentUsed: Number(((dbBytes / SUPA_TOTAL) * 100).toFixed(2)),
+            breakdown: {
+              entriesCount: postsList.length,
+              entriesBytes: entriesTextBytes,
+              commentsCount: (fetchedComments || []).length,
+              commentsBytes: commentsTextBytes,
+              mediaRowsCount: mRows.length
+            }
+          }
+        };
+      } catch {}
+    }
+
+    if (resolvedStorage) {
+      setStorageData(resolvedStorage);
+    }
+
     setPersistedCache({
       entries: postsList,
       stats: currentStats,
-      comments: fetchedComments
+      comments: fetchedComments,
+      storage: resolvedStorage
     });
 
     setLoading(false);
@@ -494,6 +553,13 @@ export default function Dashboard() {
           <div className="text-2xl font-serif font-medium mt-1">{stats.mediaCount}</div>
         </div>
       </div>
+
+      {/* Storage & Cloud Allocation Meter */}
+      <StorageUsageCard
+        storageData={storageData}
+        refreshing={refreshing}
+        onRefresh={() => loadData(true)}
+      />
 
       {/* Action Bar */}
       <div className="admin-quick-actions-container">

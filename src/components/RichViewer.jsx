@@ -37,7 +37,22 @@ export default function RichViewer({ content = '' }) {
   }, []);
 
   const processEmbeds = (rawText) => {
-    let processed = rawText ? String(rawText).replace(/\\n/g, '\n') : '';
+    let processed = rawText ? String(rawText).replace(/\\n/g, '\n').replace(/\r\n/g, '\n') : '';
+
+    // Convert intentional consecutive empty lines (3 or more newlines) outside fenced code blocks into content spacers
+    const codeBlockRegex = /(```[\s\S]*?```)/g;
+    const parts = processed.split(codeBlockRegex);
+    processed = parts.map((part, index) => {
+      // Leave code blocks untouched
+      if (index % 2 === 1) return part;
+      // Normalize empty lines with whitespace so spaces/tabs on blank lines don't break detection
+      const normalized = part.replace(/\n[ \t]+(?=\n)/g, '\n');
+      return normalized.replace(/\n{3,}/g, (match) => {
+        const extraLines = match.length - 2;
+        const spacers = Array(extraLines).fill('<div class="content-spacer" aria-hidden="true"></div>').join('\n');
+        return `\n\n${spacers}\n\n`;
+      });
+    }).join('');
 
     // Convert standalone YouTube URLs into iframe embeds (supports watch, shorts, embed, youtu.be, mobile)
     const youtubeRegex = /(?:^|\n)\s*(?:https?:\/\/)?(?:(?:www|m)\.)?(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:\S*)?/g;

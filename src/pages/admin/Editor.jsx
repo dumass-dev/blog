@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { supabase, invalidateFeedCache } from '../../supabase';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import RichViewer from '../../components/RichViewer';
@@ -113,8 +114,7 @@ export default function Editor() {
   const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
   const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
+  const { success: toastSuccess, error: toastError } = useToast();
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
@@ -170,7 +170,7 @@ export default function Editor() {
   const toggleDictation = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setError('Voice dictation is not supported by your browser.');
+      toastError('Voice dictation is not supported by your browser.');
       return;
     }
 
@@ -188,7 +188,7 @@ export default function Editor() {
 
       recognition.onstart = () => setIsListening(true);
       recognition.onerror = (e) => {
-        setError('Voice recording error: ' + e.error);
+        toastError('Voice recording error: ' + e.error);
         setIsListening(false);
       };
       recognition.onend = () => setIsListening(false);
@@ -209,7 +209,7 @@ export default function Editor() {
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
-      setError('Could not start microphone: ' + err.message);
+      toastError('Could not start microphone: ' + err.message);
     }
   };
 
@@ -277,7 +277,7 @@ export default function Editor() {
             date: formattedDate || prev.date
           }));
         } else if (!initialEntry) {
-          setError('Failed loading entry details.');
+          toastError('Failed loading entry details.');
         }
         setLoading(false);
       }
@@ -288,7 +288,7 @@ export default function Editor() {
     return () => {
       isMounted = false;
     };
-  }, [id, token, initialEntry]);
+  }, [id, token, initialEntry, toastError]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -461,18 +461,16 @@ export default function Editor() {
     if (isSavingRef.current || saving) return;
 
     if (!formData.title && formData.type !== 'update' && formData.type !== 'photo') {
-      setError('Title is required for Journal and Writing entries.');
+      toastError('Title is required for Journal and Writing entries.');
       return;
     }
     if (!formData.content) {
-      setError('Content is required.');
+      toastError('Content is required.');
       return;
     }
 
     isSavingRef.current = true;
     setSaving(true);
-    setError(null);
-    setMessage(null);
 
     const isPhotoPost = formData.type === 'photo';
     const fallbackTitle = isPhotoPost 
@@ -593,7 +591,7 @@ export default function Editor() {
           savedData = supaInserted;
         }
       } catch (err) {
-        setError(err.message || 'Failed saving entry.');
+        toastError(err.message || 'Failed saving entry.');
         setSaving(false);
         isSavingRef.current = false;
         return;
@@ -601,7 +599,7 @@ export default function Editor() {
     }
 
     if (!savedData) {
-      setError('Failed saving entry.');
+      toastError('Failed saving entry.');
       setSaving(false);
       isSavingRef.current = false;
       return;
@@ -617,7 +615,7 @@ export default function Editor() {
       title: savedData.title || formData.title,
       data: savedData
     });
-    setMessage(id ? 'Entry updated successfully.' : 'Entry created successfully.');
+    toastSuccess(id ? 'Entry updated successfully.' : 'Entry created successfully.');
     setTimeout(() => {
       setSaving(false);
       isSavingRef.current = false;
@@ -742,18 +740,6 @@ export default function Editor() {
           </button>
         </div>
       </div>
-
-      {message && (
-        <div className="mb-6 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-          {error}
-        </div>
-      )}
 
       {mode === 'preview' ? (
         /* Reading Preview Mode */

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -6,37 +6,181 @@ import crypto from 'crypto';
 
 dotenv.config();
 
-const endpoint = process.env.BACKBLAZE_ENDPOINT;
-const region = process.env.BACKBLAZE_REGION || 'us-east-005';
-const bucket = process.env.BACKBLAZE_BUCKET || 'q04ti-blog';
-const keyId = process.env.BACKBLAZE_KEY_ID;
-const applicationKey = process.env.BACKBLAZE_APPLICATION_KEY;
-
-let s3Client = null;
-
-if (endpoint && keyId && applicationKey) {
-  // Format endpoint URL for S3 client
+function createS3Client(endpoint, region, keyId, applicationKey) {
+  if (!endpoint || !keyId || !applicationKey) return null;
   const s3Endpoint = endpoint.startsWith('http') ? endpoint : `https://${endpoint}`;
-  
-  s3Client = new S3Client({
+  return new S3Client({
     endpoint: s3Endpoint,
-    region: region,
+    region: region || 'us-east-005',
     credentials: {
       accessKeyId: keyId,
       secretAccessKey: applicationKey,
     },
   });
-  if (process.env.NODE_ENV !== 'test') {
-    console.log(`Initialized Backblaze B2 S3 Client (Bucket: ${bucket}, Endpoint: ${s3Endpoint})`);
+}
+
+export const vaults = {
+  // Vault 1: Primary Writing & Journals (10 GB)
+  journal: {
+    id: 'journal',
+    name: 'Writing & Journals',
+    bucket: process.env.BACKBLAZE_BUCKET || 'q04ti-blog',
+    endpoint: process.env.BACKBLAZE_ENDPOINT || 's3.us-east-005.backblazeb2.com',
+    region: process.env.BACKBLAZE_REGION || 'us-east-005',
+    keyId: process.env.BACKBLAZE_KEY_ID,
+    applicationKey: process.env.BACKBLAZE_APPLICATION_KEY,
+    client: null
+  },
+  // Vault 2: Visuals Pool 1 (10 GB)
+  media1: {
+    id: 'media1',
+    name: 'Visuals Pool 1',
+    bucket: process.env.BACKBLAZE_MEDIA_BUCKET_1 || 'q04ti-media-1',
+    endpoint: process.env.BACKBLAZE_MEDIA_ENDPOINT_1 || 's3.us-east-005.backblazeb2.com',
+    region: process.env.BACKBLAZE_MEDIA_REGION_1 || 'us-east-005',
+    keyId: process.env.BACKBLAZE_MEDIA_KEY_ID_1,
+    applicationKey: process.env.BACKBLAZE_MEDIA_APPLICATION_KEY_1,
+    client: null
+  },
+  // Vault 3: Visuals Pool 2 (10 GB)
+  media2: {
+    id: 'media2',
+    name: 'Visuals Pool 2',
+    bucket: process.env.BACKBLAZE_MEDIA_BUCKET_2 || 'q04ti-media-2',
+    endpoint: process.env.BACKBLAZE_MEDIA_ENDPOINT_2 || 's3.us-east-005.backblazeb2.com',
+    region: process.env.BACKBLAZE_MEDIA_REGION_2 || 'us-east-005',
+    keyId: process.env.BACKBLAZE_MEDIA_KEY_ID_2,
+    applicationKey: process.env.BACKBLAZE_MEDIA_APPLICATION_KEY_2,
+    client: null
   }
-} else {
-  if (process.env.NODE_ENV !== 'test') {
+};
+
+// Initialize clients for configured vaults
+vaults.journal.client = createS3Client(vaults.journal.endpoint, vaults.journal.region, vaults.journal.keyId, vaults.journal.applicationKey);
+vaults.media1.client = createS3Client(vaults.media1.endpoint, vaults.media1.region, vaults.media1.keyId, vaults.media1.applicationKey);
+vaults.media2.client = createS3Client(vaults.media2.endpoint, vaults.media2.region, vaults.media2.keyId, vaults.media2.applicationKey);
+
+// Fallback pointers for backward compatibility
+export const endpoint = process.env.BACKBLAZE_ENDPOINT || vaults.media1.endpoint;
+export const region = process.env.BACKBLAZE_REGION || 'us-east-005';
+export const bucket = process.env.BACKBLAZE_BUCKET || vaults.media1.bucket || 'q04ti-blog';
+export const s3Client = vaults.journal.client || vaults.media1.client || vaults.media2.client;
+
+if (process.env.NODE_ENV !== 'test') {
+  const activeNames = Object.values(vaults).filter(v => !!v.client).map(v => `${v.name} [${v.bucket}]`);
+  if (activeNames.length > 0) {
+    console.log(`Initialized Backblaze B2 Multi-Vault Storage: ${activeNames.join(', ')}`);
+  } else {
     console.warn('Warning: Backblaze B2 credentials incomplete in .env. Uploads will fallback to local storage.');
   }
 }
 
 export function isB2Configured() {
-  return !!s3Client;
+  return !!(vaults.journal.client || vaults.media1.client || vaults.media2.client);
+}
+
+// 9.5 GB safety threshold (out of 10 GB free tier cap) before auto-spillover to next account in chain
+export const BUCKET_FREE_TIER_LIMIT_BYTES = Number(process.env.BACKBLAZE_MEDIA_MAX_BYTES_1) || (9.5 * 1024 * 1024 * 1024);
+
+const vaultUsageMap = {
+  media1: 0,
+  media2: 0,
+  journal: 0,
+};
+
+const vaultFullMap = {
+  media1: false,
+  media2: false,
+  journal: false,
+};
+
+export function setVaultUsage(vaultId, bytes) {
+  if (vaultUsageMap[vaultId] !== undefined) {
+    vaultUsageMap[vaultId] = Math.max(0, Number(bytes) || 0);
+    if (vaultUsageMap[vaultId] >= BUCKET_FREE_TIER_LIMIT_BYTES) {
+      vaultFullMap[vaultId] = true;
+    }
+  }
+}
+
+export function setMedia1Usage(bytes) {
+  setVaultUsage('media1', bytes);
+}
+
+export function markVaultFull(vaultId) {
+  if (vaultFullMap[vaultId] !== undefined) {
+    vaultFullMap[vaultId] = true;
+  }
+}
+
+export function resetVaultFullStatus() {
+  vaultFullMap.media1 = false;
+  vaultFullMap.media2 = false;
+  vaultFullMap.journal = false;
+  vaultUsageMap.media1 = 0;
+  vaultUsageMap.media2 = 0;
+  vaultUsageMap.journal = 0;
+}
+
+// In the unified 30 GB pool, uploads fill in chain: media1 -> media2 -> journal
+export function getActiveVault(_target = 'visuals') {
+  const chain = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+
+  for (const vault of chain) {
+    const isFull = vaultFullMap[vault.id];
+    const usage = vaultUsageMap[vault.id] || 0;
+    if (!isFull && usage < BUCKET_FREE_TIER_LIMIT_BYTES) {
+      return vault;
+    }
+  }
+
+  return chain[chain.length - 1] || vaults.media1 || vaults.journal;
+}
+
+// Keep-alive touch: writes a small .keepalive timestamp file to all buckets so Backblaze never marks accounts dormant
+export async function touchAllVaultsKeepAlive() {
+  if (process.env.NODE_ENV === 'test') return;
+  const configured = Object.values(vaults).filter(v => !!v.client);
+  for (const v of configured) {
+    try {
+      await v.client.send(new PutObjectCommand({
+        Bucket: v.bucket,
+        Key: '.keepalive',
+        Body: JSON.stringify({ active: true, pinged_at: new Date().toISOString() }),
+        ContentType: 'application/json'
+      }));
+    } catch (_err) {
+      // Non-blocking
+    }
+  }
+}
+
+// Auto-run keepalive touch on startup and every 24 hours to prevent dormancy
+if (process.env.NODE_ENV !== 'test') {
+  touchAllVaultsKeepAlive().catch(() => {});
+  const keepAliveInterval = setInterval(() => {
+    touchAllVaultsKeepAlive().catch(() => {});
+  }, 24 * 60 * 60 * 1000);
+  if (keepAliveInterval.unref) keepAliveInterval.unref();
+}
+
+export function getVaultStorageStats() {
+  const configured = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+  const activeVault = getActiveVault();
+  return [
+    {
+      id: 'unified_pool',
+      name: 'Unified 30 GB Backblaze Media Pool',
+      totalAllocatedGb: 30,
+      activeBucket: activeVault ? activeVault.bucket : 'none',
+      buckets: configured.map(v => ({
+        id: v.id,
+        bucket: v.bucket,
+        isFull: !!vaultFullMap[v.id],
+        usageBytes: vaultUsageMap[v.id] || 0
+      }))
+    }
+  ];
 }
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.mp4', '.mov', '.webm', '.mp3', '.m4a', '.wav']);
@@ -44,8 +188,6 @@ const ALLOWED_MIMES = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
   'video/mp4', 'video/quicktime', 'video/webm', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-m4a', 'application/octet-stream'
 ]);
-
-
 
 /**
  * Validate upload buffer magic bytes & extension allowlist
@@ -119,9 +261,9 @@ export function generateStoragePath(originalName, mimeType) {
 }
 
 /**
- * Upload a file buffer directly to private Backblaze B2 bucket
+ * Upload a file buffer directly to private Backblaze B2 bucket in unified 30 GB chain
  */
-export async function uploadToB2(fileBuffer, originalName, mimeType) {
+export async function uploadToB2(fileBuffer, originalName, mimeType, _targetVault = 'visuals') {
   validateUploadFile(fileBuffer, originalName, mimeType);
 
   if (process.env.NODE_ENV === 'test') {
@@ -129,34 +271,65 @@ export async function uploadToB2(fileBuffer, originalName, mimeType) {
     return { storageKey, signedUrl: `http://127.0.0.1:3099/${storageKey}`, bucket: 'dummy-bucket' };
   }
 
-  if (!s3Client) {
+  const chain = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+  if (chain.length === 0) {
     throw new Error('Backblaze B2 is not configured in .env file.');
   }
 
   const storageKey = generateStoragePath(originalName, mimeType);
+  let uploadedVault = null;
 
-  const command = new PutObjectCommand({
-    Bucket: bucket,
-    Key: storageKey,
-    Body: fileBuffer,
-    ContentType: mimeType,
-  });
+  // Start with currently active vault in chain, and auto-spillover if full
+  const active = getActiveVault();
+  let targetIndex = chain.findIndex(v => v.id === active.id);
+  if (targetIndex === -1) targetIndex = 0;
 
-  await s3Client.send(command);
+  for (let i = targetIndex; i < chain.length; i++) {
+    const candidateVault = chain[i];
+    try {
+      const command = new PutObjectCommand({
+        Bucket: candidateVault.bucket,
+        Key: storageKey,
+        Body: fileBuffer,
+        ContentType: mimeType,
+      });
+      await candidateVault.client.send(command);
+      vaultUsageMap[candidateVault.id] = (vaultUsageMap[candidateVault.id] || 0) + fileBuffer.length;
+      if (vaultUsageMap[candidateVault.id] >= BUCKET_FREE_TIER_LIMIT_BYTES) {
+        vaultFullMap[candidateVault.id] = true;
+      }
+      uploadedVault = candidateVault;
+      keyVaultMap.set(storageKey, candidateVault);
+      break;
+    } catch (err) {
+      const isCapOrQuotaErr = /cap|quota|limit|exceeded|forbidden|full/i.test(err.message || err.code || '');
+      if (isCapOrQuotaErr && i < chain.length - 1) {
+        console.warn(`Vault ${candidateVault.bucket} full, auto-spilling over to ${chain[i + 1].bucket}...`);
+        markVaultFull(candidateVault.id);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (!uploadedVault) {
+    throw new Error('All Backblaze storage vaults are at capacity.');
+  }
 
   const getCommand = new GetObjectCommand({
-    Bucket: bucket,
+    Bucket: uploadedVault.bucket,
     Key: storageKey,
   });
-  const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 86400 });
+  const signedUrl = await getSignedUrl(uploadedVault.client, getCommand, { expiresIn: 86400 });
 
   return {
     storageKey,
     signedUrl,
-    bucket,
+    bucket: uploadedVault.bucket,
   };
 }
 
+const keyVaultMap = new Map(); // storageKey -> vault
 const b2UrlCache = new Map(); // key -> { url, expiresAt }
 
 /**
@@ -167,7 +340,7 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
     return `http://127.0.0.1:3099/${storageKey}`;
   }
 
-  if (!s3Client || !storageKey) return null;
+  if (!isB2Configured() || !storageKey) return null;
 
   const now = Date.now();
   const cached = b2UrlCache.get(storageKey);
@@ -175,12 +348,37 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
     return cached.url;
   }
 
+  // 1. Check if vault is already known in memory
+  let vault = keyVaultMap.get(storageKey);
+
+  // 2. Discover vault across active configured vaults if not yet known
+  if (!vault) {
+    const activeVaults = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+    for (const v of activeVaults) {
+      try {
+        await v.client.send(new HeadObjectCommand({ Bucket: v.bucket, Key: storageKey }));
+        vault = v;
+        keyVaultMap.set(storageKey, v);
+        break;
+      } catch (_err) {
+        // Not in this bucket, check next
+      }
+    }
+  }
+
+  // 3. Fallback to default active vault
+  if (!vault) {
+    vault = getActiveVault('visuals') || vaults.journal;
+  }
+
+  if (!vault || !vault.client) return null;
+
   try {
     const getCommand = new GetObjectCommand({
-      Bucket: bucket,
+      Bucket: vault.bucket,
       Key: storageKey,
     });
-    const freshUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: expiresInSeconds });
+    const freshUrl = await getSignedUrl(vault.client, getCommand, { expiresIn: expiresInSeconds });
     if (freshUrl) {
       b2UrlCache.set(storageKey, {
         url: freshUrl,
@@ -221,11 +419,11 @@ export async function refreshB2Url(urlOrText) {
 /**
  * Generate a presigned B2 PUT URL for direct client upload
  */
-export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes = 104857600) {
+export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes = 104857600, targetVault = 'visuals') {
   validateUploadFile(null, originalName, mimeType);
   const storageKey = generateStoragePath(originalName, mimeType);
 
-  if (process.env.NODE_ENV === 'test' || !s3Client) {
+  if (process.env.NODE_ENV === 'test' || !isB2Configured()) {
     return {
       storageKey,
       uploadUrl: `http://127.0.0.1:3099/${storageKey}`,
@@ -234,20 +432,26 @@ export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes
     };
   }
 
+  const vault = getActiveVault(targetVault) || vaults.media1 || vaults.journal;
+  if (!vault || !vault.client) {
+    throw new Error('Backblaze B2 is not configured in .env file.');
+  }
+
   const putCommand = new PutObjectCommand({
-    Bucket: bucket,
+    Bucket: vault.bucket,
     Key: storageKey,
     ContentType: mimeType,
   });
 
-  const uploadUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 900 });
+  const uploadUrl = await getSignedUrl(vault.client, putCommand, { expiresIn: 900 });
+  keyVaultMap.set(storageKey, vault);
   const publicUrl = await getB2SignedUrl(storageKey, 86400);
 
   return {
     storageKey,
     uploadUrl,
     publicUrl,
-    bucket,
+    bucket: vault.bucket,
   };
 }
 
@@ -255,16 +459,18 @@ export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes
  * Post-upload magic-byte check on B2 object
  */
 export async function verifyB2UploadedFile(storageKey, originalName, mimeType) {
-  if (process.env.NODE_ENV === 'test' || !s3Client) return true;
+  if (process.env.NODE_ENV === 'test' || !isB2Configured()) return true;
+
+  let vault = keyVaultMap.get(storageKey) || getActiveVault('visuals') || vaults.journal;
 
   try {
     const getCommand = new GetObjectCommand({
-      Bucket: bucket,
+      Bucket: vault.bucket,
       Key: storageKey,
       Range: 'bytes=0-511',
     });
 
-    const response = await s3Client.send(getCommand);
+    const response = await vault.client.send(getCommand);
     const chunks = [];
     for await (const chunk of response.Body) {
       chunks.push(chunk);
@@ -359,14 +565,32 @@ export async function deleteFromB2(storageKey) {
     return true;
   }
 
-  if (!s3Client || !storageKey) return false;
+  if (!isB2Configured() || !storageKey) return false;
+
+  let vault = keyVaultMap.get(storageKey);
+  const activeVaults = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+
+  if (!vault) {
+    for (const v of activeVaults) {
+      try {
+        await v.client.send(new HeadObjectCommand({ Bucket: v.bucket, Key: storageKey }));
+        vault = v;
+        break;
+      } catch (_err) {}
+    }
+  }
+
+  if (!vault) vault = getActiveVault('visuals') || vaults.journal;
+  if (!vault || !vault.client) return false;
 
   try {
     const command = new DeleteObjectCommand({
-      Bucket: bucket,
+      Bucket: vault.bucket,
       Key: storageKey,
     });
-    await s3Client.send(command);
+    await vault.client.send(command);
+    keyVaultMap.delete(storageKey);
+    b2UrlCache.delete(storageKey);
     return true;
   } catch (err) {
     console.error('Error deleting object from Backblaze B2:', storageKey, err.message);

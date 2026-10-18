@@ -3,6 +3,7 @@ import { MessageSquare, Send, User, Trash2 } from 'lucide-react';
 import { supabase, subscribeToComments } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -11,14 +12,13 @@ function formatDate(dateStr) {
 
 export default function Comments({ postId }) {
   const { isAdmin, token } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authorName, setAuthorName] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!postId) return;
@@ -77,8 +77,6 @@ export default function Comments({ postId }) {
   const handleDeleteComment = async (commentId) => {
     if (!window.confirm('Are you sure you want to delete this comment?')) return;
     setDeletingId(commentId);
-    setError(null);
-
     let deleted = false;
     try {
       const res = await fetch(`/api/comments/${commentId}`, {
@@ -98,11 +96,12 @@ export default function Comments({ postId }) {
         if (supaErr) throw supaErr;
         deleted = true;
       } catch (err) {
-        setError(err.message || 'Failed deleting comment.');
+        toastError(err.message || 'Failed deleting comment.');
       }
     }
 
     if (deleted) {
+      toastSuccess('Comment deleted.');
       setComments(prev => prev.filter(c => c.id !== commentId));
       publishRealtimeUpdate({
         type: 'comment',
@@ -122,12 +121,10 @@ export default function Comments({ postId }) {
     if (honeypot) {
       // Bot detected via honeypot field fill
       setContent('');
-      setMessage('Your comment has been received.');
+      toastSuccess('Your comment has been received.');
       return;
     }
 
-    setError(null);
-    setMessage(null);
     setSubmitting(true);
 
     const name = authorName && authorName.trim() ? authorName.trim() : 'Anonymous Reader';
@@ -144,8 +141,7 @@ export default function Comments({ postId }) {
     // Optimistically add comment to UI state instantly
     setComments(prev => [...prev, optimisticComment]);
     setContent('');
-    setMessage('Your comment has been posted.');
-    setTimeout(() => setMessage(null), 3000);
+    toastSuccess('Your comment has been posted.');
 
     let realComment = null;
 
@@ -184,7 +180,7 @@ export default function Comments({ postId }) {
       } catch (err) {
         // Revert optimistic comment if server insert fails
         setComments(prev => prev.filter(c => c.id !== tempId));
-        setError(err.message || 'Failed posting comment.');
+        toastError(err.message || 'Failed posting comment.');
         setSubmitting(false);
         return;
       }
@@ -214,18 +210,6 @@ export default function Comments({ postId }) {
         <div className="text-xs font-sans font-medium uppercase tracking-wider text-[var(--text-secondary)]">
           Leave a Thought
         </div>
-
-        {message && (
-          <div className="p-2 bg-[var(--card-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="p-2 bg-[var(--card-bg)] text-[var(--text-primary)] text-xs font-sans rounded border border-[var(--border-subtle)]">
-            {error}
-          </div>
-        )}
 
         {/* Bot Honeypot field (hidden from real users) */}
         <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">

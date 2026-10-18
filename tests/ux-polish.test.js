@@ -88,9 +88,9 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     // Click publish
     const clickPromise = publishBtn.click();
 
-    // Check loading state immediately
-    await page.waitForTimeout(50);
+    // Check loading state during save
     const savingBtn = page.locator('button').filter({ hasText: /Publishing.../ });
+    await savingBtn.waitFor({ state: 'visible', timeout: 3000 });
     const isVisible = await savingBtn.isVisible();
     assert.strictEqual(isVisible, true, 'Button should show Publishing... state during save');
     const isDisabled = await savingBtn.isDisabled();
