@@ -1330,12 +1330,33 @@ app.put('/api/posts/:id', async (req, res) => {
       }
     }
 
-    const { data, error } = await getSupabaseClient(req)
+    if (payload.slug !== undefined) {
+      const trimmedSlug = payload.slug ? payload.slug.trim() : '';
+      if (trimmedSlug) {
+        updateData.slug = trimmedSlug;
+      } else if (payload.title && payload.title.trim()) {
+        updateData.slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      }
+    }
+
+    let { data, error } = await getSupabaseClient(req)
       .from('entries')
       .update(updateData)
       .eq('id', id)
       .select('*')
       .single();
+
+    if (error && (error.message.includes('entries_slug_key') || error.message.includes('duplicate key'))) {
+      updateData.slug = `${updateData.slug}-${Math.random().toString(36).slice(2, 6)}`;
+      const retry = await getSupabaseClient(req)
+        .from('entries')
+        .update(updateData)
+        .eq('id', id)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 

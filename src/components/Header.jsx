@@ -97,7 +97,7 @@ export default function Header() {
   ];
 
   return (
-    <header className={`header-container notebook-container mb-10 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
+    <header className={`header-container notebook-container mb-6 sm:mb-8 border-b border-[var(--border-subtle)] relative sticky-header-wrapper ${visible ? 'header-visible' : 'header-hidden'}`}>
       {/* Left: Serif Wordmark & Inline Text Links */}
       <div className="flex items-center space-x-6 sm:space-x-8">
         <Link

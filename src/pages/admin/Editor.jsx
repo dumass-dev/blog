@@ -9,6 +9,7 @@ import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
 import { resolveMediaUrl } from '../../utils/media';
+import { slugify } from '../../utils/slug';
 import {
   Save,
   ArrowLeft,
@@ -30,8 +31,11 @@ import {
   Cloud,
   Smile,
   Lock,
-  Columns
+  Columns,
+  RefreshCw
 } from 'lucide-react';
+
+export { slugify };
 
 export default function Editor() {
   const { id } = useParams();
@@ -69,6 +73,7 @@ export default function Editor() {
   const [isListening, setIsListening] = useState(false);
   const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
   const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
+  const [isCustomSlug, setIsCustomSlug] = useState(false);
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
   const cursorPosRef = React.useRef({ start: null, end: null });
@@ -206,7 +211,30 @@ export default function Editor() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'title') {
+      setFormData(prev => ({
+        ...prev,
+        title: value,
+        slug: !isCustomSlug ? slugify(value) : prev.slug
+      }));
+    } else if (name === 'slug') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setIsCustomSlug(false);
+        setFormData(prev => ({
+          ...prev,
+          slug: ''
+        }));
+      } else {
+        setIsCustomSlug(true);
+        setFormData(prev => ({
+          ...prev,
+          slug: value
+        }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   // Insert markdown snippet into content
@@ -313,9 +341,14 @@ export default function Editor() {
       ? `Photo — ${new Date(formData.date).toLocaleDateString()}` 
       : (formData.type === 'update' ? `Update — ${new Date(formData.date).toLocaleDateString()}` : 'Untitled Entry');
 
+    const payloadSlug = (formData.slug && formData.slug.trim())
+      ? slugify(formData.slug.trim())
+      : (slugify(formData.title || fallbackTitle) || (isPhotoPost ? `photo-${Date.now()}` : `entry-${Date.now()}`));
+
     const payload = {
       ...formData,
       title: formData.title || fallbackTitle,
+      slug: payloadSlug,
       type: isPhotoPost ? 'journal' : formData.type,
       category: isPhotoPost ? (formData.category || 'Photos') : formData.category,
       show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : !isPhotoPost,
@@ -922,9 +955,24 @@ export default function Editor() {
 
             {/* Slug */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                URL Slug
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+                  URL Slug
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomSlug(false);
+                    const synced = slugify(formData.title);
+                    setFormData(prev => ({ ...prev, slug: synced }));
+                  }}
+                  className="text-[11px] font-sans text-[var(--accent-warm)] hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Auto-generate slug from current title"
+                >
+                  <RefreshCw className="w-2.5 h-2.5" />
+                  <span>Sync with title</span>
+                </button>
+              </div>
               <input
                 type="text"
                 name="slug"
@@ -933,6 +981,11 @@ export default function Editor() {
                 placeholder="auto-generated-if-empty"
                 className="quiet-input text-xs font-mono"
               />
+              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1">
+                {isCustomSlug
+                  ? 'Custom slug active. Clear input or click "Sync with title" to auto-sync.'
+                  : 'Auto-syncs when you edit the title. Type here to customize slug.'}
+              </p>
             </div>
 
             {/* Category */}

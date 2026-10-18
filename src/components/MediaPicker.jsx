@@ -22,7 +22,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const [mediaList, setMediaList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [selectedSize, setSelectedSize] = useState('50%');
+  const [selectedSize, setSelectedSize] = useState('100%');
   const [error, setError] = useState(null);
 
   const fetchMedia = useCallback(async () => {
@@ -314,8 +314,11 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                     loading={index < 8 ? 'eager' : 'lazy'}
                   />
                 )}
-                <div className="absolute inset-0 bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-sans font-medium text-center p-2">
-                  Tap to insert ({selectedSize || '100%'})
+                <div className="absolute inset-0 bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-sans font-medium text-center p-2">
+                  <span>Tap to insert</span>
+                  {selectedSize && selectedSize !== '100%' && (
+                    <span className="text-[10px] opacity-80 font-mono mt-0.5">({selectedSize})</span>
+                  )}
                 </div>
               </div>
             ))

@@ -470,7 +470,7 @@ export default function EntryDetail() {
       )}
 
       {/* Back button */}
-      <div className="mb-8">
+      <div className="mb-3 sm:mb-5">
         <Link
           to={backLink}
           className="text-xs font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider"
@@ -480,7 +480,7 @@ export default function EntryDetail() {
       </div>
 
       {/* Header */}
-      <header className="mb-8">
+      <header className="mb-6 sm:mb-8">
         <div className="entry-meta-row text-xs font-sans text-[var(--text-muted)] tracking-wider uppercase mb-3 flex flex-wrap items-center min-w-0 max-w-full">
           <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
             <time dateTime={entry.date}>{formatDate(entry.date)}</time>

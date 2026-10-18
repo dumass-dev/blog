@@ -2027,7 +2027,14 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
       }
     }
     if (title !== undefined) updates.title = title.trim();
-    if (slug !== undefined) updates.slug = slug.trim();
+    if (slug !== undefined) {
+      const trimmedSlug = slug.trim();
+      if (trimmedSlug) {
+        updates.slug = trimmedSlug;
+      } else if (updates.title || title) {
+        updates.slug = slugify(updates.title || title);
+      }
+    }
     if (content !== undefined) updates.content = content.trim();
     if (status !== undefined) updates.status = status;
     if (category !== undefined) updates.category = category.trim();
@@ -2056,6 +2063,13 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
 
     if (error && (error.message.includes('show_in_feed') || error.message.includes('schema cache'))) {
       delete updates.show_in_feed;
+      const retry = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error && (error.message.includes('entries_slug_key') || error.message.includes('duplicate key'))) {
+      updates.slug = `${updates.slug}-${Math.random().toString(36).slice(2, 6)}`;
       const retry = await getSupabaseClient(req).from('entries').update(updates).eq('id', id).select('*').single();
       data = retry.data;
       error = retry.error;
