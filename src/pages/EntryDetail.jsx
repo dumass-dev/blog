@@ -390,17 +390,16 @@ export default function EntryDetail() {
 
   const displayType = isPhotoEntry ? 'photo' : entry.type;
 
-  // Render cover image / GIF banner if cover_image is set
-  // Avoid duplicate only if the entire content consists solely of that single markdown image with no text
-  const isCoverOnlyInContent = Boolean(
-    entry.cover_image &&
-    entry.content &&
-    entry.content.trim().startsWith('![') &&
-    entry.content.includes(entry.cover_image) &&
-    entry.content.replace(/!\[.*?\]\(.*?\)/g, '').trim() === ''
+  // Check if content already includes the image to prevent duplicate image rendering
+  const contentHasImage = Boolean(
+    entry.content && (
+      (entry.cover_image && entry.content.includes(entry.cover_image)) ||
+      /!\[.*?\]\((.*?)\)/.test(entry.content) ||
+      /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(entry.content)
+    )
   );
 
-  const shouldRenderCoverImage = Boolean(entry.cover_image && entry.cover_image.trim() !== '' && !isCoverOnlyInContent);
+  const shouldRenderCoverImage = Boolean(entry.cover_image && !contentHasImage);
 
   const handleShare = async () => {
     const shareData = {
@@ -606,15 +605,15 @@ export default function EntryDetail() {
         />
       ) : (
         <>
-          {/* Cover Image / GIF Banner if present */}
+          {/* Cover Image if present and not duplicated in content */}
           {shouldRenderCoverImage && (
-            <div className="mb-10 cursor-pointer group rounded-lg overflow-hidden border border-[var(--border-subtle)] bg-[var(--code-bg)] shadow-sm" onClick={handleImageClick}>
+            <div className="mb-10 cursor-pointer group" onClick={handleImageClick}>
               <ProgressiveImage
                 src={resolveMediaUrl(entry.cover_image)}
-                alt={entry.title || 'Cover banner'}
+                alt={entry.title || 'Cover image'}
                 objectFit="object-cover"
-                className="w-full h-auto max-h-[500px]"
-                imgClassName="w-full h-auto object-cover group-hover:opacity-95 transition-opacity"
+                className="w-full h-auto rounded border border-[var(--border-subtle)] max-h-[440px]"
+                imgClassName="group-hover:opacity-95 transition-opacity"
               />
             </div>
           )}
