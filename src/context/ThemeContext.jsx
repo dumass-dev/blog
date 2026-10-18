@@ -65,16 +65,22 @@ export function ThemeProvider({ children }) {
   });
 
   // Apply default theme to the document and state
-  const applySiteDefault = (newDefault) => {
+  const applySiteDefault = (newDefault, force = false) => {
     if (newDefault !== 'light' && newDefault !== 'dark') return;
     setSiteDefaultTheme(newDefault);
     try {
       localStorage.setItem('site_default_theme', newDefault);
     } catch {}
 
-    // Only change active theme if visitor hasn't chosen a personal manual theme on the public site
     const manual = typeof window !== 'undefined' && localStorage.getItem('user_manual_theme');
-    if (!manual) {
+    if (!manual || force) {
+      if (force) {
+        try {
+          localStorage.removeItem('user_manual_theme');
+          localStorage.removeItem('theme_user_override');
+        } catch {}
+        setHasUserOverride(false);
+      }
       setTheme(newDefault);
       const root = document.documentElement;
       if (newDefault === 'dark') {
@@ -120,11 +126,12 @@ export function ThemeProvider({ children }) {
       const data = e.detail?.data || e.detail?.payload || e.detail;
       const newDefault = data?.default_theme;
       if (newDefault === 'light' || newDefault === 'dark') {
-        applySiteDefault(newDefault);
+        applySiteDefault(newDefault, true);
       }
     };
 
     window.addEventListener('about-data-updated', handleAboutUpdate);
+    window.addEventListener('site-settings-updated', handleAboutUpdate);
 
     // Direct Supabase Realtime channel subscription
     let channel;
@@ -135,7 +142,7 @@ export function ThemeProvider({ children }) {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'realtime_sync', filter: 'id=eq.site_settings' }, (payload) => {
             const newDefault = payload?.new?.payload?.default_theme;
             if (newDefault === 'light' || newDefault === 'dark') {
-              applySiteDefault(newDefault);
+              applySiteDefault(newDefault, true);
             }
           })
           .subscribe();
@@ -162,6 +169,7 @@ export function ThemeProvider({ children }) {
 
     return () => {
       window.removeEventListener('about-data-updated', handleAboutUpdate);
+      window.removeEventListener('site-settings-updated', handleAboutUpdate);
       window.removeEventListener('storage', handleStorage);
       if (channel && typeof channel.unsubscribe === 'function') {
         channel.unsubscribe();

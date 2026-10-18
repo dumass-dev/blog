@@ -5,11 +5,23 @@ import { useEffect } from 'react';
  */
 export function useDocumentMeta({ title, description, image, type = 'website' } = {}) {
   useEffect(() => {
-    const defaultSiteTitle = 'q04ti — Personal Blog & Digital Journal';
+    const authorName = (() => {
+      try {
+        const stored = localStorage.getItem('site_author_name');
+        if (stored && stored.trim()) return stored.trim();
+        const cached = localStorage.getItem('cached_about_data');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.author_name && parsed.author_name.trim()) return parsed.author_name.trim();
+        }
+      } catch {}
+      return 'q04ti';
+    })();
+    const defaultSiteTitle = `${authorName} — Personal Blog & Digital Journal`;
     const defaultDesc = 'A minimalist digital journal, writing, photography stream, and personal reflections.';
 
     // 1. Set document title
-    const fullTitle = title ? `${title} — q04ti` : defaultSiteTitle;
+    const fullTitle = title ? `${title} — ${authorName}` : defaultSiteTitle;
     document.title = fullTitle;
 
     // Helper to update or create meta tag

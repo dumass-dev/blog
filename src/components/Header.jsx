@@ -2,13 +2,21 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import TypewriterToggle from './TypewriterToggle';
-import ViewCountToggle from './ViewCountToggle';
-import { useAuth } from '../context/AuthContext';
 import { Menu, X } from 'lucide-react';
 
 export default function Header() {
-  const { isAdmin } = useAuth();
-  const [siteMeta, setSiteMeta] = useState({ author_name: 'q04ti' });
+  const [siteMeta, setSiteMeta] = useState(() => {
+    try {
+      const stored = localStorage.getItem('site_author_name');
+      if (stored && stored.trim()) return { author_name: stored.trim() };
+      const cached = localStorage.getItem('cached_about_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.author_name && parsed.author_name.trim()) return { author_name: parsed.author_name.trim() };
+      }
+    } catch {}
+    return { author_name: 'q04ti' };
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const dropdownRef = useRef(null);
@@ -55,12 +63,40 @@ export default function Header() {
   }, [menuOpen]);
 
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
-      .then(data => {
-        if (data.author_name) setSiteMeta({ author_name: data.author_name });
-      })
-      .catch(() => {});
+    const fetchAuthor = () => {
+      fetch('/api/about')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.author_name && data.author_name.trim()) {
+            setSiteMeta({ author_name: data.author_name.trim() });
+            try {
+              localStorage.setItem('site_author_name', data.author_name.trim());
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchAuthor();
+
+    const handleUpdate = (e) => {
+      const author = e.detail?.data?.author_name || e.detail?.payload?.author_name || e.detail?.author_name;
+      if (author && author.trim()) {
+        setSiteMeta({ author_name: author.trim() });
+        try {
+          localStorage.setItem('site_author_name', author.trim());
+        } catch {}
+      } else {
+        fetchAuthor();
+      }
+    };
+
+    window.addEventListener('about-data-updated', handleUpdate);
+    window.addEventListener('site-settings-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('about-data-updated', handleUpdate);
+      window.removeEventListener('site-settings-updated', handleUpdate);
+    };
   }, []);
 
   // Close menu on location change
@@ -211,11 +247,10 @@ export default function Header() {
                 );
               })}
 
-              {/* Theme & Typewriter Toggles (and Admin View Count Toggle) */}
+              {/* Theme & Typewriter Toggles */}
               <div className="pt-1.5 mt-1 border-t border-[var(--border-subtle)] flex items-center justify-center space-x-1 py-0.5">
                 <ThemeToggle />
                 <TypewriterToggle />
-                {isAdmin && <ViewCountToggle />}
               </div>
             </div>
           )}

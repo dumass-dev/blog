@@ -19,15 +19,14 @@ export function ViewCountProvider({ children }) {
           return window.__SITE_SHOW_VIEWS__;
         }
         const injectedAttr = document.documentElement.getAttribute('data-show-views-injected');
-        if (injectedAttr === 'true') return true;
         if (injectedAttr === 'false') return false;
+        if (injectedAttr === 'true') return true;
         const cached = localStorage.getItem('site_show_views');
-        if (cached === 'true') return true;
         if (cached === 'false') return false;
+        if (cached === 'true') return true;
       }
     } catch (_e) {}
-    // Strict safety default: hidden by default so it can NEVER flash visible before settings load!
-    return false;
+    return true;
   });
 
   // Fetch initial site view count visibility from /api/about
@@ -62,8 +61,10 @@ export function ViewCountProvider({ children }) {
     };
 
     window.addEventListener('about-data-updated', handleAboutUpdate);
+    window.addEventListener('site-settings-updated', handleAboutUpdate);
     return () => {
       window.removeEventListener('about-data-updated', handleAboutUpdate);
+      window.removeEventListener('site-settings-updated', handleAboutUpdate);
     };
   }, []);
 
@@ -84,17 +85,21 @@ export function ViewCountProvider({ children }) {
         data: { show_view_count: nextVal }
       });
 
-      // Direct write to Supabase for instant persistence
+      // Direct write to Supabase for instant persistence without clobbering other settings
       if (supabase && typeof supabase.from === 'function') {
-        supabase.from('realtime_sync').upsert({
-          id: 'site_settings',
-          version: Date.now(),
-          event: 'site_settings_updated',
-          payload: {
-            show_view_count: nextVal
-          },
-          updated_at: new Date().toISOString()
-        }).then(() => {}).catch(() => {});
+        supabase.from('realtime_sync').select('payload').eq('id', 'site_settings').maybeSingle().then(({ data }) => {
+          const current = data?.payload || {};
+          supabase.from('realtime_sync').upsert({
+            id: 'site_settings',
+            version: Date.now(),
+            event: 'site_settings_updated',
+            payload: {
+              ...current,
+              show_view_count: nextVal
+            },
+            updated_at: new Date().toISOString()
+          }).then(() => {}).catch(() => {});
+        }).catch(() => {});
       }
 
       if (token) {

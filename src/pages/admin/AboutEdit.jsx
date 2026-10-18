@@ -53,27 +53,6 @@ export default function AboutEdit() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Listen to realtime settings updates so admin UI updates seamlessly across tabs & devices
-  useEffect(() => {
-    const handleSettingsUpdate = (e) => {
-      const data = e.detail?.data || e.detail?.payload || e.detail;
-      if (!data) return;
-      setFormData(prev => ({
-        ...prev,
-        ...(typeof data.default_typewriter_enabled === 'boolean' ? { default_typewriter_enabled: data.default_typewriter_enabled } : {}),
-        ...(data.default_theme === 'light' || data.default_theme === 'dark' ? { default_theme: data.default_theme } : {}),
-        ...(typeof data.show_view_count === 'boolean' ? { show_view_count: data.show_view_count } : {})
-      }));
-    };
-
-    window.addEventListener('about-data-updated', handleSettingsUpdate);
-    window.addEventListener('site-settings-updated', handleSettingsUpdate);
-    return () => {
-      window.removeEventListener('about-data-updated', handleSettingsUpdate);
-      window.removeEventListener('site-settings-updated', handleSettingsUpdate);
-    };
-  }, []);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -119,132 +98,16 @@ export default function AboutEdit() {
     }));
   };
 
-  const handleToggleTypewriterDefault = async () => {
-    const nextVal = !formData.default_typewriter_enabled;
-    const updated = { ...formData, default_typewriter_enabled: nextVal };
-    setFormData(updated);
-    updateSiteDefault(nextVal);
-
-    try {
-      publishRealtimeUpdate({
-        type: 'about',
-        op: 'UPDATE',
-        data: updated
-      });
-
-      // 1. Direct write to Supabase for instant persistence & realtime sync across all visitors
-      if (supabase && typeof supabase.from === 'function') {
-        supabase.from('realtime_sync').upsert({
-          id: 'site_settings',
-          version: Date.now(),
-          event: 'site_settings_updated',
-          payload: {
-            default_theme: formData.default_theme,
-            default_typewriter_enabled: nextVal,
-            show_view_count: formData.show_view_count
-          },
-          updated_at: new Date().toISOString()
-        }).then(() => {}).catch(() => {});
-      }
-
-      await fetch('/api/about', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(updated)
-      });
-      setMessage(`Site default typewriter effect turned ${nextVal ? 'ON' : 'OFF'} and saved!`);
-      setTimeout(() => setMessage(null), 3500);
-    } catch (_err) {}
+  const handleToggleTypewriterDefault = () => {
+    setFormData(prev => ({ ...prev, default_typewriter_enabled: !prev.default_typewriter_enabled }));
   };
 
-  const handleToggleViewCountDefault = async () => {
-    const nextVal = !formData.show_view_count;
-    const updated = { ...formData, show_view_count: nextVal };
-    setFormData(updated);
-    if (updateSiteDefaultViews) updateSiteDefaultViews(nextVal);
-
-    try {
-      publishRealtimeUpdate({
-        type: 'about',
-        op: 'UPDATE',
-        data: updated
-      });
-
-      // 1. Direct write to Supabase for instant persistence
-      if (supabase && typeof supabase.from === 'function') {
-        supabase.from('realtime_sync').upsert({
-          id: 'site_settings',
-          version: Date.now(),
-          event: 'site_settings_updated',
-          payload: {
-            default_theme: formData.default_theme,
-            default_typewriter_enabled: formData.default_typewriter_enabled,
-            show_view_count: nextVal
-          },
-          updated_at: new Date().toISOString()
-        }).then(() => {}).catch(() => {});
-      }
-
-      // 2. Also persist via API endpoint
-      await fetch('/api/about', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(updated)
-      });
-      setMessage(`Site default view count visibility set to ${nextVal ? 'Visible' : 'Hidden'} by default!`);
-      setTimeout(() => setMessage(null), 3500);
-    } catch (_err) {}
+  const handleToggleViewCountDefault = () => {
+    setFormData(prev => ({ ...prev, show_view_count: !prev.show_view_count }));
   };
 
-  const handleToggleDefaultTheme = async () => {
-    const nextTheme = formData.default_theme === 'dark' ? 'light' : 'dark';
-    const updated = { ...formData, default_theme: nextTheme };
-    setFormData(updated);
-    if (updateSiteDefaultTheme) updateSiteDefaultTheme(nextTheme);
-
-    try {
-      localStorage.setItem('site_default_theme', nextTheme);
-      localStorage.removeItem('user_manual_theme');
-      localStorage.removeItem('theme_user_override');
-      publishRealtimeUpdate({
-        type: 'about',
-        op: 'UPDATE',
-        data: updated
-      });
-
-      // 1. Direct write to Supabase for instant persistence
-      if (supabase && typeof supabase.from === 'function') {
-        supabase.from('realtime_sync').upsert({
-          id: 'site_settings',
-          version: Date.now(),
-          event: 'site_settings_updated',
-          payload: {
-            default_theme: nextTheme,
-            default_typewriter_enabled: formData.default_typewriter_enabled,
-            show_view_count: formData.show_view_count
-          },
-          updated_at: new Date().toISOString()
-        }).then(() => {}).catch(() => {});
-      }
-
-      // 2. Also persist via API endpoint
-      await fetch('/api/about', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(updated)
-      });
-      setMessage(`Site default theme changed to ${nextTheme === 'light' ? 'Light' : 'Dark'} Mode and saved!`);
-      setTimeout(() => setMessage(null), 3500);
-    } catch (_err) {}
+  const handleToggleDefaultTheme = () => {
+    setFormData(prev => ({ ...prev, default_theme: prev.default_theme === 'dark' ? 'light' : 'dark' }));
   };
 
   const handleSubmit = async (e) => {
@@ -261,6 +124,7 @@ export default function AboutEdit() {
           version: Date.now(),
           event: 'site_settings_updated',
           payload: {
+            author_name: formData.author_name,
             default_theme: formData.default_theme,
             default_typewriter_enabled: formData.default_typewriter_enabled,
             show_view_count: formData.show_view_count
@@ -293,6 +157,9 @@ export default function AboutEdit() {
       // Bust the About page localStorage cache so public site reflects changes immediately
       try {
         localStorage.removeItem('cached_about_data');
+        if (formData.author_name && formData.author_name.trim()) {
+          localStorage.setItem('site_author_name', formData.author_name.trim());
+        }
         localStorage.setItem('site_default_theme', formData.default_theme);
         localStorage.removeItem('user_manual_theme');
         localStorage.removeItem('theme_user_override');
@@ -302,6 +169,10 @@ export default function AboutEdit() {
           data: formData
         });
       } catch {}
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new window.CustomEvent('about-data-updated', { detail: { data: formData } }));
+        window.dispatchEvent(new window.CustomEvent('site-settings-updated', { detail: { data: formData } }));
+      }
       setMessage('About page and site settings updated successfully!');
     } catch (err) {
       setError(err.message);

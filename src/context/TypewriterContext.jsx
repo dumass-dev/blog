@@ -194,15 +194,19 @@ export function TypewriterProvider({ children }) {
       });
 
       if (supabase && typeof supabase.from === 'function') {
-        supabase.from('realtime_sync').upsert({
-          id: 'site_settings',
-          version: Date.now(),
-          event: 'site_settings_updated',
-          payload: {
-            default_typewriter_enabled: newDefault
-          },
-          updated_at: new Date().toISOString()
-        }).then(() => {}).catch(() => {});
+        supabase.from('realtime_sync').select('payload').eq('id', 'site_settings').maybeSingle().then(({ data }) => {
+          const current = data?.payload || {};
+          supabase.from('realtime_sync').upsert({
+            id: 'site_settings',
+            version: Date.now(),
+            event: 'site_settings_updated',
+            payload: {
+              ...current,
+              default_typewriter_enabled: newDefault
+            },
+            updated_at: new Date().toISOString()
+          }).then(() => {}).catch(() => {});
+        }).catch(() => {});
       }
     } catch {}
   };

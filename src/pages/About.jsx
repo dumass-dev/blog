@@ -8,18 +8,10 @@ import { supabase } from '../supabase';
 
 const defaultAbout = {
   author_name: 'q04ti',
-  tagline: 'thoughts, things I make, places I go, and everything in between.',
-  bio: 'Welcome to my digital diary and visual archive. I write about software, life, photography, and building minimalist web applications.',
-  projects: [
-    {
-      title: 'Digital Diary & Journal',
-      description: 'Minimalist personal digital diary, journal, blog, and life archive.',
-      link: 'https://github.com/q04ti/blog'
-    }
-  ],
-  links: [
-    { label: 'GitHub', url: 'https://github.com/q04ti' }
-  ]
+  tagline: '',
+  bio: '',
+  projects: [],
+  links: []
 };
 
 export default function About() {
@@ -30,18 +22,33 @@ export default function About() {
 
   const [aboutData, setAboutData] = useState(() => {
     try {
+      const storedAuthor = localStorage.getItem('site_author_name');
       const cached = localStorage.getItem('cached_about_data');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed === 'object') {
+        // Wipe legacy hardcoded dummy strings if present in cached data
+        if (parsed?.bio && parsed.bio.includes('Welcome to my digital diary and visual archive')) {
+          localStorage.removeItem('cached_about_data');
           return {
-            author_name: (parsed.author_name && parsed.author_name.trim() !== '') ? parsed.author_name : defaultAbout.author_name,
-            tagline: (parsed.tagline && parsed.tagline.trim() !== '') ? parsed.tagline : defaultAbout.tagline,
-            bio: (parsed.bio && parsed.bio.trim() !== '') ? parsed.bio : defaultAbout.bio,
-            projects: (Array.isArray(parsed.projects) && parsed.projects.length > 0) ? parsed.projects : defaultAbout.projects,
-            links: (Array.isArray(parsed.links) && parsed.links.length > 0) ? parsed.links : defaultAbout.links
+            author_name: storedAuthor || (parsed.author_name && parsed.author_name.trim() !== '' ? parsed.author_name : 'q04ti'),
+            tagline: '',
+            bio: '',
+            projects: [],
+            links: []
           };
         }
+        if (parsed && typeof parsed === 'object') {
+          return {
+            author_name: (parsed.author_name && parsed.author_name.trim() !== '') ? parsed.author_name : (storedAuthor || 'q04ti'),
+            tagline: parsed.tagline || '',
+            bio: parsed.bio || '',
+            projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+            links: Array.isArray(parsed.links) ? parsed.links : []
+          };
+        }
+      }
+      if (storedAuthor && storedAuthor.trim()) {
+        return { ...defaultAbout, author_name: storedAuthor.trim() };
       }
     } catch {}
     return defaultAbout;
@@ -82,15 +89,18 @@ export default function About() {
         }
 
         const updated = {
-          author_name: (data.author_name && data.author_name.trim() !== '') ? data.author_name : defaultAbout.author_name,
-          tagline: (data.tagline && data.tagline.trim() !== '') ? data.tagline : defaultAbout.tagline,
-          bio: (data.bio && data.bio.trim() !== '') ? data.bio : defaultAbout.bio,
-          projects: (Array.isArray(projects) && projects.length > 0) ? projects : defaultAbout.projects,
-          links: (Array.isArray(links) && links.length > 0) ? links : defaultAbout.links
+          author_name: (data.author_name && data.author_name.trim() !== '') ? data.author_name : 'q04ti',
+          tagline: data.tagline || '',
+          bio: data.bio || '',
+          projects: Array.isArray(projects) ? projects : [],
+          links: Array.isArray(links) ? links : []
         };
         setAboutData(updated);
         try {
           localStorage.setItem('cached_about_data', JSON.stringify(updated));
+          if (updated.author_name) {
+            localStorage.setItem('site_author_name', updated.author_name);
+          }
         } catch {}
       }
       setLoading(false);

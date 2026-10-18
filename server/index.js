@@ -1185,18 +1185,10 @@ app.get('/api/posts/on-this-day', async (req, res) => {
 
 const defaultAboutData = {
   author_name: 'q04ti',
-  tagline: 'thoughts, things I make, places I go, and everything in between.',
-  bio: 'Welcome to my digital diary and visual archive. I write about software, life, photography, and building minimalist web applications.',
-  projects: [
-    {
-      title: 'Digital Diary & Journal',
-      description: 'Minimalist personal digital diary, journal, blog, life archive and private admin space.',
-      link: 'https://github.com/q04ti/blog'
-    }
-  ],
-  links: [
-    { label: 'GitHub', url: 'https://github.com/q04ti' }
-  ],
+  tagline: '',
+  bio: '',
+  projects: [],
+  links: [],
   default_typewriter_enabled: false,
   default_theme: 'light',
   show_view_count: true
@@ -1255,20 +1247,21 @@ app.get('/api/about', async (req, res) => {
             : true);
 
       return res.json({
-        author_name: (row.author_name && row.author_name.trim() !== '') ? row.author_name : defaultAboutData.author_name,
-        tagline: (row.tagline && row.tagline.trim() !== '') ? row.tagline : defaultAboutData.tagline,
-        bio: (row.bio && row.bio.trim() !== '') ? row.bio : defaultAboutData.bio,
+        author_name: (row.author_name && row.author_name.trim() !== '') ? row.author_name : (syncSettings?.author_name || defaultAboutData.author_name),
+        tagline: row.tagline || '',
+        bio: row.bio || '',
         default_typewriter_enabled: effectiveTypewriter,
         default_theme: effectiveTheme,
         show_view_count: effectiveShowViews,
-        projects: Array.isArray(projects) ? projects : defaultAboutData.projects,
-        links: Array.isArray(links) ? links : defaultAboutData.links
+        projects: Array.isArray(projects) ? projects : [],
+        links: Array.isArray(links) ? links : []
       });
     }
 
     if (syncSettings) {
       return res.json({
         ...defaultAboutData,
+        author_name: syncSettings.author_name || defaultAboutData.author_name,
         default_theme: syncSettings.default_theme || defaultAboutData.default_theme,
         default_typewriter_enabled: syncSettings.default_typewriter_enabled !== undefined ? Boolean(syncSettings.default_typewriter_enabled) : defaultAboutData.default_typewriter_enabled,
         show_view_count: syncSettings.show_view_count !== undefined ? Boolean(syncSettings.show_view_count) : defaultAboutData.show_view_count
@@ -1589,6 +1582,7 @@ async function handleSaveAbout(req, res) {
         version: Date.now(),
         event: 'site_settings_updated',
         payload: {
+          author_name: saveData.author_name || 'q04ti',
           default_theme: saveData.default_theme,
           default_typewriter_enabled: saveData.default_typewriter_enabled,
           show_view_count: saveData.show_view_count

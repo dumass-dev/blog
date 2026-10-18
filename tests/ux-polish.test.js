@@ -77,7 +77,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     // Go to editor
     await page.goto(`${baseUrl}/admin/new`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.fill('input[placeholder*="Title"]', 'New Polish Entry');
     await page.fill('textarea', 'Body content of entry');
@@ -151,7 +151,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
 
     // Go to editor
     await page.goto(`${baseUrl}/admin/new`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.fill('input[placeholder*="Title"]', 'Failing Entry');
     await page.fill('textarea', 'Body content of failing entry');
@@ -194,7 +194,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     });
 
     await page.goto(`${baseUrl}/`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Scroll down the feed
     await page.evaluate(() => window.scrollTo(0, 500));
@@ -258,7 +258,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     });
 
     await page.goto(`${baseUrl}/photos`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Open lightbox modal
     const photoItem = page.locator('.aspect-square').first();
@@ -301,7 +301,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     });
 
     await page.goto(`${baseUrl}/photos`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const photoItem = page.locator('.aspect-square').first();
     await photoItem.waitFor({ state: 'visible' });
@@ -380,7 +380,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     await page.waitForURL('**/admin');
 
     await page.goto(`${baseUrl}/admin/new`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.fill('input[placeholder*="Title"]', 'Double Click Entry');
     await page.fill('textarea', 'Content body');
@@ -426,7 +426,7 @@ describe('UX Polish Round 1 - UI Bug Tests', () => {
     });
 
     await page.goto(`${baseUrl}/entry/inline-img-test`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const inlineImg = page.locator('article img, .rich-viewer img').first();
     await inlineImg.waitFor({ state: 'visible' });

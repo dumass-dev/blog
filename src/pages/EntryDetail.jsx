@@ -42,7 +42,7 @@ export default function EntryDetail() {
   const initialState = resolveEntryDetailState(slug, cachedInitial);
 
   const [data, setData] = useState(initialState.data);
-  const { showViewCount, toggleViewCount } = useViewCount();
+  const { showViewCount } = useViewCount();
   const { isAdmin } = useAuth();
 
   useDocumentMeta({
@@ -370,7 +370,7 @@ export default function EntryDetail() {
       <div className="notebook-container py-16 text-center animate-content-fade">
         <h1 className="text-2xl font-serif font-medium mb-3">This entry was unpublished</h1>
         <p className="text-sm font-sans text-[var(--text-secondary)] mb-6 max-w-md mx-auto">
-          The author has removed or unpublished this entry in real-time.
+          The author has removed or unpublished this entry.
         </p>
         <Link to="/" className="inline-flex items-center text-xs font-sans font-medium text-[var(--accent-warm)] hover:underline">
           ← Return to Chronological Feed
@@ -514,26 +514,11 @@ export default function EntryDetail() {
 
           {/* View Count Display (Admin Toggle vs Public Visitor Static View) */}
           {/* View Count Display: Only rendered when showViewCount is true! When hidden, render nothing (no 'views hidden' text) */}
-          {showViewCount && (
-            isAdmin ? (
-              <button
-                type="button"
-                onClick={toggleViewCount}
-                className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors border-0 rounded px-2 py-0.5 select-none"
-                title="Admin: Click to hide view counts across website"
-                aria-label="Hide view count on site"
-              >
-                <Eye className="w-3 h-3 opacity-60 shrink-0" />
-                <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
-              </button>
-            ) : (
-              (entry.views !== undefined && entry.views !== null) && (
-                <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
-                  <Eye className="w-3 h-3 opacity-60 shrink-0" />
-                  <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
-                </span>
-              )
-            )
+          {showViewCount && (entry.views !== undefined && entry.views !== null) && (
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <Eye className="w-3 h-3 opacity-60 shrink-0" />
+              <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
+            </span>
           )}
 
           <button 

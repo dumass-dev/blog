@@ -567,8 +567,11 @@ export default function Dashboard() {
         {/* Search & Sort Controls */}
         <div className="flex items-center gap-2.5 w-full md:w-auto">
           {/* Search Bar (Left) */}
-          <div className="relative flex-1 md:w-64 min-w-0">
-            <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="relative flex-1 md:w-64 min-w-0 flex items-center">
+            <Search
+              className="w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none"
+              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
+            />
             <input
               type="text"
               value={search}
