@@ -69,6 +69,7 @@ export default function Editor() {
   const [isListening, setIsListening] = useState(false);
   const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
   const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState('content'); // 'content' | 'cover'
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
   const cursorPosRef = React.useRef({ start: null, end: null });
@@ -235,6 +236,19 @@ export default function Editor() {
     // Use proxy_url if available — this is a permanent /api/media/file/... URL
     // with no X-Amz-* credentials embedded
     const insertUrl = media.proxy_url || media.url;
+    const rawUrl = media.url || media.storageKey || media.signed_url || '';
+    const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
+    const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
+
+    if (pickerTarget === 'cover') {
+      setFormData(prev => ({
+        ...prev,
+        cover_image: canonicalKey || insertUrl
+      }));
+      setPickerTarget('content');
+      return;
+    }
+
     const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
       ? `\n${insertUrl}\n`
       : `\n![${media.original_name}](${insertUrl})\n`;
@@ -261,10 +275,6 @@ export default function Editor() {
 
     const newContent = currentContent.substring(0, start) + textToInsert + currentContent.substring(end);
     const newCursorPos = start + textToInsert.length;
-
-    const rawUrl = media.url || media.storageKey || media.signed_url || '';
-    const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
-    const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
 
     setFormData(prev => ({
       ...prev,
@@ -564,18 +574,15 @@ export default function Editor() {
             Visual Reading Preview
           </div>
           <h1 className="text-3xl font-serif font-medium mb-4">{formData.title || 'Untitled'}</h1>
-          {(() => {
-            const contentHasImage = Boolean(
-              formData.content && (
-                (formData.cover_image && formData.content.includes(formData.cover_image)) ||
-                /!\[.*?\]\((.*?)\)/.test(formData.content) ||
-                /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(formData.content)
-              )
-            );
-            return formData.cover_image && !contentHasImage ? (
-              <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
-            ) : null;
-          })()}
+          {formData.cover_image && (
+            <div className="mb-6 rounded-lg overflow-hidden border border-[var(--border-subtle)] bg-[var(--code-bg)]">
+              <img
+                src={resolveMediaUrl(formData.cover_image)}
+                alt="Cover banner preview"
+                className="w-full h-auto max-h-[440px] object-cover"
+              />
+            </div>
+          )}
           <RichViewer content={formData.content} />
         </div>
       ) : (
@@ -673,6 +680,7 @@ export default function Editor() {
                       end: textarea.selectionEnd
                     };
                   }
+                  setPickerTarget('content');
                   setShowMediaPicker(true);
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
@@ -957,19 +965,52 @@ export default function Editor() {
               />
             </div>
 
-            {/* Cover Image URL */}
+            {/* Cover Image / GIF Banner */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Cover Image URL
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+                  Cover Banner (Photo or GIF)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickerTarget('cover');
+                    setShowMediaPicker(true);
+                  }}
+                  className="text-[11px] text-[var(--accent-warm)] hover:underline cursor-pointer flex items-center gap-1 font-sans"
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>Choose Media</span>
+                </button>
+              </div>
               <input
                 type="text"
                 name="cover_image"
                 value={formData.cover_image}
                 onChange={handleChange}
-                placeholder="https://... or /uploads/..."
+                placeholder="Paste photo/GIF URL or choose from library..."
                 className="quiet-input text-xs"
               />
+              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
+                Displayed as the top banner inside the post. Won&apos;t display on homepage for writing &amp; journal entries.
+              </p>
+              {formData.cover_image && (
+                <div className="mt-2.5 relative rounded-md overflow-hidden border border-[var(--border-subtle)] bg-[var(--code-bg)] aspect-video">
+                  <img
+                    src={resolveMediaUrl(formData.cover_image)}
+                    alt="Cover banner preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, cover_image: '' }))}
+                    className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-black/75 hover:bg-black text-white rounded text-[10px] font-sans font-medium transition-colors cursor-pointer"
+                    title="Remove cover"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Excerpt */}
