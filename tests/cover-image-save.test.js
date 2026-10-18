@@ -129,28 +129,36 @@ describe('POST/PUT /api/posts cover_image normalization and content fallback tes
     );
   });
 
-  test('Editor.jsx handleSelectMedia auto-populates cover_image with canonical storage key when cover_image is blank', () => {
+  test('Editor.jsx handleSelectMedia auto-populates cover_image only for photo posts', () => {
     const media = {
       original_name: 'sample-photo.jpg',
       url: 'https://q04ti-blog.s3.us-east-005.backblazeb2.com/images/2026/09/sample-photo.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=86400&X-Amz-Signature=test_sig',
       signed_url: 'https://q04ti-blog.s3.us-east-005.backblazeb2.com/images/2026/09/sample-photo.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=86400&X-Amz-Signature=test_sig'
     };
 
-    let formData = { content: '', cover_image: '' };
-
-    // Exact logic from Editor.jsx handleSelectMedia
     const rawUrl = media.url || media.storageKey || media.signed_url || '';
     const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
     const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
 
-    formData = {
-      ...formData,
-      content: `\n![${media.original_name}](${media.url})\n`,
-      cover_image: (!formData.cover_image || !formData.cover_image.trim()) && canonicalKey ? canonicalKey : formData.cover_image
+    // For photo entries:
+    let photoFormData = { type: 'photo', content: '', cover_image: '' };
+    photoFormData = {
+      ...photoFormData,
+      cover_image: photoFormData.type === 'photo' && (!photoFormData.cover_image || !photoFormData.cover_image.trim()) && canonicalKey
+        ? canonicalKey
+        : photoFormData.cover_image
     };
+    assert.strictEqual(photoFormData.cover_image, 'images/2026/09/sample-photo.jpg');
 
-    assert.strictEqual(formData.cover_image, 'images/2026/09/sample-photo.jpg');
-    assert.strictEqual(formData.cover_image.includes('?'), false);
+    // For journal/writing entries:
+    let journalFormData = { type: 'journal', content: '', cover_image: '' };
+    journalFormData = {
+      ...journalFormData,
+      cover_image: journalFormData.type === 'photo' && (!journalFormData.cover_image || !journalFormData.cover_image.trim()) && canonicalKey
+        ? canonicalKey
+        : journalFormData.cover_image
+    };
+    assert.strictEqual(journalFormData.cover_image, '', 'Journal entries must NOT auto-populate cover_image');
   });
 
   test('Teardown test server', () => {

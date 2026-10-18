@@ -666,6 +666,67 @@ html {
   transition: opacity 300ms ease-out;
 }
 
+/* Sized Image Wrappers & Figures */
+.prose-editorial .image-wrapper {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  width: 100%;
+  clear: both;
+}
+
+.prose-editorial .image-wrapper img {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  width: 100%;
+  height: auto;
+}
+
+.prose-editorial .media-figure.image-size-small,
+.prose-editorial .image-wrapper.image-size-small {
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editorial .media-figure.image-size-medium,
+.prose-editorial .image-wrapper.image-size-medium {
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editorial .media-figure.image-size-large,
+.prose-editorial .image-wrapper.image-size-large {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editorial .media-figure.image-size-full,
+.prose-editorial .image-wrapper.image-size-full {
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editorial .media-figure.image-align-left,
+.prose-editorial .image-wrapper.image-align-left {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+.prose-editorial .media-figure.image-align-right,
+.prose-editorial .image-wrapper.image-align-right {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+.prose-editorial .media-figure.image-align-center,
+.prose-editorial .image-wrapper.image-align-center {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prose-editorial img {
     transition: none !important;

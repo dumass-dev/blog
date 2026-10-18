@@ -12,6 +12,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
   const [mediaList, setMediaList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selectedSize, setSelectedSize] = useState('medium');
   const [error, setError] = useState(null);
 
   const fetchMedia = useCallback(async () => {
@@ -217,6 +218,45 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
           </label>
         </div>
 
+        {/* Size Selector for Inserted Media */}
+        <div className="px-3 py-2 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
+          <span className="text-[var(--text-secondary)] font-medium">Image Size:</span>
+          <div className="inline-flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
+            <button
+              type="button"
+              onClick={() => setSelectedSize('small')}
+              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'small' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              title="Small width (approx 320px)"
+            >
+              Small
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSize('medium')}
+              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'medium' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              title="Medium width (approx 520px)"
+            >
+              Medium
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSize('large')}
+              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'large' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              title="Large width (approx 760px)"
+            >
+              Large
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSize('full')}
+              className={`px-2 py-1 rounded text-xs transition-colors ${selectedSize === 'full' ? 'bg-[var(--accent-warm)] text-white font-medium' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              title="Full width (100%)"
+            >
+              Full
+            </button>
+          </div>
+        </div>
+
         {error && (
           <div className="p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans border border-[var(--border-subtle)] rounded">
             {error}
@@ -236,7 +276,12 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
               <div
                 key={item.id}
                 onClick={() => {
-                  onSelectMedia({ ...item, url: item.proxy_url || item.url, proxy_url: item.proxy_url || item.url });
+                  onSelectMedia({
+                    ...item,
+                    url: item.proxy_url || item.url,
+                    proxy_url: item.proxy_url || item.url,
+                    size: selectedSize
+                  });
                   onClose();
                 }}
                 className="group relative border border-[var(--border-subtle)] rounded overflow-hidden cursor-pointer hover:border-[var(--accent-warm)] transition-colors aspect-square bg-black/5"

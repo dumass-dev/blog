@@ -399,7 +399,7 @@ export default function EntryDetail() {
     )
   );
 
-  const shouldRenderCoverImage = Boolean(entry.cover_image && !contentHasImage);
+  const shouldRenderCoverImage = Boolean(isPhotoEntry && entry.cover_image && !contentHasImage);
 
   const handleShare = async () => {
     const shareData = {

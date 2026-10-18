@@ -235,9 +235,14 @@ export default function Editor() {
     // Use proxy_url if available — this is a permanent /api/media/file/... URL
     // with no X-Amz-* credentials embedded
     const insertUrl = media.proxy_url || media.url;
+    let sizeSuffix = '';
+    if (media.size && media.size !== 'full') {
+      sizeSuffix = `|${media.size}`;
+    }
+    const altText = `${media.original_name || 'image'}${sizeSuffix}`;
     const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
       ? `\n${insertUrl}\n`
-      : `\n![${media.original_name}](${insertUrl})\n`;
+      : `\n![${altText}](${insertUrl})\n`;
 
     const textarea = document.getElementById('content-textarea');
     const currentContent = formData.content || '';
@@ -269,7 +274,10 @@ export default function Editor() {
     setFormData(prev => ({
       ...prev,
       content: newContent,
-      cover_image: (!prev.cover_image || !prev.cover_image.trim()) && canonicalKey ? canonicalKey : prev.cover_image
+      // Only set cover_image for photo posts; never create an unwanted banner on journals/writings
+      cover_image: prev.type === 'photo' && (!prev.cover_image || !prev.cover_image.trim()) && canonicalKey
+        ? canonicalKey
+        : prev.cover_image
     }));
     cursorPosRef.current = { start: newCursorPos, end: newCursorPos };
 
@@ -957,20 +965,22 @@ export default function Editor() {
               />
             </div>
 
-            {/* Cover Image URL */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Cover Image URL
-              </label>
-              <input
-                type="text"
-                name="cover_image"
-                value={formData.cover_image}
-                onChange={handleChange}
-                placeholder="https://... or /uploads/..."
-                className="quiet-input text-xs"
-              />
-            </div>
+            {/* Cover Image URL - Only for Photo entries */}
+            {formData.type === 'photo' && (
+              <div>
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+                  Photo / Cover Image URL
+                </label>
+                <input
+                  type="text"
+                  name="cover_image"
+                  value={formData.cover_image}
+                  onChange={handleChange}
+                  placeholder="https://... or /uploads/..."
+                  className="quiet-input text-xs"
+                />
+              </div>
+            )}
 
             {/* Excerpt */}
             <div>

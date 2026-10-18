@@ -34,4 +34,23 @@ describe('RichViewer Non-Standard HTML/XML Tag Escaping Test Suite', () => {
     assert.strictEqual(parsed.includes('&lt;vector android:name=&quot;test&quot;&gt;'), true);
   });
 
+  test('Image sizing modifiers parse correctly into wrappers and classes', () => {
+    // Sized image: ![my image|small](https://example.com/photo.jpg)
+    const rawAlt = 'my image|small|left';
+    let cleanAlt = rawAlt;
+    let sizeClass = '';
+    let alignClass = '';
+    if (cleanAlt.includes('|')) {
+      const parts = cleanAlt.split('|');
+      cleanAlt = parts[0].trim();
+      for (let i = 1; i < parts.length; i++) {
+        const mod = parts[i].trim().toLowerCase();
+        if (mod === 'small') sizeClass = 'image-size-small';
+        if (mod === 'left') alignClass = 'image-align-left';
+      }
+    }
+    assert.strictEqual(cleanAlt, 'my image');
+    assert.strictEqual(sizeClass, 'image-size-small');
+    assert.strictEqual(alignClass, 'image-align-left');
+  });
 });

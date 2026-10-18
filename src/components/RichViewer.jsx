@@ -64,12 +64,61 @@ export default function RichViewer({ content = '' }) {
       return match ? `![${alt}](/api/media/file/${match[0]})` : _m;
     });
 
-    // Convert images followed by "Caption: " into HTML figure blocks
+    // Helper to parse size and alignment modifiers from alt text (e.g. ![alt|small] or ![alt|300px] or ![alt|medium|left])
+    const parseImageSizeAndAlign = (rawAlt) => {
+      let cleanAlt = rawAlt || '';
+      let sizeClass = '';
+      let alignClass = '';
+      let customStyle = '';
+
+      if (cleanAlt.includes('|')) {
+        const parts = cleanAlt.split('|');
+        cleanAlt = parts[0].trim();
+        for (let i = 1; i < parts.length; i++) {
+          const mod = parts[i].trim().toLowerCase();
+          if (mod === 'small' || mod === 'sm' || mod === 's') {
+            sizeClass = 'image-size-small';
+          } else if (mod === 'medium' || mod === 'md' || mod === 'm') {
+            sizeClass = 'image-size-medium';
+          } else if (mod === 'large' || mod === 'lg' || mod === 'l') {
+            sizeClass = 'image-size-large';
+          } else if (mod === 'full' || mod === 'xl') {
+            sizeClass = 'image-size-full';
+          } else if (mod === 'left') {
+            alignClass = 'image-align-left';
+          } else if (mod === 'right') {
+            alignClass = 'image-align-right';
+          } else if (mod === 'center') {
+            alignClass = 'image-align-center';
+          } else if (/^\d+(?:px|%|rem|vw)$/.test(mod)) {
+            customStyle = `max-width: ${mod}; margin-left: auto; margin-right: auto;`;
+          }
+        }
+      }
+
+      return { cleanAlt, sizeClass, alignClass, customStyle };
+    };
+
+    // Convert images followed by "Caption: " into HTML figure blocks (with size support)
     const captionRegex = /!\[(.*?)\]\((.*?)\)\nCaption:\s*(.+)/gi;
-    processed = processed.replace(captionRegex, (match, alt, url, captionText) => {
+    processed = processed.replace(captionRegex, (_match, rawAlt, url, captionText) => {
+      const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
       const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
-      const safeAlt = alt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `\n<figure class="media-figure"><img src="${safeUrl}" alt="${safeAlt}"><figcaption>${captionText}</figcaption></figure>\n`;
+      const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const classes = ['media-figure', sizeClass, alignClass].filter(Boolean).join(' ');
+      const styleAttr = customStyle ? ` style="${customStyle}"` : '';
+      return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}"><figcaption>${captionText}</figcaption></figure>\n`;
+    });
+
+    // Convert standalone images with size modifiers (e.g. ![alt|small](url) or ![alt|300px](url))
+    const sizedImageRegex = /!\[([^\]]*\|[^\]]+)\]\((.*?)\)/gi;
+    processed = processed.replace(sizedImageRegex, (_match, rawAlt, url) => {
+      const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
+      const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
+      const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const classes = ['image-wrapper', sizeClass, alignClass].filter(Boolean).join(' ');
+      const styleAttr = customStyle ? ` style="${customStyle}"` : '';
+      return `\n<div class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}"></div>\n`;
     });
 
     // Handle [grid] shortcode for side-by-side media layouts
@@ -88,7 +137,7 @@ export default function RichViewer({ content = '' }) {
 
   const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
     ADD_TAGS: ['iframe', 'video', 'source', 'figure', 'figcaption'],
-    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'controls', 'decoding', 'loading', 'target']
+    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'controls', 'decoding', 'loading', 'target', 'style', 'class']
   });
 
   useTypewriterEffect(containerRef, sanitizedHtml, { maxDuration: 500 });
