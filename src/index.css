@@ -664,10 +664,27 @@ html {
   height: auto;
   border-radius: 4px;
   display: block;
-  background-color: var(--code-bg);
+  background-color: transparent;
   transition: opacity 300ms ease-out;
-  margin-top: 0.65rem;
-  margin-bottom: 0.65rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* If an image or figure is first-child or at the top of editorial, zero top margin */
+.prose-editorial > img:first-child,
+.prose-editorial > figure:first-child {
+  margin-top: 0 !important;
+}
+
+/* Tighten paragraph margin when immediately followed by an image or figure */
+.prose-editorial p:has(+ img),
+.prose-editorial p:has(+ figure) {
+  margin-bottom: 0.35rem;
+}
+
+.prose-editorial p + img,
+.prose-editorial p + figure {
+  margin-top: 0.25rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
@@ -679,24 +696,24 @@ html {
 .prose-editorial .media-figure + br,
 .prose-editorial br + .editorial-wrap,
 .prose-editorial .editorial-wrap + br {
-  display: none;
+  display: none !important;
 }
 
 /* Paragraph containing standalone image */
 .prose-editorial p:has(> img:only-child) {
-  margin-top: 0.5rem;
-  margin-bottom: 0.65rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .prose-editorial p > img:only-child {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
-  margin-top: 0.65rem;
-  margin-bottom: 0.65rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
   width: 100%;
 }
 
@@ -710,8 +727,8 @@ html {
 }
 
 .prose-editorial .media-figure {
-  margin-top: 0.65rem;
-  margin-bottom: 0.65rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
   text-align: center;
 }
 
@@ -724,67 +741,75 @@ html {
   text-align: center;
 }
 
+.prose-editorial img.image-size-small,
 .prose-editorial .media-figure.image-size-small,
 .prose-editorial .image-wrapper.image-size-small {
-  max-width: 320px;
+  max-width: 320px !important;
   margin-left: auto;
   margin-right: auto;
 }
 
+.prose-editorial img.image-size-medium,
 .prose-editorial .media-figure.image-size-medium,
 .prose-editorial .image-wrapper.image-size-medium {
-  max-width: 520px;
+  max-width: 520px !important;
   margin-left: auto;
   margin-right: auto;
 }
 
+.prose-editorial img.image-size-large,
 .prose-editorial .media-figure.image-size-large,
 .prose-editorial .image-wrapper.image-size-large {
-  max-width: 760px;
+  max-width: 760px !important;
   margin-left: auto;
   margin-right: auto;
 }
 
+.prose-editorial img.image-size-full,
 .prose-editorial .media-figure.image-size-full,
 .prose-editorial .image-wrapper.image-size-full {
-  max-width: 100%;
+  max-width: 100% !important;
   margin-left: auto;
   margin-right: auto;
 }
 
+.prose-editorial img.image-align-left,
 .prose-editorial .media-figure.image-align-left,
 .prose-editorial .image-wrapper.image-align-left {
   float: left !important;
   margin-left: 0 !important;
   margin-right: 1.5rem !important;
-  margin-top: 0.35rem !important;
-  margin-bottom: 0.85rem !important;
+  margin-top: 0 !important;
+  margin-bottom: 0.75rem !important;
   max-width: 48%;
   clear: none !important;
-  width: auto;
+  display: block;
 }
 
+.prose-editorial img.image-align-right,
 .prose-editorial .media-figure.image-align-right,
 .prose-editorial .image-wrapper.image-align-right {
   float: right !important;
   margin-left: 1.5rem !important;
   margin-right: 0 !important;
-  margin-top: 0.35rem !important;
-  margin-bottom: 0.85rem !important;
+  margin-top: 0 !important;
+  margin-bottom: 0.75rem !important;
   max-width: 48%;
   clear: none !important;
-  width: auto;
+  display: block;
 }
 
+.prose-editorial img.image-align-center,
 .prose-editorial .media-figure.image-align-center,
 .prose-editorial .image-wrapper.image-align-center {
   float: none !important;
   clear: both;
   margin-left: auto !important;
   margin-right: auto !important;
-  margin-top: 0.85rem !important;
-  margin-bottom: 0.85rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.75rem !important;
   text-align: center;
+  display: block;
 }
 
 /* Editorial Magazine-Style Text Wrapping */
@@ -862,6 +887,7 @@ html {
 
 @media (max-width: 640px) {
   /* On mobile screens, left & right floats stay floated with 44% width and tight margins so text wraps cleanly beside them */
+  .prose-editorial img.image-align-left,
   .prose-editorial .media-figure.image-align-left,
   .prose-editorial .image-wrapper.image-align-left,
   .prose-editorial .editorial-wrap-left {
@@ -870,12 +896,13 @@ html {
     max-width: 44% !important;
     margin-left: 0 !important;
     margin-right: 0.85rem !important;
-    margin-top: 0.25rem !important;
-    margin-bottom: 0.65rem !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.5rem !important;
     clear: none !important;
     display: block !important;
   }
 
+  .prose-editorial img.image-align-right,
   .prose-editorial .media-figure.image-align-right,
   .prose-editorial .image-wrapper.image-align-right,
   .prose-editorial .editorial-wrap-right {
@@ -884,12 +911,13 @@ html {
     max-width: 44% !important;
     margin-right: 0 !important;
     margin-left: 0.85rem !important;
-    margin-top: 0.25rem !important;
-    margin-bottom: 0.65rem !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.5rem !important;
     clear: none !important;
     display: block !important;
   }
 
+  .prose-editorial img.image-align-center,
   .prose-editorial .media-figure.image-align-center,
   .prose-editorial .image-wrapper.image-align-center,
   .prose-editorial .editorial-wrap-center {
@@ -898,9 +926,10 @@ html {
     width: 100% !important;
     margin-left: auto !important;
     margin-right: auto !important;
-    margin-top: 1.25rem !important;
-    margin-bottom: 1.25rem !important;
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
     clear: both !important;
+    display: block !important;
   }
 
   .prose-editorial {

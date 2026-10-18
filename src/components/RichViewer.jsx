@@ -134,15 +134,16 @@ export default function RichViewer({ content = '' }) {
       return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${captionText}</figcaption></figure>\n`;
     });
 
-    // Convert standalone images with size modifiers (e.g. ![alt|45%](url) or ![alt|350px](url) or ![wrap:left](url))
-    const sizedImageRegex = /!\[([^\]]*(?:\||wrap:|wrap-|float-|left|right|center|\d+%)[^\]]*)\]\((.*?)\)/gi;
-    processed = processed.replace(sizedImageRegex, (_match, rawAlt, url) => {
+    // Convert all markdown images directly into <img> tags with alignment/size classes
+    const allImageRegex = /!\[(.*?)\]\((.*?)\)/gi;
+    processed = processed.replace(allImageRegex, (_match, rawAlt, url) => {
       const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
       const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
       const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const classes = ['image-wrapper', sizeClass, alignClass].filter(Boolean).join(' ');
+      const classes = [sizeClass, alignClass].filter(Boolean).join(' ');
+      const classAttr = classes ? ` class="${classes}"` : '';
       const styleAttr = customStyle ? ` style="${customStyle}"` : '';
-      return `\n<div class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"></div>\n`;
+      return `<img src="${safeUrl}" alt="${safeAlt}"${classAttr}${styleAttr} loading="lazy" decoding="async">`;
     });
 
     // Handle [grid] shortcode for side-by-side media layouts
@@ -168,11 +169,32 @@ export default function RichViewer({ content = '' }) {
     return processed;
   };
 
+  // Unwrap images, figures, and embeds from enclosing <p> tags so they render directly as they are
+  const unwrapMediaFromParagraphs = (html) => {
+    if (!html) return '';
+    // 1. Unwrap paragraphs that contain ONLY an image or figure
+    let out = html.replace(/<p>\s*((?:<img\b[^>]*>|<figure\b[\s\S]*?<\/figure>))\s*<\/p>/gi, '$1\n');
+
+    // 2. If a paragraph contains an image/figure mixed with text or line breaks, split it so media renders as its own element
+    out = out.replace(/<p>([\s\S]*?)<\/p>/gi, (match, inner) => {
+      if (!/<img\b|<figure\b/i.test(inner)) return match;
+      const parts = inner.split(/(<img\b[^>]*>|<figure\b[\s\S]*?<\/figure>)/gi);
+      return parts.map(part => {
+        const trimmed = part.trim();
+        if (/^<(?:img|figure)\b/i.test(trimmed)) return trimmed;
+        const cleanText = trimmed.replace(/^(?:\s*<br\s*\/?>\s*)+|(?:\s*<br\s*\/?>\s*)+$/gi, '').trim();
+        return cleanText ? `<p>${cleanText}</p>` : '';
+      }).filter(Boolean).join('\n');
+    });
+
+    return out;
+  };
+
   const processedContent = escapeNonStandardTags(processEmbeds(content));
-  const rawHtml = marked.parse(processedContent, {
+  const rawHtml = unwrapMediaFromParagraphs(marked.parse(processedContent, {
     gfm: true,
     breaks: true
-  });
+  }));
 
   const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
     ADD_TAGS: ['iframe', 'video', 'source', 'figure', 'figcaption'],

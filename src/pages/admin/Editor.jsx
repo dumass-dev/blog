@@ -393,9 +393,9 @@ export default function Editor() {
       parts.push(media.size);
     }
     const altText = parts.join('|');
-    const textToInsert = media.mime_type && media.mime_type.startsWith('video/')
-      ? `\n${insertUrl}\n`
-      : `\n![${altText}](${insertUrl})\n`;
+    const mediaSnippet = media.mime_type && media.mime_type.startsWith('video/')
+      ? insertUrl
+      : `![${altText}](${insertUrl})`;
 
     const textarea = document.getElementById('content-textarea');
     const scrollPos = textarea ? textarea.scrollTop : 0;
@@ -419,6 +419,14 @@ export default function Editor() {
       end = tmp;
     }
 
+    // Determine clean leading and trailing newlines so no accidental blank lines are created
+    const before = currentContent.substring(0, start);
+    const after = currentContent.substring(end);
+
+    const leadingNewline = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
+    const trailingNewline = (after.length > 0 && !after.startsWith('\n')) ? '\n' : '';
+
+    const textToInsert = leadingNewline + mediaSnippet + trailingNewline;
     const newContent = currentContent.substring(0, start) + textToInsert + currentContent.substring(end);
     const newCursorPos = start + textToInsert.length;
 
@@ -1276,9 +1284,18 @@ export default function Editor() {
                 <span className="font-mono text-[10px] text-[var(--accent-warm)]">Interactive</span>
               </div>
               <h1 className="text-2xl font-serif font-medium mb-3">{formData.title || 'Untitled Entry'}</h1>
-              {formData.cover_image && (
-                <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-4 max-h-[300px] object-cover" />
-              )}
+              {(() => {
+                const contentHasImage = Boolean(
+                  formData.content && (
+                    (formData.cover_image && formData.content.includes(formData.cover_image)) ||
+                    /!\[.*?\]\((.*?)\)/.test(formData.content) ||
+                    /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(formData.content)
+                  )
+                );
+                return formData.cover_image && !contentHasImage ? (
+                  <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-4 max-h-[300px] object-cover" />
+                ) : null;
+              })()}
               <RichViewer content={formData.content} />
             </div>
           )}
