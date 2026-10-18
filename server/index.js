@@ -1642,11 +1642,6 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     let query = getSupabaseClient(req).from(table).select('*');
 
-    // Non-admin requests only fetch published entries (redundant on view, but clean)
-    if (!isAdmin) {
-      query = query.eq('status', 'published');
-    }
-
     // Check if UUID or slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
     if (isUuid) {
@@ -1663,10 +1658,32 @@ app.get('/api/posts/:identifier', async (req, res) => {
         error = null;
       }
     }
+
+    // Unlisted post support: if not found in public_published_entries, check entries table for status='unlisted'
+    if ((!posts || posts.length === 0) && !isAdmin) {
+      let unlistedQuery = getSupabaseClient(req).from('entries').select('*').eq('status', 'unlisted');
+      if (isUuid) {
+        unlistedQuery = unlistedQuery.eq('id', identifier);
+      } else {
+        unlistedQuery = unlistedQuery.eq('slug', identifier);
+      }
+      const unlistedRes = await unlistedQuery;
+      if (unlistedRes.data && unlistedRes.data.length > 0) {
+        posts = unlistedRes.data;
+        error = null;
+      } else if (!isUuid) {
+        const unlistedFb = await getSupabaseClient(req).from('entries').select('*').eq('status', 'unlisted').ilike('slug', identifier);
+        if (unlistedFb.data && unlistedFb.data.length > 0) {
+          posts = unlistedFb.data;
+          error = null;
+        }
+      }
+    }
+
     if (error) throw error;
 
     const post = posts && posts[0];
-    if (!post) {
+    if (!post || (post.status === 'draft' && !isAdmin)) {
       return res.status(404).json({ error: 'Entry not found.' });
     }
 
@@ -2082,6 +2099,7 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
       id: data.id,
       slug: data.slug,
       title: data.title,
+      status: data.status,
       type: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
     });
 

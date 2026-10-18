@@ -711,20 +711,48 @@ html {
 
 .prose-editorial .media-figure.image-align-left,
 .prose-editorial .image-wrapper.image-align-left {
-  margin-left: 0 !important;
-  margin-right: auto !important;
+  float: left;
+  margin: 0.5rem 1.75rem 1.25rem 0 !important;
+  clear: left;
 }
 
 .prose-editorial .media-figure.image-align-right,
 .prose-editorial .image-wrapper.image-align-right {
-  margin-left: auto !important;
-  margin-right: 0 !important;
+  float: right;
+  margin: 0.5rem 0 1.25rem 1.75rem !important;
+  clear: right;
 }
 
 .prose-editorial .media-figure.image-align-center,
 .prose-editorial .image-wrapper.image-align-center {
-  margin-left: auto !important;
-  margin-right: auto !important;
+  float: none !important;
+  margin: 1.5rem auto !important;
+  clear: both;
+}
+
+.prose-editorial h1,
+.prose-editorial h2,
+.prose-editorial h3,
+.prose-editorial hr {
+  clear: both;
+}
+
+.prose-editorial::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+@media (max-width: 640px) {
+  .prose-editorial .media-figure.image-align-left,
+  .prose-editorial .image-wrapper.image-align-left,
+  .prose-editorial .media-figure.image-align-right,
+  .prose-editorial .image-wrapper.image-align-right {
+    float: none !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 100% !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

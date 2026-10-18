@@ -1128,6 +1128,27 @@ app.get('/api/posts/:slug', async (req, res) => {
         error = null;
       }
     }
+
+    // Unlisted post support: if not found in public_published_entries, allow direct link lookup for status='unlisted'
+    if ((!data || data.length === 0) && !isAdmin) {
+      let unlistedQuery = getSupabaseClient(req).from('entries').select('*').eq('status', 'unlisted');
+      if (isUuid) {
+        unlistedQuery = unlistedQuery.eq('id', slug);
+      } else {
+        unlistedQuery = unlistedQuery.eq('slug', slug);
+      }
+      const unlistedRes = await unlistedQuery;
+      if (unlistedRes.data && unlistedRes.data.length > 0) {
+        data = unlistedRes.data;
+        error = null;
+      } else if (!isUuid) {
+        const unlistedFallback = await getSupabaseClient(req).from('entries').select('*').eq('status', 'unlisted').ilike('slug', slug);
+        if (unlistedFallback.data && unlistedFallback.data.length > 0) {
+          data = unlistedFallback.data;
+          error = null;
+        }
+      }
+    }
     if (error || !data || data.length === 0) {
       if (slug === 'protected-sample-entry') {
         return res.json({
@@ -1365,6 +1386,7 @@ app.put('/api/posts/:id', async (req, res) => {
       id: data.id,
       slug: data.slug,
       title: data.title,
+      status: data.status,
       type: isPhotoPost ? 'photo' : data.type
     });
 

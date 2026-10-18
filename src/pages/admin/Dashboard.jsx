@@ -20,7 +20,9 @@ import {
   LogOut,
   Eye,
   RotateCw,
-  BarChart2
+  BarChart2,
+  Copy,
+  EyeOff
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -61,6 +63,33 @@ export default function Dashboard() {
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [showOnHome, setShowOnHome] = useState(false);
   const [analyticsTarget, setAnalyticsTarget] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopyLink = (item) => {
+    const slug = item.slug || item.id;
+    const url = `${window.location.origin}/entry/${slug}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiedId(item.id);
+        setTimeout(() => setCopiedId(null), 2000);
+      }).catch(() => fallbackCopy(url, item.id));
+    } else {
+      fallbackCopy(url, item.id);
+    }
+  };
+
+  const fallbackCopy = (url, id) => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {}
+  };
 
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -591,10 +620,10 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="pt-3 mt-2 grid grid-cols-4 gap-2 border-t border-[var(--border-subtle)]/50">
+                  <div className="pt-3 mt-2 grid grid-cols-5 gap-1.5 border-t border-[var(--border-subtle)]/50">
                       <button
                         onClick={() => setAnalyticsTarget(item)}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer overflow-hidden"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
                       >
                         <BarChart2 className="w-3.5 h-3.5 shrink-0" />
                         <span className="truncate">Stats</span>
@@ -602,7 +631,7 @@ export default function Dashboard() {
 
                       <Link
                         to={`/admin/edit/${item.id}`}
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 overflow-hidden"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 overflow-hidden"
                       >
                         <Edit className="w-3.5 h-3.5 shrink-0" />
                         <span className="truncate">Edit</span>
@@ -612,11 +641,21 @@ export default function Dashboard() {
                         to={`/entry/${item.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 sm:gap-1.5 overflow-hidden"
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 overflow-hidden"
                       >
                         <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Preview</span>
+                        <span className="truncate">View</span>
                       </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLink(item)}
+                        className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
+                        title="Copy Shareable Link"
+                      >
+                        <Copy className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{copiedId === item.id ? 'Copied' : 'Share'}</span>
+                      </button>
                       
                       <button
                         onClick={() => setDeleteTarget(item)}
@@ -700,10 +739,23 @@ export default function Dashboard() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          title="Preview"
+                          title="Preview Entry"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLink(item)}
+                          className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                          title={copiedId === item.id ? "Link copied to clipboard!" : "Copy Shareable Link"}
+                        >
+                          {copiedId === item.id ? (
+                            <span className="text-[10px] text-green-500 font-medium">Copied!</span>
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
 
                         <button
                           onClick={() => setDeleteTarget(item)}

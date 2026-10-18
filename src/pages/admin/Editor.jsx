@@ -6,6 +6,7 @@ import { publishRealtimeUpdate } from '../../utils/realtime';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import ThemeToggle from '../../components/ThemeToggle';
+import EditorMediaManager from '../../components/EditorMediaManager';
 import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
 import { resolveMediaUrl } from '../../utils/media';
@@ -14,6 +15,7 @@ import {
   Save,
   ArrowLeft,
   Eye,
+  EyeOff,
   Edit3,
   Heading1,
   Heading2,
@@ -32,7 +34,9 @@ import {
   Smile,
   Lock,
   Columns,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 
 export { slugify };
@@ -74,9 +78,37 @@ export default function Editor() {
   const [hasExistingPasscode, setHasExistingPasscode] = useState(false);
   const [removePasscodeFlag, setRemovePasscodeFlag] = useState(false);
   const [isCustomSlug, setIsCustomSlug] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
   const cursorPosRef = React.useRef({ start: null, end: null });
+
+  const getShareableUrl = () => {
+    const activeSlug = (formData.slug && formData.slug.trim()) || id || '';
+    if (!activeSlug) return '';
+    return `${window.location.origin}/entry/${activeSlug}`;
+  };
+
+  const handleCopyShareLink = () => {
+    const url = getShareableUrl();
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedShareLink(true);
+      setTimeout(() => setCopiedShareLink(false), 2500);
+    }).catch(() => {
+      // fallback
+      try {
+        const temp = document.createElement('textarea');
+        temp.value = url;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        setCopiedShareLink(true);
+        setTimeout(() => setCopiedShareLink(false), 2500);
+      } catch {}
+    });
+  };
 
   const updateCursorPos = (e) => {
     if (e && e.target) {
@@ -237,7 +269,7 @@ export default function Editor() {
     }
   };
 
-  // Insert markdown snippet into content
+  // Insert markdown snippet into content without jumping or scrolling to the bottom
   const insertFormatting = (prefix, suffix = '') => {
     const textarea = document.getElementById('content-textarea');
     if (!textarea) return;
@@ -245,6 +277,8 @@ export default function Editor() {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
+    const scrollPos = textarea.scrollTop;
+    const windowScrollY = window.scrollY;
 
     const selectedText = text.substring(start, end) || 'text';
     const replacement = prefix + selectedText + suffix;
@@ -252,10 +286,15 @@ export default function Editor() {
     const newText = text.substring(0, start) + replacement + text.substring(end);
     setFormData(prev => ({ ...prev, content: newText }));
 
-    // Reset cursor after update
+    // Reset cursor after update without jumping or scrolling the editor/page
     setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+      const el = document.getElementById('content-textarea');
+      if (el) {
+        el.focus({ preventScroll: true });
+        el.setSelectionRange(start + prefix.length, end + prefix.length);
+        el.scrollTop = scrollPos;
+      }
+      window.scrollTo({ top: windowScrollY, behavior: 'instant' });
     }, 50);
   };
 
@@ -273,6 +312,8 @@ export default function Editor() {
       : `\n![${altText}](${insertUrl})\n`;
 
     const textarea = document.getElementById('content-textarea');
+    const scrollPos = textarea ? textarea.scrollTop : 0;
+    const windowScrollY = window.scrollY;
     const currentContent = formData.content || '';
 
     let start = (cursorPosRef.current.start !== null && cursorPosRef.current.start !== undefined)
@@ -309,12 +350,15 @@ export default function Editor() {
     }));
     cursorPosRef.current = { start: newCursorPos, end: newCursorPos };
 
+    // Restore cursor and scroll position cleanly without jumping to the bottom
     setTimeout(() => {
       const el = document.getElementById('content-textarea');
       if (el) {
-        el.focus();
+        el.focus({ preventScroll: true });
         el.setSelectionRange(newCursorPos, newCursorPos);
+        el.scrollTop = scrollPos;
       }
+      window.scrollTo({ top: windowScrollY, behavior: 'instant' });
     }, 50);
   };
 
@@ -486,6 +530,432 @@ export default function Editor() {
     }, 100);
   };
 
+  const renderToolbar = () => (
+    <div className="flex items-center gap-1 p-2 bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded text-xs font-sans overflow-x-touch flex-nowrap shrink-0">
+      <button
+        type="button"
+        onClick={() => insertFormatting('## ')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Heading 2"
+      >
+        <Heading1 className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => insertFormatting('### ')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Heading 3"
+      >
+        <Heading2 className="w-4 h-4" />
+      </button>
+
+      <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+
+      <button
+        type="button"
+        onClick={() => insertFormatting('**', '**')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Bold"
+      >
+        <Bold className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => insertFormatting('*', '*')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Italic"
+      >
+        <Italic className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => insertFormatting('> ')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Blockquote"
+      >
+        <Quote className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => insertFormatting('```javascript\n', '\n```')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Code Block"
+      >
+        <Code className="w-4 h-4" />
+      </button>
+
+      <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+
+      <button
+        type="button"
+        onClick={() => insertFormatting('[', '](https://example.com)')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Link"
+      >
+        <LinkIcon className="w-4 h-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          const textarea = document.getElementById('content-textarea');
+          if (textarea) {
+            cursorPosRef.current = {
+              start: textarea.selectionStart,
+              end: textarea.selectionEnd
+            };
+          }
+          setShowMediaPicker(true);
+        }}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
+        title="Insert Photo/GIF/Video"
+      >
+        <ImageIcon className="w-4 h-4" />
+        <span className="text-[11px]">Add Media</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Embed YouTube Video"
+      >
+        <Video className="w-4 h-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => insertFormatting('\n[grid]\n', '\n[/grid]\n')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
+        title="Insert Split Screen Grid for side-by-side images"
+      >
+        <Columns className="w-4 h-4" />
+        <span className="text-[11px]">Split Layout</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => insertFormatting('\n---\n')}
+        className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+        title="Horizontal Rule"
+      >
+        <Minus className="w-4 h-4" />
+      </button>
+
+      <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+
+      {/* Voice Dictation Button */}
+      <button
+        type="button"
+        onClick={toggleDictation}
+        className={`p-1.5 rounded flex items-center gap-1 font-medium transition-colors cursor-pointer ${
+          isListening
+            ? 'bg-[var(--text-primary)] text-[var(--bg-main)] animate-pulse'
+            : 'hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-primary)]'
+        }`}
+        title={isListening ? "Stop Voice Dictation" : "Start Speech-to-Text Voice Dictation"}
+      >
+        {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        <span className="text-[11px]">{isListening ? 'Recording Voice...' : 'Voice Dictate'}</span>
+      </button>
+    </div>
+  );
+
+  const renderMetadataFields = () => (
+    <>
+      {/* Type */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Entry Type
+        </label>
+        <select
+          name="type"
+          value={formData.type}
+          onChange={handleChange}
+          className="quiet-input text-xs"
+        >
+          <option value="journal">Journal (Personal Diary)</option>
+          <option value="writing">Writing (Blog / Essay)</option>
+          <option value="update">Update (Micro stream)</option>
+          <option value="photo">Photo Post</option>
+        </select>
+      </div>
+
+      {/* Status */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Publishing Status
+        </label>
+        <select
+          name="status"
+          value={formData.status}
+          onChange={handleChange}
+          className="quiet-input text-xs"
+        >
+          <option value="published">Published (Publicly visible)</option>
+          <option value="draft">Draft (Private admin only)</option>
+          <option value="unlisted">Unlisted (Visible only via direct link)</option>
+        </select>
+
+        {formData.status === 'unlisted' && (
+          <div className="mt-3 p-3 rounded bg-[var(--code-bg)] border border-[var(--border-subtle)] text-xs font-sans space-y-2">
+            <div className="flex items-center gap-1.5 text-[var(--accent-warm)] font-medium">
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Unlisted Post</span>
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+              This post is hidden from public feeds and search engines. Share this link for private reading:
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="text"
+                readOnly
+                value={getShareableUrl()}
+                className="quiet-input text-[11px] font-mono py-1 px-2 flex-1 select-all bg-[var(--bg-main)]"
+              />
+              <button
+                type="button"
+                onClick={handleCopyShareLink}
+                className="quiet-button text-xs py-1 px-2.5 flex items-center gap-1 cursor-pointer shrink-0"
+                title="Copy shareable link"
+              >
+                <Copy className="w-3 h-3" />
+                <span>{copiedShareLink ? 'Copied!' : 'Copy'}</span>
+              </button>
+              {formData.slug && (
+                <a
+                  href={`/entry/${formData.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="quiet-button-secondary text-xs py-1 px-2 flex items-center cursor-pointer shrink-0"
+                  title="Open direct link"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Show in Chronological Feed Toggle */}
+      <div className="py-2 border-y border-[var(--border-subtle)]">
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-sans text-[var(--text-primary)] font-medium">
+          <input
+            type="checkbox"
+            name="show_in_feed"
+            checked={Boolean(formData.show_in_feed)}
+            onChange={(e) => setFormData(prev => ({ ...prev, show_in_feed: e.target.checked }))}
+            className="w-4 h-4 rounded border-[var(--border-subtle)] text-[var(--accent-warm)] focus:ring-0 cursor-pointer"
+          />
+          <span>Show in Main Chronological Feed</span>
+        </label>
+        <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 ml-6 leading-snug">
+          Uncheck to hide from home feed (photo posts are kept in Photos gallery only by default).
+        </p>
+      </div>
+
+      {/* Location */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+          <MapPin className="w-3 h-3 text-[var(--accent-warm)]" />
+          <span>Location</span>
+        </label>
+        <input
+          type="text"
+          name="location"
+          value={formData.location}
+          onChange={handleChange}
+          placeholder="e.g. Edinburgh, Scotland"
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Weather */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+          <Cloud className="w-3 h-3 text-[var(--accent-warm)]" />
+          <span>Weather</span>
+        </label>
+        <input
+          type="text"
+          name="weather"
+          value={formData.weather}
+          onChange={handleChange}
+          placeholder="e.g. Rainy 14°C"
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Mood */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+          <Smile className="w-3 h-3 text-[var(--accent-warm)]" />
+          <span>Mood</span>
+        </label>
+        <input
+          type="text"
+          name="mood"
+          value={formData.mood}
+          onChange={handleChange}
+          placeholder="e.g. Quiet, Reflective, Inspired"
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Passcode Protection */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
+          <span className="flex items-center gap-1">
+            <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
+            <span>Passcode Lock (Optional)</span>
+          </span>
+          {hasExistingPasscode && !removePasscodeFlag && (
+            <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">passcode set</span>
+          )}
+        </label>
+        <input
+          type="password"
+          name="passcode"
+          value={formData.passcode}
+          onChange={(e) => {
+            handleChange(e);
+            if (removePasscodeFlag) setRemovePasscodeFlag(false);
+          }}
+          placeholder={hasExistingPasscode && !removePasscodeFlag ? "•••• (passcode set — type to change)" : "Leave blank for public"}
+          className="quiet-input text-xs font-mono"
+        />
+        {hasExistingPasscode && !removePasscodeFlag && (
+          <button
+            type="button"
+            onClick={() => {
+              setHasExistingPasscode(false);
+              setRemovePasscodeFlag(true);
+              setFormData(prev => ({ ...prev, passcode: '' }));
+            }}
+            className="text-[11px] text-red-500 hover:underline mt-1 block font-sans"
+          >
+            Remove passcode protection
+          </button>
+        )}
+        <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
+          Public readers must enter passcode to read. Passcodes are hashed securely by the database.
+        </p>
+      </div>
+
+      {/* Date */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Entry Date
+        </label>
+        <input
+          type="datetime-local"
+          name="date"
+          value={formData.date}
+          onChange={handleChange}
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Slug */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+            URL Slug
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setIsCustomSlug(false);
+              const synced = slugify(formData.title);
+              setFormData(prev => ({ ...prev, slug: synced }));
+            }}
+            className="text-[11px] font-sans text-[var(--accent-warm)] hover:underline flex items-center gap-1 cursor-pointer"
+            title="Auto-generate slug from current title"
+          >
+            <RefreshCw className="w-2.5 h-2.5" />
+            <span>Sync with title</span>
+          </button>
+        </div>
+        <input
+          type="text"
+          name="slug"
+          value={formData.slug}
+          onChange={handleChange}
+          placeholder="auto-generated-if-empty"
+          className="quiet-input text-xs font-mono"
+        />
+        <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1">
+          {isCustomSlug
+            ? 'Custom slug active. Clear input or click "Sync with title" to auto-sync.'
+            : 'Auto-syncs when you edit the title. Type here to customize slug.'}
+        </p>
+      </div>
+
+      {/* Category */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Category
+        </label>
+        <input
+          type="text"
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          placeholder="e.g. Projects, Travel, Tech"
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Tags */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Tags (comma separated)
+        </label>
+        <input
+          type="text"
+          name="tags"
+          value={formData.tags}
+          onChange={handleChange}
+          placeholder="design, photography, quiet"
+          className="quiet-input text-xs"
+        />
+      </div>
+
+      {/* Cover Image URL - Only for Photo entries */}
+      {formData.type === 'photo' && (
+        <div>
+          <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+            Photo / Cover Image URL
+          </label>
+          <input
+            type="text"
+            name="cover_image"
+            value={formData.cover_image}
+            onChange={handleChange}
+            placeholder="https://... or /uploads/..."
+            className="quiet-input text-xs"
+          />
+        </div>
+      )}
+
+      {/* Excerpt */}
+      <div>
+        <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          Short Excerpt
+        </label>
+        <textarea
+          name="excerpt"
+          rows={3}
+          value={formData.excerpt}
+          onChange={handleChange}
+          placeholder="Short summary for feed preview..."
+          className="quiet-input text-xs"
+        />
+      </div>
+    </>
+  );
+
   if (loading) {
     return (
       <div className="notebook-container py-16 text-center text-sm font-sans text-[var(--text-muted)] italic">
@@ -532,7 +1002,7 @@ export default function Editor() {
         </div>
 
         <div className="flex items-center space-x-3">
-          {/* Edit / Preview Toggle */}
+          {/* Edit / Split / Preview Toggle */}
           <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)]">
             <button
               type="button"
@@ -550,6 +1020,24 @@ export default function Editor() {
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('split')}
+              className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                mode === 'split'
+                  ? 'font-medium shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              style={
+                mode === 'split'
+                  ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' }
+                  : {}
+              }
+              title="Split View: Write and preview live side-by-side"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>Split</span>
             </button>
             <button
               type="button"
@@ -619,8 +1107,95 @@ export default function Editor() {
           })()}
           <RichViewer content={formData.content} />
         </div>
+      ) : mode === 'split' ? (
+        /* Split Screen Mode: Live writing on left, live RichViewer preview on right */
+        <form onSubmit={handleSave} className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            {/* Left Column: Interactive Writer */}
+            <div className="space-y-6">
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+                  Title {formData.type === 'update' && '(Optional for Updates)'}
+                </label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  placeholder={formData.type === 'update' ? 'Short title (optional)' : 'Entry Title...'}
+                  className="quiet-input text-xl font-serif py-2 font-medium"
+                />
+              </div>
+
+              {/* Toolbar */}
+              {renderToolbar()}
+
+              {/* In-Editor Media Manager for Image/GIF sizing, wrapping & reordering */}
+              <EditorMediaManager
+                content={formData.content}
+                onChangeContent={(newContent) => setFormData(prev => ({ ...prev, content: newContent }))}
+              />
+
+              {/* Content Body */}
+              <div>
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+                  Body Content (Markdown &amp; Rich Text)
+                </label>
+                <textarea
+                  id="content-textarea"
+                  name="content"
+                  rows={22}
+                  value={formData.content}
+                  onChange={(e) => {
+                    handleChange(e);
+                    updateCursorPos(e);
+                  }}
+                  onSelect={updateCursorPos}
+                  onClick={updateCursorPos}
+                  onKeyUp={updateCursorPos}
+                  onBlur={updateCursorPos}
+                  placeholder="Write your story, diary entry, or update here..."
+                  className="quiet-input font-serif text-lg leading-relaxed p-4 min-h-[460px]"
+                />
+              </div>
+            </div>
+
+            {/* Right Column: Live Sticky Visual Preview */}
+            <div className="border border-[var(--border-subtle)] rounded-lg p-5 sm:p-7 bg-[var(--card-bg)] overflow-y-auto max-h-[calc(100vh-140px)] sticky top-20 shadow-xs">
+              <div className="text-xs font-sans text-[var(--text-muted)] uppercase mb-3 flex items-center justify-between pb-2 border-b border-[var(--border-subtle)]">
+                <span className="font-medium text-[var(--text-primary)]">Live In-Editor Preview</span>
+                <span className="text-[10px] text-[var(--accent-warm)]">Resizes &amp; Wrapping update live</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-serif font-medium mb-4">{formData.title || 'Untitled'}</h1>
+              {(() => {
+                const contentHasImage = Boolean(
+                  formData.content && (
+                    (formData.cover_image && formData.content.includes(formData.cover_image)) ||
+                    /!\[.*?\]\((.*?)\)/.test(formData.content) ||
+                    /https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i.test(formData.content)
+                  )
+                );
+                return formData.cover_image && !contentHasImage ? (
+                  <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[350px] object-cover" />
+                ) : null;
+              })()}
+              <RichViewer content={formData.content} />
+            </div>
+          </div>
+
+          {/* Entry Metadata & Settings below split view */}
+          <div className="border border-[var(--border-subtle)] p-6 rounded bg-[var(--card-bg)]">
+            <h2 className="text-xs font-sans uppercase tracking-widest text-[var(--text-muted)] font-medium border-b border-[var(--border-subtle)] pb-3 mb-6">
+              Entry Metadata &amp; Settings
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {renderMetadataFields()}
+            </div>
+          </div>
+        </form>
       ) : (
-        /* Edit Mode */
+        /* Edit Mode (Classic with Right Sidebar) */
         <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
@@ -640,139 +1215,18 @@ export default function Editor() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center gap-1 p-2 bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded text-xs font-sans overflow-x-touch flex-nowrap shrink-0">
-              <button
-                type="button"
-                onClick={() => insertFormatting('## ')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Heading 2"
-              >
-                <Heading1 className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertFormatting('### ')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Heading 3"
-              >
-                <Heading2 className="w-4 h-4" />
-              </button>
+            {renderToolbar()}
 
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
-
-              <button
-                type="button"
-                onClick={() => insertFormatting('**', '**')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Bold"
-              >
-                <Bold className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertFormatting('*', '*')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Italic"
-              >
-                <Italic className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertFormatting('> ')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Blockquote"
-              >
-                <Quote className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertFormatting('```javascript\n', '\n```')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Code Block"
-              >
-                <Code className="w-4 h-4" />
-              </button>
-
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
-
-              <button
-                type="button"
-                onClick={() => insertFormatting('[', '](https://example.com)')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Link"
-              >
-                <LinkIcon className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const textarea = document.getElementById('content-textarea');
-                  if (textarea) {
-                    cursorPosRef.current = {
-                      start: textarea.selectionStart,
-                      end: textarea.selectionEnd
-                    };
-                  }
-                  setShowMediaPicker(true);
-                }}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
-                title="Insert Photo/GIF/Video"
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span className="text-[11px]">Add Media</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Embed YouTube Video"
-              >
-                <Video className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => insertFormatting('\n[grid]\n', '\n[/grid]\n')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1"
-                title="Insert Split Screen Grid for side-by-side images"
-              >
-                <Columns className="w-4 h-4" />
-                <span className="text-[11px]">Split Layout</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => insertFormatting('\n---\n')}
-                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
-                title="Horizontal Rule"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
-
-              {/* Voice Dictation Button */}
-              <button
-                type="button"
-                onClick={toggleDictation}
-                className={`p-1.5 rounded flex items-center gap-1 font-medium transition-colors cursor-pointer ${
-                  isListening
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-main)] animate-pulse'
-                    : 'hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-primary)]'
-                }`}
-                title={isListening ? "Stop Voice Dictation" : "Start Speech-to-Text Voice Dictation"}
-              >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                <span className="text-[11px]">{isListening ? 'Recording Voice...' : 'Voice Dictate'}</span>
-              </button>
-            </div>
+            {/* In-Editor Media Manager for Image/GIF sizing, wrapping & reordering */}
+            <EditorMediaManager
+              content={formData.content}
+              onChangeContent={(newContent) => setFormData(prev => ({ ...prev, content: newContent }))}
+            />
 
             {/* Content Body */}
             <div>
               <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Body Content (Markdown & Rich Text)
+                Body Content (Markdown &amp; Rich Text)
               </label>
               <textarea
                 id="content-textarea"
@@ -798,257 +1252,7 @@ export default function Editor() {
             <h2 className="text-xs font-sans uppercase tracking-widest text-[var(--text-muted)] font-medium border-b border-[var(--border-subtle)] pb-3">
               Entry Metadata
             </h2>
-
-            {/* Type */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Entry Type
-              </label>
-              <select
-                name="type"
-                value={formData.type}
-                onChange={handleChange}
-                className="quiet-input text-xs"
-              >
-                <option value="journal">Journal (Personal Diary)</option>
-                <option value="writing">Writing (Blog / Essay)</option>
-                <option value="update">Update (Micro stream)</option>
-                <option value="photo">Photo Post</option>
-              </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Publishing Status
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="quiet-input text-xs"
-              >
-                <option value="published">Published (Publicly visible)</option>
-                <option value="draft">Draft (Private admin only)</option>
-                <option value="unlisted">Unlisted (Visible only via direct link)</option>
-              </select>
-            </div>
-
-            {/* Show in Chronological Feed Toggle */}
-            <div className="py-2 border-y border-[var(--border-subtle)]">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-sans text-[var(--text-primary)] font-medium">
-                <input
-                  type="checkbox"
-                  name="show_in_feed"
-                  checked={Boolean(formData.show_in_feed)}
-                  onChange={(e) => setFormData(prev => ({ ...prev, show_in_feed: e.target.checked }))}
-                  className="w-4 h-4 rounded border-[var(--border-subtle)] text-[var(--accent-warm)] focus:ring-0 cursor-pointer"
-                />
-                <span>Show in Main Chronological Feed</span>
-              </label>
-              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 ml-6 leading-snug">
-                Uncheck to hide from home feed (photo posts are kept in Photos gallery only by default).
-              </p>
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Location</span>
-              </label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="e.g. Edinburgh, Scotland"
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Weather */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <Cloud className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Weather</span>
-              </label>
-              <input
-                type="text"
-                name="weather"
-                value={formData.weather}
-                onChange={handleChange}
-                placeholder="e.g. Rainy 14°C"
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Mood */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
-                <Smile className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Mood</span>
-              </label>
-              <input
-                type="text"
-                name="mood"
-                value={formData.mood}
-                onChange={handleChange}
-                placeholder="e.g. Quiet, Reflective, Inspired"
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Passcode Protection */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
-                  <span>Passcode Lock (Optional)</span>
-                </span>
-                {hasExistingPasscode && !removePasscodeFlag && (
-                  <span className="text-[10px] text-[var(--accent-warm)] font-medium font-mono lowercase">passcode set</span>
-                )}
-              </label>
-              <input
-                type="password"
-                name="passcode"
-                value={formData.passcode}
-                onChange={(e) => {
-                  handleChange(e);
-                  if (removePasscodeFlag) setRemovePasscodeFlag(false);
-                }}
-                placeholder={hasExistingPasscode && !removePasscodeFlag ? "•••• (passcode set — type to change)" : "Leave blank for public"}
-                className="quiet-input text-xs font-mono"
-              />
-              {hasExistingPasscode && !removePasscodeFlag && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasExistingPasscode(false);
-                    setRemovePasscodeFlag(true);
-                    setFormData(prev => ({ ...prev, passcode: '' }));
-                  }}
-                  className="text-[11px] text-red-500 hover:underline mt-1 block font-sans"
-                >
-                  Remove passcode protection
-                </button>
-              )}
-              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
-                Public readers must enter passcode to read. Passcodes are hashed securely by the database.
-              </p>
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Entry Date
-              </label>
-              <input
-                type="datetime-local"
-                name="date"
-                value={formData.date}
-                onChange={handleChange}
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Slug */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
-                  URL Slug
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomSlug(false);
-                    const synced = slugify(formData.title);
-                    setFormData(prev => ({ ...prev, slug: synced }));
-                  }}
-                  className="text-[11px] font-sans text-[var(--accent-warm)] hover:underline flex items-center gap-1 cursor-pointer"
-                  title="Auto-generate slug from current title"
-                >
-                  <RefreshCw className="w-2.5 h-2.5" />
-                  <span>Sync with title</span>
-                </button>
-              </div>
-              <input
-                type="text"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                placeholder="auto-generated-if-empty"
-                className="quiet-input text-xs font-mono"
-              />
-              <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1">
-                {isCustomSlug
-                  ? 'Custom slug active. Clear input or click "Sync with title" to auto-sync.'
-                  : 'Auto-syncs when you edit the title. Type here to customize slug.'}
-              </p>
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Category
-              </label>
-              <input
-                type="text"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                placeholder="e.g. Projects, Travel, Tech"
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Tags */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Tags (comma separated)
-              </label>
-              <input
-                type="text"
-                name="tags"
-                value={formData.tags}
-                onChange={handleChange}
-                placeholder="design, photography, quiet"
-                className="quiet-input text-xs"
-              />
-            </div>
-
-            {/* Cover Image URL - Only for Photo entries */}
-            {formData.type === 'photo' && (
-              <div>
-                <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                  Photo / Cover Image URL
-                </label>
-                <input
-                  type="text"
-                  name="cover_image"
-                  value={formData.cover_image}
-                  onChange={handleChange}
-                  placeholder="https://... or /uploads/..."
-                  className="quiet-input text-xs"
-                />
-              </div>
-            )}
-
-            {/* Excerpt */}
-            <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Short Excerpt
-              </label>
-              <textarea
-                name="excerpt"
-                rows={3}
-                value={formData.excerpt}
-                onChange={handleChange}
-                placeholder="Short summary for feed preview..."
-                className="quiet-input text-xs"
-              />
-            </div>
+            {renderMetadataFields()}
           </div>
         </form>
       )}

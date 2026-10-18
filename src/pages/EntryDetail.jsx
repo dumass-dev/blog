@@ -120,6 +120,9 @@ export default function EntryDetail() {
       if (!isSilent) {
         setError('Entry not found.');
         setLoading(false);
+      } else if (!isAdmin) {
+        // If a quiet reload fails to find the entry (e.g. entry changed to draft), immediately mark as unpublished
+        setIsDeleted(true);
       }
       return;
     }
@@ -254,6 +257,14 @@ export default function EntryDetail() {
             return;
           }
         }
+        // If the entry was updated to 'draft', non-admins can no longer view it!
+        const newStatus = detail.status || detail.data?.status;
+        if (newStatus === 'draft' && !isAdmin) {
+          if (detail.id === currentId || detail.slug === currentSlug) {
+            setIsDeleted(true);
+            return;
+          }
+        }
       }
 
       // Quietly reload entry with latest content in real-time
@@ -266,7 +277,7 @@ export default function EntryDetail() {
       window.removeEventListener('entry-updated', handleEntryChange);
       window.removeEventListener('feed-data-invalidated', handleEntryChange);
     };
-  }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry]);
+  }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry, isAdmin]);
 
   // Realtime subscription for live view count updates
   useEffect(() => {
