@@ -565,10 +565,24 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Sort & Search Controls */}
+        {/* Search & Sort Controls */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          {/* Search Bar (Left) */}
+          <div className="relative flex-1 sm:w-64 min-w-[180px]">
+            <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search entries or comments..."
+              style={{ paddingLeft: '2.25rem', paddingRight: '0.75rem' }}
+              className="w-full text-xs py-2 font-sans border border-[var(--border-subtle)] rounded bg-[var(--bg-main)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
+            />
+          </div>
+
+          {/* Sort Dropdown (Right) */}
           {filter !== 'comments' && (
-            <div className="relative w-full sm:w-44 shrink-0">
+            <div className="relative w-full sm:w-40 shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -583,18 +597,6 @@ export default function Dashboard() {
               <ArrowUpDown className="w-3.5 h-3.5 text-[var(--text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           )}
-
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search entries or comments..."
-              style={{ paddingLeft: '2.25rem', paddingRight: '0.75rem' }}
-              className="w-full text-xs py-2 font-sans border border-[var(--border-subtle)] rounded bg-[var(--bg-main)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
-            />
-          </div>
         </div>
       </div>
 
