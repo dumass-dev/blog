@@ -672,8 +672,8 @@ html {
   display: block;
   background-color: transparent;
   transition: opacity 300ms ease-out;
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.35rem;
+  margin-bottom: 0.65rem;
 }
 
 /* If an image or figure is first-child or at the top of editorial, zero top margin */
@@ -684,10 +684,39 @@ html {
   margin-top: 0 !important;
 }
 
+/* Eliminate excessive gap when paragraph is followed directly by an image/figure */
+.prose-editorial p:has(+ img),
+.prose-editorial p:has(+ figure),
+.prose-editorial p:has(+ .image-wrapper),
+.prose-editorial p:has(+ .media-figure),
+.prose-editorial p:has(+ p > img:only-child),
+.prose-editorial p:has(+ p:has(> img:only-child)) {
+  margin-bottom: 0.35rem;
+}
+
+.prose-editorial p + img,
+.prose-editorial p + figure,
+.prose-editorial p + .image-wrapper,
+.prose-editorial p + .media-figure {
+  margin-top: 0.25rem;
+}
+
+/* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
+.prose-editorial br + img,
+.prose-editorial img + br,
+.prose-editorial br + .image-wrapper,
+.prose-editorial .image-wrapper + br,
+.prose-editorial br + .media-figure,
+.prose-editorial .media-figure + br,
+.prose-editorial br + .editorial-wrap,
+.prose-editorial .editorial-wrap + br {
+  display: none !important;
+}
+
 /* Paragraph containing standalone image */
 .prose-editorial p:has(> img:only-child) {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .prose-editorial p > img:only-child {
@@ -697,8 +726,8 @@ html {
 
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
   width: 100%;
 }
 
@@ -712,8 +741,8 @@ html {
 }
 
 .prose-editorial .media-figure {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
   text-align: center;
 }
 
