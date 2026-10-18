@@ -147,6 +147,21 @@ export default function RichViewer({ content = '' }) {
       return `\n<div class="media-grid">\n\n${innerText}\n\n</div>\n`;
     });
 
+    // Handle [wrap:left (width)] / [wrap:right (width)] / [wrap:center (width)] shortcode for magazine-style text wraps
+    const wrapRegex = /\[wrap:(left|right|center)(?:\s+([\d]+(?:%|px|rem)))?\]([\s\S]*?)\[\/wrap\]/gi;
+    processed = processed.replace(wrapRegex, (_match, align, rawWidth, innerText) => {
+      const normAlign = align.toLowerCase();
+      let customStyle = '';
+      if (rawWidth) {
+        customStyle = `max-width: ${rawWidth}; width: 100%;`;
+      }
+      const styleAttr = customStyle ? ` style="${customStyle}"` : '';
+      return `\n<div class="editorial-wrap editorial-wrap-${normAlign}"${styleAttr}>\n\n${innerText.trim()}\n\n</div>\n`;
+    });
+
+    // Handle [clear] or [break] shortcodes to end floating text wraps cleanly
+    processed = processed.replace(/\[(?:clear|break)\]/gi, '\n<div class="editorial-clear"></div>\n');
+
     return processed;
   };
 

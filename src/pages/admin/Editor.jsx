@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, invalidateFeedCache } from '../../supabase';
 import { publishRealtimeUpdate } from '../../utils/realtime';
@@ -35,13 +35,16 @@ import {
   RefreshCw,
   Copy,
   EyeOff,
-  ExternalLink
+  ExternalLink,
+  AlignLeft,
+  AlignRight
 } from 'lucide-react';
 
 export { slugify };
 
 export default function Editor() {
   const { id } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get('type') || 'journal';
   const initialCoverImage = searchParams.get('cover_image') || '';
@@ -49,26 +52,66 @@ export default function Editor() {
   const { token } = useAuth();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    content: '',
-    type: initialType,
-    status: 'published',
-    category: initialType === 'photo' ? 'Photos' : '',
-    tags: '',
-    cover_image: initialCoverImage,
-    excerpt: '',
-    location: '',
-    weather: '',
-    mood: '',
-    passcode: '',
-    show_in_feed: initialType !== 'photo',
-    date: toLocalDatetimeInputString(new Date())
+  // Instant state pre-fill from navigation state or dashboard cache to eliminate editor open delay
+  const entryFromLocation = location.state?.entry;
+  const entryFromCache = (!entryFromLocation && id) ? (() => {
+    try {
+      const raw = localStorage.getItem('cached_admin_dashboard_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.entries?.find(e => e.id === id || e.slug === id) || null;
+      }
+    } catch {}
+    return null;
+  })() : null;
+
+  const initialEntry = entryFromLocation || entryFromCache;
+
+  const [formData, setFormData] = useState(() => {
+    if (initialEntry) {
+      const isPhoto = Boolean(
+        initialEntry.type === 'photo' ||
+        (initialEntry.category && initialEntry.category.toLowerCase() === 'photos')
+      );
+      return {
+        title: initialEntry.title || '',
+        slug: initialEntry.slug || '',
+        content: initialEntry.content || '',
+        type: isPhoto ? 'photo' : (initialEntry.type || 'journal'),
+        status: initialEntry.status || 'published',
+        category: initialEntry.category || '',
+        tags: initialEntry.tags || '',
+        cover_image: initialEntry.cover_image || '',
+        excerpt: initialEntry.excerpt || '',
+        location: initialEntry.location || '',
+        weather: initialEntry.weather || '',
+        mood: initialEntry.mood || '',
+        passcode: '',
+        show_in_feed: initialEntry.show_in_feed !== undefined ? Boolean(initialEntry.show_in_feed) : !isPhoto,
+        date: toLocalDatetimeInputString(initialEntry.date)
+      };
+    }
+    return {
+      title: '',
+      slug: '',
+      content: '',
+      type: initialType,
+      status: 'published',
+      category: initialType === 'photo' ? 'Photos' : '',
+      tags: '',
+      cover_image: initialCoverImage,
+      excerpt: '',
+      location: '',
+      weather: '',
+      mood: '',
+      passcode: '',
+      show_in_feed: initialType !== 'photo',
+      date: toLocalDatetimeInputString(new Date())
+    };
   });
 
   const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
@@ -174,7 +217,9 @@ export default function Editor() {
   useEffect(() => {
     if (!id) return;
     let isMounted = true;
-    setLoading(true);
+    if (!initialEntry) {
+      setLoading(true);
+    }
 
     const loadExistingEntry = async () => {
       let entryData = null;
@@ -214,24 +259,24 @@ export default function Editor() {
             (entryData.category && entryData.category.toLowerCase() === 'photos')
           );
 
-          setFormData({
-            title: entryData.title || '',
-            slug: entryData.slug || '',
-            content: entryData.content || '',
-            type: isPhotoEntry ? 'photo' : (entryData.type || 'journal'),
-            status: entryData.status || 'published',
-            category: entryData.category || '',
-            tags: entryData.tags || '',
-            cover_image: entryData.cover_image || '',
-            excerpt: entryData.excerpt || '',
-            location: entryData.location || '',
-            weather: entryData.weather || '',
-            mood: entryData.mood || '',
-            passcode: '',
-            show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : !isPhotoEntry,
-            date: formattedDate
-          });
-        } else {
+          setFormData(prev => ({
+            ...prev,
+            title: entryData.title || prev.title,
+            slug: entryData.slug || prev.slug,
+            content: entryData.content || prev.content,
+            type: isPhotoEntry ? 'photo' : (entryData.type || prev.type),
+            status: entryData.status || prev.status,
+            category: entryData.category || prev.category,
+            tags: entryData.tags || prev.tags,
+            cover_image: entryData.cover_image || prev.cover_image,
+            excerpt: entryData.excerpt || prev.excerpt,
+            location: entryData.location || prev.location,
+            weather: entryData.weather || prev.weather,
+            mood: entryData.mood || prev.mood,
+            show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : prev.show_in_feed,
+            date: formattedDate || prev.date
+          }));
+        } else if (!initialEntry) {
           setError('Failed loading entry details.');
         }
         setLoading(false);
@@ -243,7 +288,7 @@ export default function Editor() {
     return () => {
       isMounted = false;
     };
-  }, [id, token]);
+  }, [id, token, initialEntry]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -523,6 +568,7 @@ export default function Editor() {
       op: id ? 'UPDATE' : 'INSERT',
       id: savedData.id,
       slug: savedData.slug,
+      status: savedData.status || formData.status,
       title: savedData.title || formData.title,
       data: savedData
     });
@@ -788,6 +834,35 @@ export default function Editor() {
               >
                 <Columns className="w-4 h-4" />
                 <span className="text-[11px]">Split Layout</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => insertFormatting('\n[wrap:left 40%]\n', '\n[/wrap]\n')}
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
+                title="Wrap media on the left and flow text around it"
+              >
+                <AlignLeft className="w-4 h-4 text-[var(--accent-warm)]" />
+                <span className="text-[11px]">Wrap Left</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => insertFormatting('\n[wrap:right 40%]\n', '\n[/wrap]\n')}
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer"
+                title="Wrap media on the right and flow text around it"
+              >
+                <AlignRight className="w-4 h-4 text-[var(--accent-warm)]" />
+                <span className="text-[11px]">Wrap Right</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => insertFormatting('\n[clear]\n')}
+                className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                title="End floating wrap and resume full-width text"
+              >
+                <span className="text-[11px] font-mono px-1 py-0.5 rounded bg-black/5 dark:bg-white/5">Clear</span>
               </button>
 
               <button

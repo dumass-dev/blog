@@ -727,6 +727,91 @@ html {
   margin-right: auto !important;
 }
 
+/* Editorial Magazine-Style Text Wrapping */
+.prose-editorial::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.prose-editorial .editorial-wrap {
+  display: block;
+  box-sizing: border-box;
+}
+
+.prose-editorial .editorial-wrap p {
+  margin: 0 !important;
+}
+
+.prose-editorial .editorial-wrap img {
+  width: 100% !important;
+  height: auto !important;
+  border-radius: 4px;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  display: block;
+}
+
+.prose-editorial .editorial-wrap figure {
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.prose-editorial .editorial-wrap figcaption {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+  font-style: italic;
+}
+
+.prose-editorial .editorial-wrap-left {
+  float: left;
+  margin-right: 2rem;
+  margin-top: 0.35rem;
+  margin-bottom: 1.5rem;
+  max-width: 45%;
+}
+
+.prose-editorial .editorial-wrap-right {
+  float: right;
+  margin-left: 2rem;
+  margin-top: 0.35rem;
+  margin-bottom: 1.5rem;
+  max-width: 45%;
+}
+
+.prose-editorial .editorial-wrap-center {
+  float: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  max-width: 70%;
+  text-align: center;
+}
+
+.prose-editorial .editorial-clear {
+  clear: both;
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+@media (max-width: 640px) {
+  .prose-editorial .editorial-wrap-left,
+  .prose-editorial .editorial-wrap-right {
+    float: none !important;
+    max-width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-top: 1.25rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prose-editorial img {
     transition: none !important;

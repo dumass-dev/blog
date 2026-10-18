@@ -21,8 +21,7 @@ import {
   Eye,
   RotateCw,
   BarChart2,
-  Copy,
-  EyeOff
+  Copy
 } from 'lucide-react';
 
 import { stripMarkdown } from '../../utils/excerpt';
@@ -103,17 +102,20 @@ export default function Dashboard() {
       setLoading(true);
     }
 
-    // 1. Fetch Posts
-    let postsList = [];
-    try {
-      const apiPosts = await safeApiFetch('/api/posts?status=all', {
+    // Fetch all data sources in parallel to eliminate waterfall latency
+    const [postsRes, statsRes, commentsRes, npRes] = await Promise.allSettled([
+      safeApiFetch('/api/posts?status=all', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (Array.isArray(apiPosts)) {
-        postsList = apiPosts;
-      }
-    } catch {}
+      }),
+      safeApiFetch('/api/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }),
+      supabase.from('comments').select('*, entries(title, slug)').order('created_at', { ascending: false }),
+      safeApiFetch(`/api/now-playing?t=${Date.now()}`)
+    ]);
 
+    // 1. Process Posts
+    let postsList = (postsRes.status === 'fulfilled' && Array.isArray(postsRes.value)) ? postsRes.value : [];
     if (postsList.length === 0) {
       try {
         const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
@@ -134,16 +136,10 @@ export default function Dashboard() {
 
     setEntries(processedPosts);
 
-    // 2. Fetch Stats
-    let currentStats = null;
-    try {
-      const apiStats = await safeApiFetch('/api/stats', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (apiStats && typeof apiStats === 'object' && !Array.isArray(apiStats)) {
-        currentStats = apiStats;
-      }
-    } catch {}
+    // 2. Process Stats
+    let currentStats = (statsRes.status === 'fulfilled' && statsRes.value && typeof statsRes.value === 'object' && !Array.isArray(statsRes.value))
+      ? statsRes.value
+      : null;
 
     if (!currentStats) {
       const published = postsList.filter(e => e.status !== 'draft').length;
@@ -163,26 +159,17 @@ export default function Dashboard() {
     }
     setStats(currentStats);
 
-    // 3. Fetch Reader Comments for Admin Moderation
+    // 3. Process Reader Comments
     let fetchedComments = commentsRef.current;
-    try {
-      const { data: supaComments } = await supabase
-        .from('comments')
-        .select('*, entries(title, slug)')
-        .order('created_at', { ascending: false });
-      if (supaComments) {
-        fetchedComments = supaComments;
-        setComments(supaComments);
-      }
-    } catch {}
+    if (commentsRes.status === 'fulfilled' && commentsRes.value?.data) {
+      fetchedComments = commentsRes.value.data;
+      setComments(fetchedComments);
+    }
 
-    // 4. Fetch Now Playing Settings
-    try {
-      const npData = await safeApiFetch(`/api/now-playing?t=${Date.now()}`);
-      if (npData && npData.showOnHome !== undefined) {
-        setShowOnHome(npData.showOnHome);
-      }
-    } catch {}
+    // 4. Process Now Playing Settings
+    if (npRes.status === 'fulfilled' && npRes.value && npRes.value.showOnHome !== undefined) {
+      setShowOnHome(npRes.value.showOnHome);
+    }
 
     setPersistedCache({
       entries: postsList,
@@ -631,6 +618,7 @@ export default function Dashboard() {
 
                       <Link
                         to={`/admin/edit/${item.id}`}
+                        state={{ entry: item }}
                         className="quiet-button-secondary py-1.5 px-1 text-xs flex items-center justify-center gap-1 overflow-hidden"
                       >
                         <Edit className="w-3.5 h-3.5 shrink-0" />
@@ -728,6 +716,7 @@ export default function Dashboard() {
 
                         <Link
                           to={`/admin/edit/${item.id}`}
+                          state={{ entry: item }}
                           className="p-1.5 inline-block text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                           title="Edit"
                         >

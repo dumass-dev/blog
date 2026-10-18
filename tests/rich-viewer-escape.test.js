@@ -55,6 +55,7 @@ describe('RichViewer Non-Standard HTML/XML Tag Escaping Test Suite', () => {
     assert.strictEqual(cleanAlt, 'my image');
     assert.strictEqual(sizeClass, 'image-size-small');
     assert.strictEqual(alignClass, 'image-align-left');
+    assert.strictEqual(typeof customStyle, 'string');
 
     // Test arbitrary percentage
     const percentAlt = 'diagram|45%';

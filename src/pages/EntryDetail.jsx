@@ -116,12 +116,12 @@ export default function EntryDetail() {
       } catch (_err) {}
     }
 
-    if (!postData) {
+    if (!postData || postData.status === 'draft') {
       if (!isSilent) {
         setError('Entry not found.');
         setLoading(false);
-      } else if (!isAdmin) {
-        // If a quiet reload fails to find the entry (e.g. entry changed to draft), immediately mark as unpublished
+      } else {
+        // If a quiet reload fails to find the entry or it was changed to draft, immediately mark as unpublished
         setIsDeleted(true);
       }
       return;
@@ -251,19 +251,28 @@ export default function EntryDetail() {
       const currentSlug = data?.entry?.slug || slug;
 
       if (detail) {
-        if (detail.op === 'DELETE' || detail.event === 'entry_deleted') {
-          if (detail.id === currentId || detail.slug === currentSlug) {
-            setIsDeleted(true);
-            return;
-          }
+        const p = (detail.payload && typeof detail.payload === 'object') ? detail.payload : (detail.data || detail);
+        const targetId = p.id || detail.id || detail.data?.id;
+        const targetSlug = p.slug || detail.slug || detail.data?.slug;
+        const targetStatus = p.status || detail.status || detail.data?.status || p.data?.status;
+        const op = p.op || detail.op || p.eventType || detail.eventType || '';
+        const isDelete = op === 'DELETE' || detail.event === 'entry_deleted' || p.event === 'entry_deleted';
+
+        const norm = (s) => (typeof s === 'string' ? s.trim().toLowerCase() : String(s || ''));
+        const isCurrentPost = Boolean(
+          (targetId && (norm(targetId) === norm(currentId) || norm(targetId) === norm(slug))) ||
+          (targetSlug && (norm(targetSlug) === norm(currentSlug) || norm(targetSlug) === norm(slug)))
+        );
+
+        if (isDelete && isCurrentPost) {
+          setIsDeleted(true);
+          return;
         }
-        // If the entry was updated to 'draft', non-admins can no longer view it!
-        const newStatus = detail.status || detail.data?.status;
-        if (newStatus === 'draft' && !isAdmin) {
-          if (detail.id === currentId || detail.slug === currentSlug) {
-            setIsDeleted(true);
-            return;
-          }
+
+        // If the entry was updated to 'draft', mark as unpublished immediately in real time
+        if (targetStatus === 'draft' && isCurrentPost) {
+          setIsDeleted(true);
+          return;
         }
       }
 
@@ -277,7 +286,7 @@ export default function EntryDetail() {
       window.removeEventListener('entry-updated', handleEntryChange);
       window.removeEventListener('feed-data-invalidated', handleEntryChange);
     };
-  }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry, isAdmin]);
+  }, [slug, data?.entry?.id, data?.entry?.slug, loadEntry]);
 
   // Realtime subscription for live view count updates
   useEffect(() => {
