@@ -125,17 +125,89 @@ const VisualEditor = forwardRef(function VisualEditor(
       },
       handleClick: (view, _pos, event) => {
         const target = event.target;
-        if (target && (target.tagName === 'IMG' || target.closest?.('.media-image-block') || target.closest?.('.media-figure') || target.closest?.('[data-node-type="mediaImage"]'))) {
-          const nodeDom = target.closest?.('[data-node-type="mediaImage"]') || target.closest?.('.media-image-block') || target.closest?.('.media-figure') || target;
-          try {
-            const nodePos = view.posAtDOM(nodeDom, 0);
-            if (typeof nodePos === 'number' && nodePos >= 0) {
-              const $pos = view.state.doc.resolve(nodePos);
-              const targetPos = $pos.nodeAfter?.type?.name === 'mediaImage' ? nodePos : ($pos.parent?.type?.name === 'mediaImage' ? $pos.before() : nodePos);
-              view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, targetPos)));
-              return true;
+        const imgEl = target?.tagName === 'IMG'
+          ? target
+          : (target?.querySelector?.('img') || target?.closest?.('figure, [data-node-type="mediaImage"], .media-image-block, .media-figure')?.querySelector('img'));
+        const containerEl = target?.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure');
+
+        if (imgEl || containerEl) {
+          const src = imgEl?.getAttribute('src');
+          let targetPos = null;
+
+          // 1. Try finding by matching image src in doc
+          if (src) {
+            const candidates = [];
+            view.state.doc.descendants((node, pos) => {
+              if (node.type.name === 'mediaImage' && node.attrs.src === src) {
+                candidates.push(pos);
+              }
+            });
+
+            if (candidates.length === 1) {
+              targetPos = candidates[0];
+            } else if (candidates.length > 1) {
+              const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              const clickPos = res ? (res.inside >= 0 ? res.inside : res.pos) : 0;
+              candidates.sort((a, b) => Math.abs(a - clickPos) - Math.abs(b - clickPos));
+              targetPos = candidates[0];
             }
-          } catch (_e) {}
+          }
+
+          // 2. Try coordinates resolution
+          if (targetPos === null) {
+            try {
+              const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              if (res) {
+                const resolved = res.inside >= 0 ? res.inside : res.pos;
+                const $pos = view.state.doc.resolve(resolved);
+                for (let d = $pos.depth; d >= 0; d--) {
+                  const n = $pos.node(d);
+                  if (n && n.type.name === 'mediaImage') {
+                    targetPos = $pos.before(d);
+                    break;
+                  }
+                }
+                if (targetPos === null && $pos.nodeAfter?.type?.name === 'mediaImage') {
+                  targetPos = $pos.pos;
+                }
+              }
+            } catch (_e) {}
+          }
+
+          // 3. Try DOM resolution
+          if (targetPos === null && (containerEl || imgEl)) {
+            try {
+              const domTarget = containerEl || imgEl;
+              const p = view.posAtDOM(domTarget, 0);
+              if (typeof p === 'number' && p >= 0) {
+                const $pos = view.state.doc.resolve(p);
+                for (let d = $pos.depth; d >= 0; d--) {
+                  const n = $pos.node(d);
+                  if (n && n.type.name === 'mediaImage') {
+                    targetPos = $pos.before(d);
+                    break;
+                  }
+                }
+                if (targetPos === null && $pos.nodeAfter?.type?.name === 'mediaImage') {
+                  targetPos = p;
+                }
+              }
+            } catch (_e) {}
+          }
+
+          if (typeof targetPos === 'number' && targetPos >= 0) {
+            try {
+              const nodeAtPos = view.state.doc.nodeAt(targetPos);
+              if (nodeAtPos && nodeAtPos.type.name === 'mediaImage') {
+                const sel = NodeSelection.create(view.state.doc, targetPos);
+                view.dispatch(view.state.tr.setSelection(sel));
+                view.focus();
+                return true;
+              }
+            } catch (err) {
+              console.warn('Failed to set NodeSelection on mediaImage:', err);
+            }
+          }
         }
         return false;
       }
@@ -255,6 +327,60 @@ const VisualEditor = forwardRef(function VisualEditor(
     };
   }, [onOpenMediaPicker]);
 
+  // Helper to accurately position the Image Toolbar above the selected photo
+  const positionImageToolbar = useCallback((imageInfo) => {
+    const targetImage = imageInfo || selectedImageNode;
+    if (!editor || !targetImage || !imageToolbarRef.current) {
+      if (imageToolbarRef.current) {
+        imageToolbarRef.current.style.display = 'none';
+      }
+      return;
+    }
+
+    let domNode = editor.view.nodeDOM(targetImage.pos);
+    if (!domNode || !domNode.getBoundingClientRect) {
+      const imgEl = editor.view.dom.querySelector(`img[src="${targetImage.attrs.src}"]`);
+      domNode = imgEl?.closest?.('[data-node-type="mediaImage"], .media-figure, .media-image-block') || imgEl;
+    }
+
+    if (domNode && domNode.getBoundingClientRect) {
+      computePosition(domNode, imageToolbarRef.current, {
+        placement: 'top',
+        middleware: [offset(10), flip(), shift({ padding: 8 })]
+      }).then(({ x, y }) => {
+        if (imageToolbarRef.current) {
+          imageToolbarRef.current.style.left = `${Math.round(x)}px`;
+          imageToolbarRef.current.style.top = `${Math.round(y)}px`;
+          imageToolbarRef.current.style.display = 'flex';
+        }
+      });
+    }
+  }, [editor, selectedImageNode]);
+
+  // Position image toolbar immediately when selectedImageNode changes
+  useEffect(() => {
+    if (selectedImageNode) {
+      requestAnimationFrame(() => {
+        positionImageToolbar(selectedImageNode);
+      });
+    } else if (imageToolbarRef.current) {
+      imageToolbarRef.current.style.display = 'none';
+      setEditingCaption(false);
+    }
+  }, [selectedImageNode, positionImageToolbar]);
+
+  // Keep image toolbar positioned when scrolling or resizing
+  useEffect(() => {
+    if (!selectedImageNode) return;
+    const handleReposition = () => positionImageToolbar(selectedImageNode);
+    window.addEventListener('scroll', handleReposition, true);
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      window.removeEventListener('scroll', handleReposition, true);
+      window.removeEventListener('resize', handleReposition);
+    };
+  }, [selectedImageNode, positionImageToolbar]);
+
   // Update selection-dependent UI: Bubble Menu and Image Selection Toolbar
   const updatePopups = useCallback(() => {
     if (!editor) return;
@@ -263,16 +389,10 @@ const VisualEditor = forwardRef(function VisualEditor(
     const { selection } = state;
     const isTextSelected = !selection.empty;
 
-    // Check if a mediaImage node is selected
+    // Check if a mediaImage node is selected (strictly require NodeSelection on mediaImage)
     let activeMediaImage = null;
     if (selection instanceof NodeSelection && selection.node?.type?.name === 'mediaImage') {
       activeMediaImage = { node: selection.node, pos: selection.from, attrs: selection.node.attrs };
-    } else {
-      state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
-        if (node.type.name === 'mediaImage') {
-          activeMediaImage = { node, pos, attrs: node.attrs };
-        }
-      });
     }
     setSelectedImageNode(activeMediaImage);
 
@@ -304,20 +424,8 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
 
     // Position Image Toolbar if image is selected
-    if (activeMediaImage && imageToolbarRef.current) {
-      const domNode = editor.view.nodeDOM(activeMediaImage.pos);
-      if (domNode && domNode.getBoundingClientRect) {
-        computePosition(domNode, imageToolbarRef.current, {
-          placement: 'top',
-          middleware: [offset(10), flip(), shift({ padding: 8 })]
-        }).then(({ x, y }) => {
-          if (imageToolbarRef.current) {
-            imageToolbarRef.current.style.left = `${x}px`;
-            imageToolbarRef.current.style.top = `${y}px`;
-            imageToolbarRef.current.style.display = 'flex';
-          }
-        });
-      }
+    if (activeMediaImage) {
+      positionImageToolbar(activeMediaImage);
     } else if (imageToolbarRef.current) {
       imageToolbarRef.current.style.display = 'none';
       setEditingCaption(false);
@@ -360,7 +468,7 @@ const VisualEditor = forwardRef(function VisualEditor(
     } else if (slashMenuRef.current) {
       slashMenuRef.current.style.display = 'none';
     }
-  }, [editor, slashState]);
+  }, [editor, slashState, positionImageToolbar]);
 
   useEffect(() => {
     if (!editor) return;
@@ -627,14 +735,15 @@ const VisualEditor = forwardRef(function VisualEditor(
       </div>
 
       {/* Floating Toolbar for Selected Image */}
-      {selectedImageNode && (
-        <div
-          ref={imageToolbarRef}
-          onMouseDown={(e) => e.preventDefault()}
-          onTouchStart={(e) => e.stopPropagation()}
-          style={{ display: 'none', position: 'fixed', zIndex: 110 }}
-          className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans"
-        >
+      <div
+        ref={imageToolbarRef}
+        onMouseDown={(e) => e.preventDefault()}
+        onTouchStart={(e) => e.stopPropagation()}
+        style={{ display: 'none', position: 'fixed', zIndex: 110 }}
+        className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans"
+      >
+        {selectedImageNode && (
+          <>
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 gap-2">
             <span className="text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
               Photo
@@ -789,8 +898,9 @@ const VisualEditor = forwardRef(function VisualEditor(
               </button>
             )}
           </div>
-        </div>
+        </>
       )}
+    </div>
 
       {/* Floating Slash Command Palette */}
       {slashState && (

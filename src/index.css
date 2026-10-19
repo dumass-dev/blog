@@ -784,11 +784,11 @@ html {
   text-align: center;
 }
 
-/* Selected photo visual outline in editor */
-.ProseMirror .ProseMirror-selectednode,
+/* Selected photo visual outline in editor - ONLY for media images and figures */
 .ProseMirror .media-image-block.ProseMirror-selectednode,
 .ProseMirror .media-figure.ProseMirror-selectednode,
-.ProseMirror [data-node-type="mediaImage"].ProseMirror-selectednode {
+.ProseMirror [data-node-type="mediaImage"].ProseMirror-selectednode,
+.ProseMirror figure.ProseMirror-selectednode {
   outline: 3px solid var(--accent-warm) !important;
   outline-offset: 3px !important;
   border-radius: 6px !important;

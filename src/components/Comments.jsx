@@ -205,12 +205,8 @@ export default function Comments({ postId }) {
         <span>Reader Comments ({comments.length})</span>
       </div>
 
-      {/* Add Comment Form */}
-      <form onSubmit={handleSubmit} className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--code-bg)] space-y-3 mb-8">
-        <div className="text-xs font-sans font-medium uppercase tracking-wider text-[var(--text-secondary)]">
-          Leave a Thought
-        </div>
-
+      {/* Add Comment Form - Minimalist & Compact */}
+      <form onSubmit={handleSubmit} className="mb-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)] p-3 focus-within:border-[var(--accent-warm)] transition-colors">
         {/* Bot Honeypot field (hidden from real users) */}
         <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
           <input
@@ -223,35 +219,30 @@ export default function Comments({ postId }) {
           />
         </div>
 
-        <div>
+        <textarea
+          rows={2}
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          placeholder="Share your reflection or response..."
+          className="w-full bg-transparent resize-none text-xs font-serif leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none block"
+          required
+        />
+
+        <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-[var(--border-subtle)]">
           <input
             type="text"
             value={authorName}
             onChange={e => setAuthorName(e.target.value)}
             placeholder="Name (optional)"
-            className="quiet-input text-xs"
+            className="bg-transparent text-[11px] font-sans text-[var(--text-secondary)] placeholder-[var(--text-muted)] focus:outline-none flex-1 min-w-0 max-w-[160px] sm:max-w-[200px]"
           />
-        </div>
-
-        <div>
-          <textarea
-            rows={3}
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            placeholder="Share your reflection or response..."
-            className="quiet-input text-xs font-serif leading-relaxed"
-            required
-          />
-        </div>
-
-        <div className="text-right">
           <button
             type="submit"
             disabled={submitting || !content.trim()}
-            className="quiet-button text-xs py-1.5 px-4 inline-flex items-center gap-1.5"
+            className="text-xs font-sans font-medium px-3 py-1 rounded bg-[var(--text-primary)] text-[var(--bg-main)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity inline-flex items-center gap-1.5 shrink-0"
           >
             <Send className="w-3 h-3" />
-            <span>{submitting ? 'Posting...' : 'Post Comment'}</span>
+            <span>{submitting ? 'Posting...' : 'Comment'}</span>
           </button>
         </div>
       </form>

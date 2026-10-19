@@ -198,25 +198,25 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
 
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Insert Media from Library">
+    <Modal isOpen={isOpen} onClose={onClose} title="Insert Media from Library" maxWidthClass="max-w-2xl w-full">
       <div className="flex flex-col space-y-3">
         {/* Modal Header */}
         <div className="pb-3 border-b border-[var(--border-subtle)] flex justify-between items-center">
-          <h2 className="text-base font-sans font-medium flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-[var(--accent-warm)]" />
+          <h2 className="text-sm sm:text-base font-sans font-medium flex items-center gap-2">
+            <ImageIcon className="w-4 h-4 text-[var(--accent-warm)] shrink-0" />
             <span>Insert Media from Library</span>
           </h2>
-          <button onClick={onClose} className="p-1 hover:text-[var(--text-primary)] text-[var(--text-muted)]">
+          <button onClick={onClose} className="p-1 hover:text-[var(--text-primary)] text-[var(--text-muted)] rounded transition-colors" aria-label="Close dialog">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Upload bar */}
-        <div className="p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-wrap justify-between items-center gap-2">
-          <div className="text-xs font-sans text-[var(--text-secondary)]">
+        <div className="p-2.5 sm:p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex items-center justify-between gap-2">
+          <div className="text-xs font-sans text-[var(--text-secondary)] truncate">
             Upload new photo, GIF, or video clip
           </div>
-          <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
+          <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer shrink-0 py-1.5 px-3">
             <Upload className="w-3.5 h-3.5" />
             <span>{uploading ? 'Uploading...' : 'Choose File'}</span>
             <input
@@ -230,39 +230,39 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         </div>
 
         {/* Image Layout & Size Controls */}
-        <div className="p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-col gap-2.5 text-xs font-sans">
+        <div className="p-2.5 sm:p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-col gap-2.5 text-xs font-sans">
           {/* Layout & Text Wrapping Mode */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)]/60 pb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[var(--border-subtle)]/60 pb-2">
             <span className="text-[var(--text-secondary)] font-medium">Text Layout & Wrapping:</span>
-            <div className="inline-flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
+            <div className="grid grid-cols-3 sm:flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedAlign('left');
                   if (selectedSize === '100%') setSelectedSize('45%');
                 }}
-                className={`px-2.5 py-1 rounded text-[11px] flex items-center gap-1 transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'left'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Image floats on left, text flows around it on the right"
               >
-                <AlignLeft className="w-3.5 h-3.5" />
-                <span>Wrap Left</span>
+                <AlignLeft className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Wrap Left</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedAlign('center')}
-                className={`px-2.5 py-1 rounded text-[11px] flex items-center gap-1 transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'center'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Standalone centered block"
               >
-                <AlignCenter className="w-3.5 h-3.5" />
-                <span>Center</span>
+                <AlignCenter className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Center</span>
               </button>
               <button
                 type="button"
@@ -270,52 +270,52 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                   setSelectedAlign('right');
                   if (selectedSize === '100%') setSelectedSize('45%');
                 }}
-                className={`px-2.5 py-1 rounded text-[11px] flex items-center gap-1 transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'right'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Image floats on right, text flows around it on the left"
               >
-                <AlignRight className="w-3.5 h-3.5" />
-                <span>Wrap Right</span>
+                <AlignRight className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Wrap Right</span>
               </button>
             </div>
           </div>
 
           {/* Width adjustment */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--text-secondary)] font-medium">Image Width:</span>
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <span className="text-[var(--text-secondary)] font-medium">Image Width:</span>
               <input
                 type="text"
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value.trim())}
-                placeholder="45% or 400px"
-                className="quiet-input text-xs px-2 py-0.5 w-20 text-center font-mono border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
-                title="Enter any percentage (e.g. 40%) or pixel width (e.g. 380px)"
+                placeholder="100% or 400px"
+                className="quiet-input text-xs px-2 py-0.5 w-16 text-center font-mono border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
+                title="Enter percentage (e.g. 45%) or pixels (e.g. 400px)"
               />
-              <div className="inline-flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
-                {['25%', '33%', '45%', '60%', '100%'].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setSelectedSize(preset)}
-                    className={`px-1.5 py-0.5 rounded text-[11px] transition-colors cursor-pointer ${
-                      selectedSize === preset
-                        ? 'bg-[var(--accent-warm)] text-white font-medium'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
+            </div>
+            <div className="grid grid-cols-5 sm:flex items-center gap-1 p-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)]">
+              {['25%', '33%', '45%', '60%', '100%'].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setSelectedSize(preset)}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono text-center transition-colors cursor-pointer ${
+                    selectedSize === preset
+                      ? 'bg-[var(--accent-warm)] text-white font-medium'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
             </div>
           </div>
           {/* Live Range Slider */}
-          <div className="flex items-center gap-3 pt-0.5">
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">15%</span>
+          <div className="flex items-center gap-2 pt-0.5">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">15%</span>
             <input
               type="range"
               min="15"
@@ -325,7 +325,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
               onChange={(e) => setSelectedSize(`${e.target.value}%`)}
               className="w-full accent-[var(--accent-warm)] cursor-pointer h-1.5 bg-[var(--border-subtle)] rounded-lg"
             />
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">100%</span>
+            <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">100%</span>
           </div>
         </div>
 
@@ -369,7 +369,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                     loading={index < 8 ? 'eager' : 'lazy'}
                   />
                 )}
-                <div className="absolute inset-0 bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-sans font-medium text-center p-2">
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-sans font-medium text-center p-2 pointer-events-none">
                   <span>Tap to insert</span>
                   <span className="text-[10px] opacity-90 font-mono mt-0.5">
                     {selectedAlign === 'left' ? 'Wrap Left' : selectedAlign === 'right' ? 'Wrap Right' : 'Centered'}
