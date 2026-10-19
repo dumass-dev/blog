@@ -137,7 +137,7 @@ export default function Header() {
       <div className="flex items-center space-x-6 sm:space-x-8">
         <Link
           to="/"
-          style={{ fontSize: 'clamp(1.7rem, 4vw, 2.125rem)' }}
+          style={{ fontSize: 'clamp(1.95rem, 4.5vw, 2.375rem)' }}
           className="font-serif tracking-tight text-[var(--text-primary)] hover:opacity-80 transition-opacity font-normal leading-none"
         >
           {siteMeta.author_name}
