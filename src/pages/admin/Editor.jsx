@@ -1216,7 +1216,7 @@ export default function Editor() {
               <textarea
                 id="content-textarea"
                 name="content"
-                rows={(mode === 'visual' || mode === 'preview') ? 2 : 16}
+                rows={16}
                 value={formData.content}
                 onChange={(e) => {
                   handleChange(e);
@@ -1229,7 +1229,7 @@ export default function Editor() {
                 placeholder="Write your story, diary entry, or update here..."
                 className={
                   (mode === 'visual' || mode === 'preview')
-                    ? 'w-full h-8 px-3 py-1 text-xs font-mono bg-transparent border border-[var(--border-subtle)] rounded opacity-50 mt-3 transition-opacity hover:opacity-100'
+                    ? 'hidden'
                     : 'quiet-input font-serif text-lg leading-relaxed p-4'
                 }
               />
