@@ -139,92 +139,99 @@ const VisualEditor = forwardRef(function VisualEditor(
         class:
           'prose-editorial font-serif text-lg leading-relaxed focus:outline-none min-h-[420px] max-w-none text-[var(--text-primary)] cursor-text select-text p-4 sm:p-6'
       },
-      handleClick: (view, _pos, event) => {
-        const target = event.target;
-        const imgEl = target?.tagName === 'IMG'
+      handleClick: (view, pos, event) => {
+        const target = event?.target;
+        if (!target) return false;
+
+        const imgEl = target.tagName === 'IMG'
           ? target
-          : (target?.querySelector?.('img') || target?.closest?.('figure, [data-node-type="mediaImage"], .media-image-block, .media-figure')?.querySelector('img'));
-        const containerEl = target?.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure');
+          : (target.querySelector?.('img') ||
+             target.closest?.('figure, [data-node-type="mediaImage"], .media-image-block, .media-figure')?.querySelector?.('img'));
+        const containerEl = target.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure');
+        if (!imgEl && !containerEl) return false;
 
-        if (imgEl || containerEl) {
-          const src = imgEl?.getAttribute('src');
-          let targetPos = null;
+        const src = imgEl?.getAttribute('src');
+        // Helper: any image node type
+        const isImgNode = (n) => n?.type?.name === 'mediaImage' || n?.type?.name === 'inlineImage';
+        let targetPos = null;
 
-          // 1. Try finding by matching image src in doc
-          if (src) {
-            const candidates = [];
-            view.state.doc.descendants((node, pos) => {
-              if (node.type.name === 'mediaImage' && node.attrs.src === src) {
-                candidates.push(pos);
-              }
-            });
-
-            if (candidates.length === 1) {
-              targetPos = candidates[0];
-            } else if (candidates.length > 1) {
-              const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
-              const clickPos = res ? (res.inside >= 0 ? res.inside : res.pos) : 0;
-              candidates.sort((a, b) => Math.abs(a - clickPos) - Math.abs(b - clickPos));
-              targetPos = candidates[0];
+        // Method 0: Use ProseMirror's pos parameter directly — most accurate for atom nodes
+        if (typeof pos === 'number' && pos >= 0) {
+          try {
+            for (const p of [pos, Math.max(0, pos - 1)]) {
+              const n = view.state.doc.nodeAt(p);
+              if (n && isImgNode(n)) { targetPos = p; break; }
             }
-          }
-
-          // 2. Try coordinates resolution
-          if (targetPos === null) {
-            try {
-              const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
-              if (res) {
-                const resolved = res.inside >= 0 ? res.inside : res.pos;
-                const $pos = view.state.doc.resolve(resolved);
-                for (let d = $pos.depth; d >= 0; d--) {
-                  const n = $pos.node(d);
-                  if (n && n.type.name === 'mediaImage') {
-                    targetPos = $pos.before(d);
-                    break;
-                  }
-                }
-                if (targetPos === null && $pos.nodeAfter?.type?.name === 'mediaImage') {
-                  targetPos = $pos.pos;
+            if (targetPos === null) {
+              const $p = view.state.doc.resolve(pos);
+              if (isImgNode($p.nodeAfter)) { targetPos = pos; }
+              else {
+                for (let d = $p.depth; d >= 0; d--) {
+                  if (isImgNode($p.node(d))) { targetPos = $p.before(d); break; }
                 }
               }
-            } catch (_e) {}
-          }
-
-          // 3. Try DOM resolution
-          if (targetPos === null && (containerEl || imgEl)) {
-            try {
-              const domTarget = containerEl || imgEl;
-              const p = view.posAtDOM(domTarget, 0);
-              if (typeof p === 'number' && p >= 0) {
-                const $pos = view.state.doc.resolve(p);
-                for (let d = $pos.depth; d >= 0; d--) {
-                  const n = $pos.node(d);
-                  if (n && n.type.name === 'mediaImage') {
-                    targetPos = $pos.before(d);
-                    break;
-                  }
-                }
-                if (targetPos === null && $pos.nodeAfter?.type?.name === 'mediaImage') {
-                  targetPos = p;
-                }
-              }
-            } catch (_e) {}
-          }
-
-          if (typeof targetPos === 'number' && targetPos >= 0) {
-            try {
-              const nodeAtPos = view.state.doc.nodeAt(targetPos);
-              if (nodeAtPos && nodeAtPos.type.name === 'mediaImage') {
-                const sel = NodeSelection.create(view.state.doc, targetPos);
-                // Suppress mobile keyboard before focusing: images don't need text input
-                view.dom.setAttribute('inputmode', 'none');
-                view.dispatch(view.state.tr.setSelection(sel));
-                view.focus();
-                return true;
-              }
-            } catch (err) {
-              console.warn('Failed to set NodeSelection on mediaImage:', err);
             }
+          } catch (_e) {}
+        }
+
+        // Method 1: Find by matching src in document
+        if (targetPos === null && src) {
+          const candidates = [];
+          view.state.doc.descendants((node, p) => {
+            if (isImgNode(node) && node.attrs.src === src) candidates.push(p);
+          });
+          if (candidates.length === 1) {
+            targetPos = candidates[0];
+          } else if (candidates.length > 1) {
+            const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            const clickPos = res ? (res.inside >= 0 ? res.inside : res.pos) : pos;
+            candidates.sort((a, b) => Math.abs(a - clickPos) - Math.abs(b - clickPos));
+            targetPos = candidates[0];
+          }
+        }
+
+        // Method 2: Coordinate resolution
+        if (targetPos === null) {
+          try {
+            const res = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (res) {
+              const resolved = res.inside >= 0 ? res.inside : res.pos;
+              const $pos = view.state.doc.resolve(resolved);
+              for (let d = $pos.depth; d >= 0; d--) {
+                if (isImgNode($pos.node(d))) { targetPos = $pos.before(d); break; }
+              }
+              if (targetPos === null && isImgNode($pos.nodeAfter)) targetPos = $pos.pos;
+            }
+          } catch (_e) {}
+        }
+
+        // Method 3: DOM position resolution
+        if (targetPos === null && (containerEl || imgEl)) {
+          try {
+            const domTarget = containerEl || imgEl;
+            const p = view.posAtDOM(domTarget, 0);
+            if (typeof p === 'number' && p >= 0) {
+              const $pos = view.state.doc.resolve(p);
+              for (let d = $pos.depth; d >= 0; d--) {
+                if (isImgNode($pos.node(d))) { targetPos = $pos.before(d); break; }
+              }
+              if (targetPos === null && isImgNode($pos.nodeAfter)) targetPos = p;
+            }
+          } catch (_e) {}
+        }
+
+        if (typeof targetPos === 'number' && targetPos >= 0) {
+          try {
+            const nodeAtPos = view.state.doc.nodeAt(targetPos);
+            if (nodeAtPos && isImgNode(nodeAtPos)) {
+              const sel = NodeSelection.create(view.state.doc, targetPos);
+              view.dom.setAttribute('inputmode', 'none');
+              view.dispatch(view.state.tr.setSelection(sel));
+              view.focus();
+              return true;
+            }
+          } catch (err) {
+            console.warn('Failed to set NodeSelection on image:', err);
           }
         }
         return false;
@@ -271,19 +278,29 @@ const VisualEditor = forwardRef(function VisualEditor(
         const pos = replacingImagePosRef.current;
         replacingImagePosRef.current = null;
         const existingNode = editor.state.doc.nodeAt(pos);
-        if (existingNode && existingNode.type.name === 'mediaImage') {
-          editor
-            .chain()
-            .focus()
-            .setNodeSelection(pos)
-            .updateAttributes('mediaImage', {
-              src,
-              alt: alt !== undefined && alt !== '' ? alt : (existingNode.attrs.alt || ''),
-              size: size !== undefined && size !== '' ? size : (existingNode.attrs.size || ''),
-              align: align !== undefined && align !== '' ? align : (existingNode.attrs.align || ''),
-              caption: caption !== undefined ? caption : (existingNode.attrs.caption || '')
-            })
-            .run();
+        if (existingNode && (existingNode.type.name === 'mediaImage' || existingNode.type.name === 'inlineImage')) {
+          if (existingNode.type.name === 'mediaImage') {
+            editor
+              .chain()
+              .focus()
+              .setNodeSelection(pos)
+              .updateAttributes('mediaImage', {
+                src,
+                alt: alt !== undefined && alt !== '' ? alt : (existingNode.attrs.alt || ''),
+                size: size !== undefined && size !== '' ? size : (existingNode.attrs.size || ''),
+                align: align !== undefined && align !== '' ? align : (existingNode.attrs.align || ''),
+                caption: caption !== undefined ? caption : (existingNode.attrs.caption || '')
+              })
+              .run();
+          } else {
+            // inlineImage: upgrade to a full mediaImage block when replacing
+            editor
+              .chain()
+              .focus()
+              .setNodeSelection(pos)
+              .insertContent({ type: 'mediaImage', attrs: { src, alt: alt || existingNode.attrs.alt || '', size: size || '', align: align || '', caption: caption || '' } })
+              .run();
+          }
           return;
         }
       }
@@ -409,36 +426,67 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
   }, [selectedImageNode, positionImageToolbar]);
 
-  // Sync inputmode attribute to suppress mobile virtual keyboard when an image is selected.
-  // inputmode="none" on a contenteditable prevents the keyboard from appearing even when focused.
+  // Combined mobile touch handler:
+  //   touchstart  → detect image target early → set inputmode=none to suppress keyboard
+  //   touchend    → if image was touched, create NodeSelection (more reliable than handleClick on mobile)
+  //   effect body → sync inputmode from React state each time selectedImageNode changes
   useEffect(() => {
     const dom = editor?.view?.dom;
     if (!dom) return;
+
+    // Sync inputmode from current state
     if (selectedImageNode) {
       dom.setAttribute('inputmode', 'none');
     } else {
       dom.removeAttribute('inputmode');
     }
-  }, [editor, selectedImageNode]);
 
-  // Detect image touches BEFORE the browser processes focus (touchstart fires before focus/click).
-  // Set inputmode="none" immediately so the browser never shows the virtual keyboard.
-  useEffect(() => {
-    const dom = editor?.view?.dom;
-    if (!dom) return;
-    const handleTouchStart = (e) => {
+    let imageTouchSrc = null; // src captured on touchstart
+
+    const onTouchStart = (e) => {
       const t = e.target;
-      const onImage = t.tagName === 'IMG' ||
-        !!t.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure');
-      if (onImage) {
-        dom.setAttribute('inputmode', 'none');
+      const imgEl = t.tagName === 'IMG' ? t
+        : t.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure')?.querySelector?.('img');
+      if (imgEl) {
+        imageTouchSrc = imgEl.getAttribute('src') || null;
+        dom.setAttribute('inputmode', 'none'); // suppress keyboard before focus fires
       } else {
-        // Only restore if no image node is currently selected
+        imageTouchSrc = null;
         if (!selectedImageNode) dom.removeAttribute('inputmode');
       }
     };
-    dom.addEventListener('touchstart', handleTouchStart, { passive: true });
-    return () => dom.removeEventListener('touchstart', handleTouchStart);
+
+    const onTouchEnd = () => {
+      const src = imageTouchSrc;
+      imageTouchSrc = null;
+      if (!src || !editor) return;
+      // Find node by src (handles both mediaImage and inlineImage)
+      let targetPos = null;
+      editor.state.doc.descendants((node, p) => {
+        if (targetPos !== null) return false;
+        if ((node.type.name === 'mediaImage' || node.type.name === 'inlineImage') && node.attrs.src === src) {
+          targetPos = p;
+        }
+      });
+      if (typeof targetPos === 'number' && targetPos >= 0) {
+        try {
+          const nodeAtPos = editor.state.doc.nodeAt(targetPos);
+          if (nodeAtPos && (nodeAtPos.type.name === 'mediaImage' || nodeAtPos.type.name === 'inlineImage')) {
+            const sel = NodeSelection.create(editor.state.doc, targetPos);
+            dom.setAttribute('inputmode', 'none');
+            editor.view.dispatch(editor.state.tr.setSelection(sel));
+            editor.view.focus();
+          }
+        } catch (_e) {}
+      }
+    };
+
+    dom.addEventListener('touchstart', onTouchStart, { passive: true });
+    dom.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      dom.removeEventListener('touchstart', onTouchStart);
+      dom.removeEventListener('touchend', onTouchEnd);
+    };
   }, [editor, selectedImageNode]);
 
   // Keep image toolbar positioned when scrolling or resizing (without flickering or vanishing!)
@@ -582,9 +630,10 @@ const VisualEditor = forwardRef(function VisualEditor(
     const { selection } = state;
     const isTextSelected = !selection.empty;
 
-    // Check if a mediaImage node is selected (strictly require NodeSelection on mediaImage)
+    // Check if any image node is selected (mediaImage block or inlineImage inline atom)
     let activeMediaImage = null;
-    if (selection instanceof NodeSelection && selection.node?.type?.name === 'mediaImage') {
+    if (selection instanceof NodeSelection &&
+        (selection.node?.type?.name === 'mediaImage' || selection.node?.type?.name === 'inlineImage')) {
       activeMediaImage = { node: selection.node, pos: selection.from, attrs: selection.node.attrs };
     }
     setSelectedImageNode(activeMediaImage);
@@ -715,12 +764,13 @@ const VisualEditor = forwardRef(function VisualEditor(
   // Image actions
   const setImageAttribute = (key, value) => {
     if (!editor || !selectedImageNode) return;
+    const typeName = selectedImageNode.node.type.name; // use actual type, not hardcoded 'mediaImage'
     const newAttrs = { ...selectedImageNode.attrs, [key]: value };
     editor
       .chain()
       .focus()
       .setNodeSelection(selectedImageNode.pos)
-      .updateAttributes('mediaImage', newAttrs)
+      .updateAttributes(typeName, newAttrs)
       .run();
   };
 
@@ -732,6 +782,8 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   const moveSelectedImage = (direction) => {
     if (!editor || !selectedImageNode) return;
+    // Only block images (mediaImage) can be repositioned; inlineImage lives inside text
+    if (selectedImageNode.node.type.name !== 'mediaImage') return;
     const { state } = editor;
     const { doc } = state;
     const pos = selectedImageNode.pos;
@@ -1085,7 +1137,8 @@ const VisualEditor = forwardRef(function VisualEditor(
           </div>
           </div>
 
-          {/* Size choices */}
+          {/* Size choices — block images only */}
+          {selectedImageNode.node.type.name === 'mediaImage' && (
           <div className="flex items-center gap-1 text-xs font-sans">
             <span className="text-[11px] text-[var(--text-muted)] w-10">Size:</span>
             {[
@@ -1111,8 +1164,10 @@ const VisualEditor = forwardRef(function VisualEditor(
               </button>
             ))}
           </div>
+          )}
 
-          {/* Align choices */}
+          {/* Align choices — block images only */}
+          {selectedImageNode.node.type.name === 'mediaImage' && (
           <div className="flex items-center gap-1 text-xs font-sans">
             <span className="text-[11px] text-[var(--text-muted)] w-10">Align:</span>
             {[
@@ -1138,8 +1193,10 @@ const VisualEditor = forwardRef(function VisualEditor(
               </button>
             ))}
           </div>
+          )}
 
-          {/* Caption editor */}
+          {/* Caption editor — block images only */}
+          {selectedImageNode.node.type.name === 'mediaImage' && (
           <div className="pt-1 border-t border-[var(--border-subtle)]">
             {editingCaption ? (
               <div className="flex items-center gap-1">
@@ -1183,6 +1240,7 @@ const VisualEditor = forwardRef(function VisualEditor(
               </button>
             )}
           </div>
+          )}
         </>
       )}
     </div>
