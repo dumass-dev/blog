@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import cors from 'cors';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
@@ -13,6 +14,15 @@ import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
 
 const app = express();
 app.disable('x-powered-by');
+
+// Security headers middleware (matches edge and standalone server standards)
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
+  next();
+});
 
 // Strip HTML tags from plain-text fields before they reach the DB.
 // Removes anything matching <tag>, </tag>, <tag/> — preserves all other text
@@ -28,10 +38,14 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
-// CORS — restrict to known origins only (no wildcard)
+// CORS — restrict to known origins only (no open wildcard)
 const allowedOrigins = [
   process.env.ALLOWED_ORIGIN,
   process.env.VITE_SITE_URL,
+  process.env.SITE_URL,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+  'https://blog.q04ti.dev',
+  'https://q04ti.dev',
   'http://localhost:3000',
   'http://localhost:5173'
 ].filter(Boolean);
@@ -41,8 +55,12 @@ export const isAllowedOrigin = (origin) => {
   if (allowedOrigins.includes(origin)) return true;
   try {
     const url = new URL(origin);
+    // Allow local development
     if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
-    if (url.hostname.endsWith('.vercel.app')) return true;
+    // Allow owner's custom domains and subdomains
+    if (url.hostname === 'q04ti.dev' || url.hostname.endsWith('.q04ti.dev')) return true;
+    // Allow this project's Vercel preview and production deployments only (not all of vercel.app)
+    if (/^(?:blog|q04ti)(?:-[a-z0-9_-]+)?\.vercel\.app$/i.test(url.hostname)) return true;
     for (const allowed of allowedOrigins) {
       try {
         const parsed = new URL(allowed.startsWith('http') ? allowed : `https://${allowed}`);
@@ -2054,8 +2072,12 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
     const authHeader = req.headers['authorization'];
     const expectedSecret = process.env.METROLIST_WEBHOOK_SECRET;
     
-    // Very basic authorization check
-    if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+    // Timing-safe authorization check to prevent side-channel timing attacks
+    const expectedHeader = `Bearer ${expectedSecret || ''}`;
+    const authBuffer = Buffer.from(authHeader || '');
+    const expectedBuffer = Buffer.from(expectedHeader);
+
+    if (!expectedSecret || authBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(authBuffer, expectedBuffer)) {
       return res.status(401).json({ error: 'Unauthorized. Invalid or missing secret.' });
     }
 

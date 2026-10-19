@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const defaultUrl = 'https://aidajlxmfxhmsctmciaq.supabase.co';
+const defaultUrl = 'https://placeholder.supabase.co';
 
 export function getSupabaseServerClient(req) {
   if (process.env.NODE_ENV === 'test' && global.__mockSupabaseClient) {

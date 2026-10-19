@@ -14,13 +14,20 @@ if (typeof window !== 'undefined') {
         const parsed = new URL(src, window.location.origin);
         const hostname = parsed.hostname.toLowerCase();
         const allowedHosts = ['www.youtube.com', 'youtube.com', 'www.youtube-nocookie.com', 'youtube-nocookie.com', 'player.vimeo.com', 'vimeo.com'];
-        if (!allowedHosts.includes(hostname)) {
-          if (node.parentNode) {
+        const isAllowedProtocol = parsed.protocol === 'https:' || parsed.protocol === 'http:';
+        if (!isAllowedProtocol || !allowedHosts.includes(hostname)) {
+          node.removeAttribute('src');
+          if (typeof node.remove === 'function') {
+            node.remove();
+          } else if (node.parentNode) {
             node.parentNode.removeChild(node);
           }
         }
       } catch (_e) {
-        if (node.parentNode) {
+        node.removeAttribute('src');
+        if (typeof node.remove === 'function') {
+          node.remove();
+        } else if (node.parentNode) {
           node.parentNode.removeChild(node);
         }
       }
