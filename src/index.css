@@ -618,7 +618,8 @@ html {
 }
 
 .prose-editorial p {
-  margin-bottom: 1.85rem;
+  margin-top: 0;
+  margin-bottom: 1.35rem;
 }
 
 .prose-editorial h1,
@@ -673,7 +674,7 @@ html {
   background-color: transparent;
   transition: opacity 300ms ease-out;
   margin-top: 0.35rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.5rem;
 }
 
 /* If an image or figure is first-child or at the top of editorial, zero top margin */
@@ -684,7 +685,7 @@ html {
   margin-top: 0 !important;
 }
 
-/* Eliminate excessive gap when paragraph is followed directly by an image/figure */
+/* Eliminate excessive gap when paragraph is adjacent to an image/figure */
 .prose-editorial p:has(+ img),
 .prose-editorial p:has(+ figure),
 .prose-editorial p:has(+ .image-wrapper),
@@ -698,7 +699,14 @@ html {
 .prose-editorial p + figure,
 .prose-editorial p + .image-wrapper,
 .prose-editorial p + .media-figure {
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.prose-editorial img + p,
+.prose-editorial figure + p,
+.prose-editorial .image-wrapper + p,
+.prose-editorial .media-figure + p {
+  margin-top: 0.35rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */

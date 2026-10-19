@@ -42,17 +42,13 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
   const supaPercent = (supaUsed / supaAllocated) * 100;
   const totalPercent = (totalUsed / totalAllocated) * 100;
 
-  // Visual bar widths with slight minimum so tiny usage is visible on graph
-  const b2BarWidth = b2Used > 0 ? Math.max(1, Math.min(100, b2Percent)) : 0;
-  const supaBarWidth = supaUsed > 0 ? Math.max(1, Math.min(100, supaPercent)) : 0;
-
-  // Graph proportions across total capacity
-  const b2GraphWidth = totalAllocated > 0 ? (b2Used / totalAllocated) * 100 : 0;
-  const supaGraphWidth = totalAllocated > 0 ? (supaUsed / totalAllocated) * 100 : 0;
+  // Visual indicator percentages (ensure small amounts have clear visual representation)
+  const b2VisualWidth = b2Used > 0 ? Math.max(2, Math.min(100, b2Percent)) : 0;
+  const supaVisualWidth = supaUsed > 0 ? Math.max(2, Math.min(100, supaPercent)) : 0;
 
   return (
     <div className="mb-6 border border-[var(--border-subtle)] rounded-lg bg-[var(--card-bg)] overflow-hidden transition-all duration-200">
-      {/* Dropdown Toggle Bar */}
+      {/* Sleek Dropdown Toggle Bar - Non-wrapping and perfectly responsive on both mobile and desktop */}
       <div
         role="button"
         tabIndex={0}
@@ -63,23 +59,21 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
             setIsOpen(prev => !prev);
           }
         }}
-        className="w-full p-3 sm:px-4 sm:py-3 flex items-center justify-between text-left hover:bg-[var(--code-bg)]/40 transition-colors cursor-pointer select-none"
+        className="w-full px-3 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between text-left hover:bg-[var(--code-bg)]/40 transition-colors cursor-pointer select-none"
       >
-        {/* Left: Icon + Title + Real Summary */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <HardDrive className="w-4 h-4 text-[var(--accent-warm)] shrink-0" />
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="text-xs font-medium text-[var(--text-primary)]">
-              Storage & Cloud
-            </span>
-            <span className="text-[11px] font-mono text-[var(--text-muted)]">
-              ({formatBytes(totalUsed)} of {formatBytes(totalAllocated)} used)
-            </span>
-          </div>
+        {/* Left: Icon + Title + Usage Preview */}
+        <div className="flex items-center gap-2 min-w-0 pr-2">
+          <HardDrive className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent-warm)] shrink-0" />
+          <span className="text-xs font-medium text-[var(--text-primary)] whitespace-nowrap">
+            Storage & Cloud
+          </span>
+          <span className="text-[11px] font-mono text-[var(--text-muted)] truncate">
+            ({formatBytes(totalUsed)} / {formatBytes(totalAllocated)})
+          </span>
         </div>
 
-        {/* Right: Refresh button + Chevron */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right: Quick Sync Button + Chevron */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={(e) => {
@@ -88,11 +82,11 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
             }}
             disabled={refreshing}
             className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--card-bg)] cursor-pointer transition-colors"
-            title="Refresh storage stats"
+            title="Sync live storage"
           >
             <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
-          <span className="text-[var(--text-muted)]">
+          <span className="text-[var(--text-muted)] p-0.5">
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </span>
         </div>
@@ -100,9 +94,9 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
 
       {/* Expanded Content: Visual Graphs & Clean Breakdown */}
       {isOpen && (
-        <div className="p-4 sm:p-5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)]/20 animate-fadeIn">
-          {/* Main Visual Storage Distribution Graph */}
-          <div className="mb-5 pb-5 border-b border-[var(--border-subtle)]">
+        <div className="p-3.5 sm:p-5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)]/20 animate-fadeIn">
+          {/* Main Visual Storage Distribution Bar */}
+          <div className="mb-4 pb-4 border-b border-[var(--border-subtle)]">
             <div className="flex items-center justify-between text-xs mb-2 font-sans">
               <div className="flex items-center gap-1.5 font-medium text-[var(--text-primary)]">
                 <span>Total Usage:</span>
@@ -116,35 +110,35 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
               </span>
             </div>
 
-            {/* Segmented Horizontal Graph Bar */}
-            <div className="w-full h-3 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden flex items-center p-0.5">
+            {/* Segmented Horizontal Graph Bar with Clear Minimum Slivers */}
+            <div className="w-full h-2.5 sm:h-3 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden flex items-center p-0.5">
               {b2Used > 0 && (
                 <div
-                  className="h-full bg-emerald-500 rounded-l-full transition-all duration-500"
-                  style={{ width: `${Math.max(1.5, b2GraphWidth)}%` }}
+                  className="h-full bg-emerald-500 rounded-l-full transition-all duration-500 min-w-[8px]"
+                  style={{ width: `${Math.max(2, (b2Used / totalAllocated) * 100)}%` }}
                   title={`Media (B2): ${formatBytes(b2Used)}`}
                 />
               )}
               {supaUsed > 0 && (
                 <div
-                  className="h-full bg-sky-500 transition-all duration-500"
-                  style={{ width: `${Math.max(1, supaGraphWidth)}%` }}
+                  className="h-full bg-sky-500 transition-all duration-500 min-w-[6px]"
+                  style={{ width: `${Math.max(1.5, (supaUsed / totalAllocated) * 100)}%` }}
                   title={`Database: ${formatBytes(supaUsed)}`}
                 />
               )}
             </div>
 
-            {/* Clean Legend */}
-            <div className="flex items-center gap-4 mt-2.5 text-[11px] font-sans text-[var(--text-secondary)] flex-wrap">
-              <div className="flex items-center gap-1.5">
+            {/* Minimal Responsive Legend */}
+            <div className="flex items-center gap-3 sm:gap-4 mt-2 text-[11px] font-sans text-[var(--text-secondary)] flex-wrap">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                 <span>Media ({formatBytes(b2Used)})</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
                 <span>Database ({formatBytes(supaUsed)})</span>
               </div>
-              <div className="flex items-center gap-1.5 sm:ml-auto text-[var(--text-muted)]">
+              <div className="flex items-center gap-1.5 sm:ml-auto text-[var(--text-muted)] whitespace-nowrap">
                 <span className="w-2 h-2 rounded-full bg-[var(--border-subtle)] shrink-0" />
                 <span>Free ({formatBytes(totalFree)})</span>
               </div>
@@ -152,12 +146,12 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
           </div>
 
           {/* Clean 2-Card Visual Breakdown */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             {/* Card 1: Media Storage */}
-            <div className="p-3.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)]">
+            <div className="p-3 sm:p-3.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)] shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Cloud className="w-4 h-4 text-emerald-500" />
+                <div className="flex items-center gap-1.5">
+                  <Cloud className="w-4 h-4 text-emerald-500 shrink-0" />
                   <span className="text-xs font-medium text-[var(--text-primary)]">Media Storage</span>
                 </div>
                 <div className="text-right font-mono text-xs">
@@ -166,11 +160,11 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
                 </div>
               </div>
 
-              {/* Progress bar */}
-              <div className="w-full h-2 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden my-2">
+              {/* Progress bar with clear indicator */}
+              <div className="w-full h-1.5 sm:h-2 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden my-2">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                  style={{ width: `${b2BarWidth}%` }}
+                  style={{ width: `${b2VisualWidth}%` }}
                 />
               </div>
 
@@ -181,10 +175,10 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
             </div>
 
             {/* Card 2: Database Storage */}
-            <div className="p-3.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)]">
+            <div className="p-3 sm:p-3.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)] shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Database className="w-4 h-4 text-sky-500" />
+                <div className="flex items-center gap-1.5">
+                  <Database className="w-4 h-4 text-sky-500 shrink-0" />
                   <span className="text-xs font-medium text-[var(--text-primary)]">Database</span>
                 </div>
                 <div className="text-right font-mono text-xs">
@@ -193,11 +187,11 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
                 </div>
               </div>
 
-              {/* Progress bar */}
-              <div className="w-full h-2 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden my-2">
+              {/* Progress bar with clear indicator */}
+              <div className="w-full h-1.5 sm:h-2 rounded-full bg-[var(--code-bg)] border border-[var(--border-subtle)] overflow-hidden my-2">
                 <div
                   className="h-full bg-sky-500 rounded-full transition-all duration-500"
-                  style={{ width: `${supaBarWidth}%` }}
+                  style={{ width: `${supaVisualWidth}%` }}
                 />
               </div>
 

@@ -30,6 +30,7 @@ import {
 
 import { stripMarkdown } from '../../utils/excerpt';
 import StorageUsageCard from '../../components/StorageUsageCard';
+import { useToast } from '../../context/ToastContext';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -52,6 +53,7 @@ function setPersistedCache(data) {
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
+  const { success: toastSuccess } = useToast();
 
   const [cachedData] = useState(() => getPersistedCache());
 
@@ -61,7 +63,6 @@ export default function Dashboard() {
   const [comments, setComments] = useState(() => cachedData.comments || []);
   const [loading, setLoading] = useState(() => !cachedData.entries);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest' | 'views' | 'title'
@@ -248,10 +249,9 @@ export default function Dashboard() {
     setRefreshing(false);
 
     if (isManual) {
-      setStatusMessage('Refreshed just now');
-      setTimeout(() => setStatusMessage(null), 3000);
+      toastSuccess('Refreshed just now');
     }
-  }, [token]);
+  }, [token, toastSuccess]);
 
   useEffect(() => {
     loadData();
@@ -460,11 +460,6 @@ export default function Dashboard() {
             <p className="text-xs font-sans text-[var(--text-secondary)]">
               Logged in as <span className="font-mono font-medium text-[var(--text-primary)]">{user?.email || user?.username || 'Admin'}</span>
             </p>
-            {statusMessage && (
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[var(--code-bg)] text-[var(--accent-warm)] font-medium border border-[var(--border-subtle)] whitespace-nowrap">
-                {statusMessage}
-              </span>
-            )}
           </div>
         </div>
 
