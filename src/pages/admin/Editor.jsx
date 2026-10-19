@@ -615,12 +615,14 @@ export default function Editor() {
       title: savedData.title || formData.title,
       data: savedData
     });
-    toastSuccess(id ? 'Entry updated successfully.' : 'Entry created successfully.');
-    setTimeout(() => {
-      setSaving(false);
-      isSavingRef.current = false;
-      navigate('/admin');
-    }, 100);
+    toastSuccess(id ? 'Entry updated successfully.' : 'Entry published successfully.');
+    setSaving(false);
+    isSavingRef.current = false;
+
+    if (!id && savedData?.id) {
+      // Smoothly transition new entry into edit route so the author remains in the editor
+      navigate(`/admin/edit/${savedData.id}`, { replace: true });
+    }
   };
 
   if (loading) {

@@ -68,7 +68,7 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest' | 'views' | 'title'
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [showStatsMobile, setShowStatsMobile] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [showOnHome, setShowOnHome] = useState(false);
@@ -497,57 +497,59 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Mobile Stats Toggle (< 640px) */}
-      <div className="block sm:hidden mb-4">
+      {/* Studio Overview Accordion - Available on both Desktop and Mobile */}
+      <div className="mb-4">
         <button
           type="button"
-          onClick={() => setShowStatsMobile(prev => !prev)}
-          className="w-full flex items-center justify-between p-3 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] text-xs font-sans text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+          onClick={() => setShowStats(prev => !prev)}
+          className="w-full flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3 border border-[var(--border-subtle)] rounded-lg bg-[var(--card-bg)] hover:bg-[var(--code-bg)]/40 text-xs font-sans text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer select-none transition-colors"
         >
           <div className="flex items-center gap-2">
-            <BarChart2 className="w-3.5 h-3.5 text-[var(--accent-warm)]" />
-            <span className="font-medium text-[var(--text-primary)]">Studio Overview</span>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">({stats.total} entries · {stats.totalViews || 0} views)</span>
+            <BarChart2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent-warm)] shrink-0" />
+            <span className="font-medium text-xs text-[var(--text-primary)] whitespace-nowrap">Studio Overview</span>
+            <span className="text-[10px] sm:text-[11px] font-mono text-[var(--text-muted)]">({stats.total} entries · {stats.totalViews || 0} views)</span>
           </div>
-          {showStatsMobile ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showStats ? <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />}
         </button>
       </div>
 
-      {/* Metrics Row - Using vanilla CSS responsive-card-grid */}
-      <div className={`${showStatsMobile ? 'grid' : 'hidden'} sm:grid responsive-card-grid mb-8`}>
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Entries</div>
-          <div className="text-2xl font-serif font-medium mt-1">{stats.total}</div>
-        </div>
+      {/* Metrics Row - Appears when expanded on both Desktop and Mobile */}
+      {showStats && (
+        <div className="responsive-card-grid mb-6 animate-fadeIn">
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Entries</div>
+            <div className="text-2xl font-serif font-medium mt-1">{stats.total}</div>
+          </div>
 
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Published</div>
-          <div className="text-2xl font-serif font-medium mt-1 text-[var(--text-primary)]">{stats.published}</div>
-        </div>
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Published</div>
+            <div className="text-2xl font-serif font-medium mt-1 text-[var(--text-primary)]">{stats.published}</div>
+          </div>
 
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Drafts</div>
-          <div className="text-2xl font-serif font-medium mt-1 text-[var(--text-primary)]">{stats.drafts}</div>
-        </div>
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Drafts</div>
+            <div className="text-2xl font-serif font-medium mt-1 text-[var(--text-primary)]">{stats.drafts}</div>
+          </div>
 
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Updates</div>
-          <div className="text-2xl font-serif font-medium mt-1">{stats.updates}</div>
-        </div>
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Updates</div>
+            <div className="text-2xl font-serif font-medium mt-1">{stats.updates}</div>
+          </div>
 
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Views</div>
-          <div className="text-2xl font-serif font-medium mt-1 text-[var(--accent-warm)] flex items-center gap-1">
-            <Eye className="w-4 h-4 opacity-75" />
-            <span>{stats.totalViews || 0}</span>
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Total Views</div>
+            <div className="text-2xl font-serif font-medium mt-1 text-[var(--accent-warm)] flex items-center gap-1">
+              <Eye className="w-4 h-4 opacity-75" />
+              <span>{stats.totalViews || 0}</span>
+            </div>
+          </div>
+
+          <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
+            <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Media Files</div>
+            <div className="text-2xl font-serif font-medium mt-1">{stats.mediaCount}</div>
           </div>
         </div>
-
-        <div className="border border-[var(--border-subtle)] p-4 rounded bg-[var(--card-bg)]">
-          <div className="text-xs font-sans text-[var(--text-muted)] uppercase">Media Files</div>
-          <div className="text-2xl font-serif font-medium mt-1">{stats.mediaCount}</div>
-        </div>
-      </div>
+      )}
 
       {/* Storage & Cloud Allocation Meter */}
       <StorageUsageCard

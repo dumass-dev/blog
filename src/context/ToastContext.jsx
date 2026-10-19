@@ -71,11 +71,20 @@ export function ToastProvider({ children }) {
 
             <button
               type="button"
-              onClick={() => removeToast(t.id)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 ml-0.5 rounded-full cursor-pointer transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                removeToast(t.id);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                removeToast(t.id);
+              }}
+              className="w-7 h-7 -mr-1 flex items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)] cursor-pointer transition-colors shrink-0 touch-manipulation"
               aria-label="Close notification"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ))}

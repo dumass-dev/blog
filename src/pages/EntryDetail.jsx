@@ -635,27 +635,27 @@ export default function EntryDetail() {
       )}
 
       {/* Next & Previous navigation */}
-      <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-sans">
-        <div className="w-full sm:w-auto">
+      <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-row items-start justify-between gap-4 text-xs font-sans w-full">
+        <div className="flex-1 min-w-0 pr-2">
           {prev ? (
             <Link to={`/entry/${prev.slug || prev.id}`} className="group block text-left">
-              <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">← Previous</span>
-              <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
+              <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5 text-[10px] sm:text-xs">← Previous</span>
+              <span className="font-serif text-xs sm:text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors truncate block">
                 {prev.title.split(' ').length > 3 ? prev.title.split(' ').slice(0, 3).join(' ') + '...' : prev.title}
               </span>
             </Link>
-          ) : null}
+          ) : <div />}
         </div>
 
-        <div className="text-right w-full sm:w-auto">
+        <div className="flex-1 min-w-0 pl-2 text-right">
           {next ? (
             <Link to={`/entry/${next.slug || next.id}`} className="group block text-right">
-              <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5">Next →</span>
-              <span className="font-serif text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors">
+              <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5 text-[10px] sm:text-xs">Next →</span>
+              <span className="font-serif text-xs sm:text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors truncate block">
                 {next.title.split(' ').length > 3 ? next.title.split(' ').slice(0, 3).join(' ') + '...' : next.title}
               </span>
             </Link>
-          ) : null}
+          ) : <div />}
         </div>
       </nav>
     </article>
