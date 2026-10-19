@@ -708,36 +708,38 @@ export default function Editor() {
       />
 
       {/* Top action bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-4">
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={() => navigate('/admin')}
-            className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-serif font-medium">
-              {id ? 'Edit Entry' : 'New Entry'}
-            </h1>
-            {formData.type === 'photo' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)]">
-                <ImageIcon className="w-3 h-3 text-[var(--accent-warm)]" />
-                <span>Photo Post</span>
-              </span>
-            )}
-            {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
-              <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode protected for public readers">
-                <span>Protected</span>
-              </span>
-            )}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
+        <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center space-x-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate('/admin')}
+              className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-xl font-serif font-medium truncate">
+                {id ? 'Edit Entry' : 'New Entry'}
+              </h1>
+              {formData.type === 'photo' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] shrink-0">
+                  <ImageIcon className="w-3 h-3 text-[var(--accent-warm)]" />
+                  <span>Photo</span>
+                </span>
+              )}
+              {Boolean(formData.passcode && formData.passcode.trim() !== '') && (
+                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-sans font-medium rounded bg-[var(--code-bg)] text-[var(--accent-warm)] border border-[var(--border-subtle)] whitespace-nowrap shrink-0" title="Passcode protected for public readers">
+                  <span>Protected</span>
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
           {/* Visual / Markdown / Split / Preview Toggle */}
-          <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)]">
+          <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)] shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -751,7 +753,7 @@ export default function Editor() {
                 }
                 setMode('visual');
               }}
-              className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'visual'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -763,7 +765,7 @@ export default function Editor() {
               }
               title="TipTap Visual Block Editor"
             >
-              <Edit3 className="w-3.5 h-3.5" />
+              <Edit3 className="w-3.5 h-3.5 shrink-0" />
               <span>Visual</span>
             </button>
 
@@ -776,7 +778,7 @@ export default function Editor() {
                 }
                 setMode('markdown');
               }}
-              className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'markdown'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -788,7 +790,7 @@ export default function Editor() {
               }
               title="Raw Markdown Editor"
             >
-              <Code className="w-3.5 h-3.5" />
+              <Code className="w-3.5 h-3.5 shrink-0" />
               <span>Markdown</span>
             </button>
 
@@ -801,7 +803,7 @@ export default function Editor() {
                 }
                 setMode('split');
               }}
-              className={`hidden md:flex px-3 py-1 rounded items-center gap-1.5 transition-all cursor-pointer ${
+              className={`hidden md:flex px-3 py-1 rounded items-center gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'split'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -813,7 +815,7 @@ export default function Editor() {
               }
               title="Side-by-side live editor & visual preview"
             >
-              <Columns className="w-3.5 h-3.5" />
+              <Columns className="w-3.5 h-3.5 shrink-0" />
               <span>Split</span>
             </button>
 
@@ -826,7 +828,7 @@ export default function Editor() {
                 }
                 setMode('preview');
               }}
-              className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'preview'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -838,24 +840,26 @@ export default function Editor() {
               }
               title="Visual Reading Preview"
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>Preview</span>
             </button>
           </div>
 
-          <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center">
-            <ThemeToggle />
-          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
+              <ThemeToggle />
+            </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="quiet-button text-xs flex items-center gap-1.5"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>{saving ? 'Publishing...' : 'Publish'}</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="quiet-button text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5"
+            >
+              <Save className="w-3.5 h-3.5 shrink-0" />
+              <span>{saving ? 'Publishing...' : 'Publish'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1196,9 +1200,20 @@ export default function Editor() {
                   Body Content ({mode === 'visual' ? 'Visual Block Editor' : 'Markdown'})
                 </label>
                 {mode === 'visual' && (
-                  <span className="text-[11px] font-sans text-[var(--text-muted)] italic">
-                    Type <kbd className="px-1 py-0.5 rounded bg-[var(--code-bg)] text-[10px] font-mono border border-[var(--border-subtle)]">/</kbd> for quick blocks
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (visualEditorRef.current?.openSlashMenu) {
+                        visualEditorRef.current.openSlashMenu();
+                      }
+                    }}
+                    className="text-[11px] font-sans text-[var(--text-muted)] hover:text-[var(--text-primary)] italic transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Click or type / in editor to insert quick blocks"
+                  >
+                    <span>Type</span>
+                    <kbd className="px-1 py-0.5 rounded bg-[var(--code-bg)] text-[10px] font-mono border border-[var(--border-subtle)] font-bold">/</kbd>
+                    <span>for quick blocks</span>
+                  </button>
                 )}
               </div>
 

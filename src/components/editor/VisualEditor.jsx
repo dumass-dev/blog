@@ -181,6 +181,10 @@ const VisualEditor = forwardRef(function VisualEditor(
       if (!editor || !text) return;
       editor.chain().focus().insertContent(text).run();
     },
+    openSlashMenu: () => {
+      if (!editor || editor.isDestroyed) return;
+      editor.chain().focus().insertContent('/').run();
+    },
     get commands() {
       try {
         return (editor && !editor.isDestroyed) ? editor.commands : {};
@@ -276,19 +280,38 @@ const VisualEditor = forwardRef(function VisualEditor(
 
     // Position Slash Menu if active
     if (slashState && slashMenuRef.current && slashState.clientRect) {
-      const virtualElement = {
-        getBoundingClientRect: slashState.clientRect
-      };
-      computePosition(virtualElement, slashMenuRef.current, {
-        placement: 'bottom-start',
-        middleware: [offset(6), flip(), shift({ padding: 8 })]
-      }).then(({ x, y }) => {
-        if (slashMenuRef.current) {
-          slashMenuRef.current.style.left = `${x}px`;
-          slashMenuRef.current.style.top = `${y}px`;
-          slashMenuRef.current.style.display = 'block';
-        }
-      });
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      if (isMobile) {
+        slashMenuRef.current.style.position = 'fixed';
+        slashMenuRef.current.style.left = '12px';
+        slashMenuRef.current.style.right = '12px';
+        slashMenuRef.current.style.bottom = '12px';
+        slashMenuRef.current.style.top = 'auto';
+        slashMenuRef.current.style.width = 'auto';
+        slashMenuRef.current.style.maxWidth = 'calc(100vw - 24px)';
+        slashMenuRef.current.style.maxHeight = '42vh';
+        slashMenuRef.current.style.display = 'block';
+      } else {
+        const virtualElement = {
+          getBoundingClientRect: slashState.clientRect
+        };
+        computePosition(virtualElement, slashMenuRef.current, {
+          placement: 'bottom-start',
+          middleware: [offset(6), flip(), shift({ padding: 8 })]
+        }).then(({ x, y }) => {
+          if (slashMenuRef.current) {
+            slashMenuRef.current.style.position = 'fixed';
+            slashMenuRef.current.style.left = `${x}px`;
+            slashMenuRef.current.style.top = `${y}px`;
+            slashMenuRef.current.style.right = 'auto';
+            slashMenuRef.current.style.bottom = 'auto';
+            slashMenuRef.current.style.width = '';
+            slashMenuRef.current.style.maxWidth = '';
+            slashMenuRef.current.style.maxHeight = '20rem';
+            slashMenuRef.current.style.display = 'block';
+          }
+        });
+      }
     } else if (slashMenuRef.current) {
       slashMenuRef.current.style.display = 'none';
     }
@@ -640,11 +663,27 @@ const VisualEditor = forwardRef(function VisualEditor(
       {slashState && (
         <div
           ref={slashMenuRef}
+          onMouseDown={(e) => e.preventDefault()}
+          onTouchStart={(e) => e.stopPropagation()}
           style={{ display: 'none', position: 'fixed', zIndex: 120 }}
-          className="w-72 max-h-80 overflow-y-auto p-1.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-lg font-sans"
+          className="w-full sm:w-72 max-h-80 overflow-y-auto p-1.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-lg font-sans"
         >
-          <div className="text-[10px] font-sans font-medium uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-[var(--border-subtle)] mb-1">
-            Insert Block
+          <div className="flex items-center justify-between text-[10px] font-sans font-medium uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-[var(--border-subtle)] mb-1">
+            <span>Insert Block</span>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setSlashState(null);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                setSlashState(null);
+              }}
+              className="sm:hidden text-xs text-[var(--text-muted)] p-1 hover:text-[var(--text-primary)]"
+            >
+              ✕
+            </button>
           </div>
           {slashItems.length === 0 ? (
             <div className="px-3 py-4 text-xs text-[var(--text-muted)] text-center italic">
@@ -655,7 +694,14 @@ const VisualEditor = forwardRef(function VisualEditor(
               <button
                 key={item.title}
                 type="button"
-                onClick={() => slashState.command(item)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  slashState.command(item);
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  slashState.command(item);
+                }}
                 className={`w-full min-h-[44px] px-3 py-2 rounded-lg flex items-center gap-3 text-left transition-colors cursor-pointer ${
                   idx === selectedSlashIndex
                     ? 'bg-black/10 dark:bg-white/10 text-[var(--text-primary)] font-medium'

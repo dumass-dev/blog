@@ -685,11 +685,13 @@ html {
   margin-top: 0 !important;
 }
 
-/* Eliminate excessive gap when paragraph is adjacent to an image/figure */
+/* Eliminate excessive gap when paragraph is adjacent to an image/figure/block */
 .prose-editorial p:has(+ img),
 .prose-editorial p:has(+ figure),
 .prose-editorial p:has(+ .image-wrapper),
 .prose-editorial p:has(+ .media-figure),
+.prose-editorial p:has(+ .media-image-block),
+.prose-editorial p:has(+ div[data-node-type="mediaImage"]),
 .prose-editorial p:has(+ p > img:only-child),
 .prose-editorial p:has(+ p:has(> img:only-child)) {
   margin-bottom: 0.35rem;
@@ -698,15 +700,43 @@ html {
 .prose-editorial p + img,
 .prose-editorial p + figure,
 .prose-editorial p + .image-wrapper,
-.prose-editorial p + .media-figure {
+.prose-editorial p + .media-figure,
+.prose-editorial p + .media-image-block,
+.prose-editorial p + div[data-node-type="mediaImage"] {
   margin-top: 0.35rem;
 }
 
 .prose-editorial img + p,
 .prose-editorial figure + p,
 .prose-editorial .image-wrapper + p,
-.prose-editorial .media-figure + p {
+.prose-editorial .media-figure + p,
+.prose-editorial .media-image-block + p,
+.prose-editorial div[data-node-type="mediaImage"] + p {
   margin-top: 0.35rem;
+}
+
+/* Empty paragraph spacing matching single line height */
+.prose-editorial p:has(> br:only-child),
+.prose-editorial p:empty,
+.ProseMirror p:has(> br.ProseMirror-trailingBreak:only-child),
+.ProseMirror p:empty {
+  margin-top: 0 !important;
+  margin-bottom: 0.35rem !important;
+  min-height: 1.25rem !important;
+  line-height: 1.4 !important;
+}
+
+.prose-editorial p:has(+ p:has(> br:only-child)),
+.prose-editorial p:has(+ p:empty),
+.ProseMirror p:has(+ p:has(> br.ProseMirror-trailingBreak:only-child)),
+.ProseMirror p:has(+ p:empty) {
+  margin-bottom: 0.35rem !important;
+}
+
+.prose-editorial .media-image-block,
+.prose-editorial div[data-node-type="mediaImage"] {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
