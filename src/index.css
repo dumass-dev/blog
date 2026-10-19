@@ -729,22 +729,35 @@ html {
   margin-top: 0.35rem;
 }
 
-/* Empty paragraph spacing matching single line height */
-.prose-editorial p:has(> br:only-child),
-.prose-editorial p:empty,
-.ProseMirror p:has(> br.ProseMirror-trailingBreak:only-child),
-.ProseMirror p:empty {
-  margin-top: 0 !important;
-  margin-bottom: 0.35rem !important;
-  min-height: 1.25rem !important;
-  line-height: 1.4 !important;
+/* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class) */
+.prose-editorial:not(.ProseMirror) p:has(> br:only-child),
+.prose-editorial:not(.ProseMirror) p:empty {
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+  min-height: 0.85em;
+  line-height: 1.4;
 }
 
-.prose-editorial p:has(+ p:has(> br:only-child)),
-.prose-editorial p:has(+ p:empty),
-.ProseMirror p:has(+ p:has(> br.ProseMirror-trailingBreak:only-child)),
-.ProseMirror p:has(+ p:empty) {
-  margin-bottom: 0.35rem !important;
+/* === TipTap Visual Editor — compact paragraph & blank-line spacing ===
+   The editor root has class="ProseMirror prose-editorial …" (set in editorProps.attributes.class).
+   Compound selector specificity (0,2,1) beats .prose-editorial p (0,1,1), so no !important needed
+   for the base rule, yet it NEVER matches the published RichViewer which has only prose-editorial.
+
+   Goal: intentional blank line ≈ natural word-wrap line spacing (~1 line height), not a huge gap.
+*/
+.ProseMirror.prose-editorial p {
+  margin-top: 0;
+  margin-bottom: 0.5em; /* compact editor gap; compound selector beats .prose-editorial p */
+}
+
+/* Blank-line paragraph (empty or trailing-break only) = thin spacer, not a full paragraph block */
+.ProseMirror.prose-editorial p:empty,
+.ProseMirror.prose-editorial p:has(> br:only-child) {
+  margin: 0 !important;
+  min-height: 0 !important;
+  height: 1.35em !important;    /* ~1 natural line so blank line ≈ word-wrap spacing  */
+  line-height: 1.35 !important; /* match height so <br> doesn't overflow              */
+  overflow: hidden;
 }
 
 .prose-editorial .media-image-block,
