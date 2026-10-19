@@ -8,6 +8,9 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('@tiptap') || id.includes('prosemirror') || id.includes('@floating-ui')) {
+              return 'vendor-editor';
+            }
             if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('react/')) {
               return 'vendor-react';
             }

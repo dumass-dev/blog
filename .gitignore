@@ -7,3 +7,4 @@ server/diary.db*
 AUDIT_REPORT.md
 .agents/
 .local/
+tests/screenshots/
