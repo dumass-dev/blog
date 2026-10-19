@@ -216,6 +216,8 @@ const VisualEditor = forwardRef(function VisualEditor(
               const nodeAtPos = view.state.doc.nodeAt(targetPos);
               if (nodeAtPos && nodeAtPos.type.name === 'mediaImage') {
                 const sel = NodeSelection.create(view.state.doc, targetPos);
+                // Suppress mobile keyboard before focusing: images don't need text input
+                view.dom.setAttribute('inputmode', 'none');
                 view.dispatch(view.state.tr.setSelection(sel));
                 view.focus();
                 return true;
@@ -369,6 +371,7 @@ const VisualEditor = forwardRef(function VisualEditor(
 
     if (domNode && domNode.getBoundingClientRect) {
       computePosition(domNode, imageToolbarRef.current, {
+        strategy: 'fixed', // toolbar is position:fixed — must use fixed strategy for correct coords at any scroll depth
         placement: 'top',
         middleware: [offset(10), flip(), shift({ padding: 8 })]
       }).then(({ x, y }) => {
@@ -405,6 +408,38 @@ const VisualEditor = forwardRef(function VisualEditor(
       }
     }
   }, [selectedImageNode, positionImageToolbar]);
+
+  // Sync inputmode attribute to suppress mobile virtual keyboard when an image is selected.
+  // inputmode="none" on a contenteditable prevents the keyboard from appearing even when focused.
+  useEffect(() => {
+    const dom = editor?.view?.dom;
+    if (!dom) return;
+    if (selectedImageNode) {
+      dom.setAttribute('inputmode', 'none');
+    } else {
+      dom.removeAttribute('inputmode');
+    }
+  }, [editor, selectedImageNode]);
+
+  // Detect image touches BEFORE the browser processes focus (touchstart fires before focus/click).
+  // Set inputmode="none" immediately so the browser never shows the virtual keyboard.
+  useEffect(() => {
+    const dom = editor?.view?.dom;
+    if (!dom) return;
+    const handleTouchStart = (e) => {
+      const t = e.target;
+      const onImage = t.tagName === 'IMG' ||
+        !!t.closest?.('[data-node-type="mediaImage"], .media-image-block, .media-figure, figure');
+      if (onImage) {
+        dom.setAttribute('inputmode', 'none');
+      } else {
+        // Only restore if no image node is currently selected
+        if (!selectedImageNode) dom.removeAttribute('inputmode');
+      }
+    };
+    dom.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => dom.removeEventListener('touchstart', handleTouchStart);
+  }, [editor, selectedImageNode]);
 
   // Keep image toolbar positioned when scrolling or resizing (without flickering or vanishing!)
   useEffect(() => {
@@ -572,14 +607,16 @@ const VisualEditor = forwardRef(function VisualEditor(
         };
 
         computePosition(virtualElement, bubbleMenuRef.current, {
+          strategy: 'fixed', // menu is position:fixed — must use fixed strategy for correct coords at any scroll depth
           placement: 'top',
           middleware: [offset(8), flip(), shift({ padding: 12 })]
         }).then(({ x, y }) => {
           if (bubbleMenuRef.current && !showLinkPromptRef.current) {
             const menuWidth = bubbleMenuRef.current.offsetWidth || 280;
+            const menuH = bubbleMenuRef.current.offsetHeight || 50;
             const viewportWidth = window.innerWidth;
             const clampedX = Math.max(8, Math.min(x, viewportWidth - menuWidth - 8));
-            const clampedY = Math.max(8, y);
+            const clampedY = Math.max(8, Math.min(y, window.innerHeight - menuH - 8));
             bubbleMenuRef.current.style.left = `${clampedX}px`;
             bubbleMenuRef.current.style.top = `${clampedY}px`;
             bubbleMenuRef.current.style.display = 'flex';

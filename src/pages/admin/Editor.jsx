@@ -714,7 +714,7 @@ export default function Editor() {
       />
 
       {/* Top action bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
+      <div className="sticky top-0 z-40 bg-[var(--bg-main)] flex flex-col sm:flex-row justify-between items-stretch sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
         {/* Row 1: Back + Title on left, ThemeToggle + Publish on right for mobile */}
         <div className="flex items-center justify-between w-full sm:w-auto gap-2">
           <div className="flex items-center space-x-2.5 min-w-0">
