@@ -11,6 +11,7 @@ import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
 import { resolveMediaUrl } from '../../utils/media';
 import { slugify } from '../../utils/slug';
+import { checkFidelity } from '../../utils/editorFidelity';
 import {
   Save,
   ArrowLeft,
@@ -38,8 +39,11 @@ import {
   EyeOff,
   ExternalLink,
   AlignLeft,
-  AlignRight
+  AlignRight,
+  AlertTriangle
 } from 'lucide-react';
+
+const VisualEditor = React.lazy(() => import('../../components/editor/VisualEditor'));
 
 export { slugify };
 
@@ -111,7 +115,11 @@ export default function Editor() {
     };
   });
 
-  const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
+  const [mode, setMode] = useState('visual'); // 'visual' | 'markdown' | 'split' | 'preview'
+  const [gateWarning, setGateWarning] = useState(null);
+  const visualEditorRef = React.useRef(null);
+  const originalContentRef = React.useRef(initialEntry?.content || '');
+  const dirtyRef = React.useRef(false);
   const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
   const [saving, setSaving] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
@@ -276,6 +284,18 @@ export default function Editor() {
             show_in_feed: entryData.show_in_feed !== undefined ? Boolean(entryData.show_in_feed) : prev.show_in_feed,
             date: formattedDate || prev.date
           }));
+
+          const rawContent = entryData.content || '';
+          originalContentRef.current = rawContent;
+          dirtyRef.current = false;
+          const gate = checkFidelity(rawContent);
+          if (!gate.ok) {
+            setMode('markdown');
+            setGateWarning(gate.reason);
+          } else {
+            setMode('visual');
+            setGateWarning(null);
+          }
         } else if (!initialEntry) {
           toastError('Failed loading entry details.');
         }
@@ -290,8 +310,16 @@ export default function Editor() {
     };
   }, [id, token, initialEntry, toastError]);
 
+  const handleVisualChange = (newMd) => {
+    dirtyRef.current = true;
+    setFormData(prev => ({ ...prev, content: newMd }));
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'content') {
+      dirtyRef.current = true;
+    }
     if (name === 'title') {
       setFormData(prev => ({
         ...prev,
@@ -430,6 +458,20 @@ export default function Editor() {
     const newContent = currentContent.substring(0, start) + textToInsert + currentContent.substring(end);
     const newCursorPos = start + textToInsert.length;
 
+    dirtyRef.current = true;
+    if (mode === 'visual' && visualEditorRef.current) {
+      if (media.mime_type && media.mime_type.startsWith('video/')) {
+        visualEditorRef.current.insertVideoEmbed(insertUrl);
+      } else {
+        visualEditorRef.current.insertMediaImage({
+          src: insertUrl,
+          alt: media.original_name || 'image',
+          size: (media.size && media.size !== 'full' && media.size !== '100%') ? media.size : '',
+          align: (media.align && media.align !== 'center') ? media.align : ''
+        });
+      }
+    }
+
     const rawUrl = media.url || media.storageKey || media.signed_url || '';
     const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
     const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
@@ -460,11 +502,20 @@ export default function Editor() {
     e.preventDefault();
     if (isSavingRef.current || saving) return;
 
+    // Layer A: Dirty Tracking & Byte-for-byte Unmodified Saves
+    let contentToSave = formData.content;
+    if (id && !dirtyRef.current && originalContentRef.current !== undefined) {
+      // Unedited existing post: guarantee 100% byte-for-byte identity by using original
+      contentToSave = originalContentRef.current;
+    } else if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+      contentToSave = visualEditorRef.current.getMarkdown();
+    }
+
     if (!formData.title && formData.type !== 'update' && formData.type !== 'photo') {
       toastError('Title is required for Journal and Writing entries.');
       return;
     }
-    if (!formData.content) {
+    if (!contentToSave) {
       toastError('Content is required.');
       return;
     }
@@ -483,12 +534,13 @@ export default function Editor() {
 
     const payload = {
       ...formData,
+      content: contentToSave,
       title: formData.title || fallbackTitle,
       slug: payloadSlug,
       type: isPhotoPost ? 'journal' : formData.type,
       category: isPhotoPost ? (formData.category || 'Photos') : formData.category,
       show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : !isPhotoPost,
-      excerpt: stripMarkdown(formData.content, 150),
+      excerpt: stripMarkdown(contentToSave, 150),
       date: fromLocalDatetimeInputString(formData.date)
     };
 
@@ -616,6 +668,8 @@ export default function Editor() {
       data: savedData
     });
     toastSuccess(id ? 'Entry updated successfully.' : 'Entry published successfully.');
+    originalContentRef.current = contentToSave;
+    dirtyRef.current = false;
     setSaving(false);
     isSavingRef.current = false;
 
@@ -671,28 +725,71 @@ export default function Editor() {
         </div>
 
         <div className="flex items-center space-x-3">
-          {/* Edit / Split / Preview Toggle */}
+          {/* Visual / Markdown / Split / Preview Toggle */}
           <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)]">
             <button
               type="button"
-              onClick={() => setMode('edit')}
+              onClick={() => {
+                if (mode === 'markdown') {
+                  const gate = checkFidelity(formData.content);
+                  if (!gate.ok) {
+                    setGateWarning(gate.reason);
+                  } else {
+                    setGateWarning(null);
+                  }
+                }
+                setMode('visual');
+              }}
               className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
-                mode === 'edit'
+                mode === 'visual'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
               style={
-                mode === 'edit'
+                mode === 'visual'
                   ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' }
                   : {}
               }
+              title="TipTap Visual Block Editor"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Edit</span>
+              <span>Visual</span>
             </button>
+
             <button
               type="button"
-              onClick={() => setMode('split')}
+              onClick={() => {
+                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                  const md = visualEditorRef.current.getMarkdown();
+                  setFormData(prev => ({ ...prev, content: md }));
+                }
+                setMode('markdown');
+              }}
+              className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                mode === 'markdown'
+                  ? 'font-medium shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              style={
+                mode === 'markdown'
+                  ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' }
+                  : {}
+              }
+              title="Raw Markdown Editor"
+            >
+              <Code className="w-3.5 h-3.5" />
+              <span>Markdown</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                  const md = visualEditorRef.current.getMarkdown();
+                  setFormData(prev => ({ ...prev, content: md }));
+                }
+                setMode('split');
+              }}
               className={`hidden md:flex px-3 py-1 rounded items-center gap-1.5 transition-all cursor-pointer ${
                 mode === 'split'
                   ? 'font-medium shadow-xs'
@@ -708,9 +805,16 @@ export default function Editor() {
               <Columns className="w-3.5 h-3.5" />
               <span>Split</span>
             </button>
+
             <button
               type="button"
-              onClick={() => setMode('preview')}
+              onClick={() => {
+                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                  const md = visualEditorRef.current.getMarkdown();
+                  setFormData(prev => ({ ...prev, content: md }));
+                }
+                setMode('preview');
+              }}
               className={`px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
                 mode === 'preview'
                   ? 'font-medium shadow-xs'
@@ -721,6 +825,7 @@ export default function Editor() {
                   ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)' }
                   : {}
               }
+              title="Visual Reading Preview"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>Preview</span>
@@ -784,11 +889,35 @@ export default function Editor() {
               />
             </div>
 
+            {/* Gate Fallback Notice */}
+            {gateWarning && mode === 'markdown' && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--code-bg)] border border-[var(--border-subtle)] text-xs font-sans text-[var(--accent-warm)]">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>This entry contains formatting that requires raw Markdown mode to preserve 100% fidelity ({gateWarning}).</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMode('visual')}
+                  className="text-xs underline hover:opacity-80 shrink-0 ml-2"
+                >
+                  Switch to Visual
+                </button>
+              </div>
+            )}
+
             {/* Toolbar */}
             <div className="flex items-center gap-1 p-2 bg-[var(--code-bg)] border border-[var(--border-subtle)] rounded text-xs font-sans overflow-x-touch flex-nowrap shrink-0">
               <button
                 type="button"
-                onClick={() => insertFormatting('## ')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleHeading({ level: 1 }).run();
+                  } else {
+                    insertFormatting('## ');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 2"
               >
@@ -796,7 +925,14 @@ export default function Editor() {
               </button>
               <button
                 type="button"
-                onClick={() => insertFormatting('### ')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleHeading({ level: 2 }).run();
+                  } else {
+                    insertFormatting('### ');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 3"
               >
@@ -807,7 +943,14 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('**', '**')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleBold().run();
+                  } else {
+                    insertFormatting('**', '**');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Bold"
               >
@@ -815,7 +958,14 @@ export default function Editor() {
               </button>
               <button
                 type="button"
-                onClick={() => insertFormatting('*', '*')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleItalic().run();
+                  } else {
+                    insertFormatting('*', '*');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Italic"
               >
@@ -823,7 +973,14 @@ export default function Editor() {
               </button>
               <button
                 type="button"
-                onClick={() => insertFormatting('> ')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleBlockquote().run();
+                  } else {
+                    insertFormatting('> ');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Blockquote"
               >
@@ -831,7 +988,14 @@ export default function Editor() {
               </button>
               <button
                 type="button"
-                onClick={() => insertFormatting('```javascript\n', '\n```')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.toggleCodeBlock().run();
+                  } else {
+                    insertFormatting('```javascript\n', '\n```');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Code Block"
               >
@@ -842,7 +1006,17 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('[', '](https://example.com)')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    const url = typeof window !== 'undefined' ? window.prompt('Enter link URL (https://...):') : null;
+                    if (url) {
+                      visualEditorRef.current.commands?.setLink({ href: url }).run();
+                    }
+                  } else {
+                    insertFormatting('[', '](https://example.com)');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Link"
               >
@@ -870,7 +1044,16 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    if (typeof window !== 'undefined' && typeof window.CustomEvent === 'function') {
+                      window.dispatchEvent(new window.CustomEvent('editor-open-video-dialog'));
+                    }
+                  } else {
+                    insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Embed YouTube Video"
               >
@@ -879,7 +1062,17 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('\n[grid]\n', '\n[/grid]\n')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.insertContent({
+                      type: 'mediaGrid',
+                      content: [{ type: 'paragraph' }]
+                    }).run();
+                  } else {
+                    insertFormatting('\n[grid]\n', '\n[/grid]\n');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1 shrink-0 whitespace-nowrap"
                 title="Insert 2-column Media Grid for side-by-side images"
               >
@@ -889,9 +1082,20 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => applyImageWrap('left')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.insertContent({
+                      type: 'editorialWrap',
+                      attrs: { align: 'left', width: '45%' },
+                      content: [{ type: 'paragraph' }]
+                    }).run();
+                  } else {
+                    applyImageWrap('left');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
-                title="Float image on the left and wrap text around it (or format selected image)"
+                title="Float image on the left and wrap text around it"
               >
                 <AlignLeft className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Left</span>
@@ -899,9 +1103,20 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => applyImageWrap('right')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.insertContent({
+                      type: 'editorialWrap',
+                      attrs: { align: 'right', width: '45%' },
+                      content: [{ type: 'paragraph' }]
+                    }).run();
+                  } else {
+                    applyImageWrap('right');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
-                title="Float image on the right and wrap text around it (or format selected image)"
+                title="Float image on the right and wrap text around it"
               >
                 <AlignRight className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Right</span>
@@ -909,7 +1124,14 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('\n[clear]\n')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.insertContent({ type: 'editorialClear' }).run();
+                  } else {
+                    insertFormatting('\n[clear]\n');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer shrink-0 whitespace-nowrap"
                 title="End floating wrap and resume full-width text"
               >
@@ -918,7 +1140,14 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => insertFormatting('\n---\n')}
+                onClick={() => {
+                  dirtyRef.current = true;
+                  if (mode === 'visual' && visualEditorRef.current) {
+                    visualEditorRef.current.commands?.setHorizontalRule().run();
+                  } else {
+                    insertFormatting('\n---\n');
+                  }
+                }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Horizontal Rule"
               >
@@ -945,13 +1174,32 @@ export default function Editor() {
 
             {/* Content Body */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
-                Body Content (Markdown & Rich Text)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+                  Body Content ({mode === 'visual' ? 'Visual Block Editor' : 'Markdown'})
+                </label>
+                {mode === 'visual' && (
+                  <span className="text-[11px] font-sans text-[var(--text-muted)] italic">
+                    Type <kbd className="px-1 py-0.5 rounded bg-[var(--code-bg)] text-[10px] font-mono border border-[var(--border-subtle)]">/</kbd> for quick blocks
+                  </span>
+                )}
+              </div>
+
+              {mode === 'visual' ? (
+                <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--text-muted)] italic">Loading visual editor...</div>}>
+                  <VisualEditor
+                    ref={visualEditorRef}
+                    initialContent={formData.content}
+                    onChange={handleVisualChange}
+                    onOpenMediaPicker={() => setShowMediaPicker(true)}
+                  />
+                </React.Suspense>
+              ) : null}
+
               <textarea
                 id="content-textarea"
                 name="content"
-                rows={16}
+                rows={mode === 'visual' ? 2 : 16}
                 value={formData.content}
                 onChange={(e) => {
                   handleChange(e);
@@ -962,7 +1210,11 @@ export default function Editor() {
                 onKeyUp={updateCursorPos}
                 onBlur={updateCursorPos}
                 placeholder="Write your story, diary entry, or update here..."
-                className="quiet-input font-serif text-lg leading-relaxed p-4"
+                className={
+                  mode === 'visual'
+                    ? 'w-full h-8 px-3 py-1 text-xs font-mono bg-transparent border border-[var(--border-subtle)] rounded opacity-50 mt-3 transition-opacity hover:opacity-100'
+                    : 'quiet-input font-serif text-lg leading-relaxed p-4'
+                }
               />
             </div>
           </div>
