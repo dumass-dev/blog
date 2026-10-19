@@ -94,7 +94,7 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
 
       {/* Expanded Content: Visual Graphs & Clean Breakdown */}
       {isOpen && (
-        <div className="p-3.5 sm:p-5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)]/20 animate-fadeIn">
+        <div className="p-4 sm:p-5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)]/20 animate-fadeIn">
           {/* Main Visual Storage Distribution Bar */}
           <div className="mb-4 pb-4 border-b border-[var(--border-subtle)]">
             <div className="flex flex-wrap items-center justify-between gap-1 text-xs mb-2 font-sans">

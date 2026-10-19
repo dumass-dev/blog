@@ -658,9 +658,10 @@ export default function Dashboard() {
                   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'right 0.65rem center',
+                  paddingLeft: '0.85rem',
                   paddingRight: '1.75rem'
                 }}
-                className="w-full text-xs py-2 pl-3 font-sans cursor-pointer bg-[var(--bg-main)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
+                className="w-full text-xs py-2 pl-3.5 pr-6 font-sans cursor-pointer bg-[var(--bg-main)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded focus:outline-none focus:border-[var(--text-secondary)] transition-colors"
                 title="Sort entries"
               >
                 <option value="newest">Newest First</option>
@@ -690,34 +691,36 @@ export default function Dashboard() {
               {comments
                 .filter(c => !search.trim() || c.author_name.toLowerCase().includes(search.toLowerCase()) || c.content.toLowerCase().includes(search.toLowerCase()))
                 .map(item => (
-                  <div key={item.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans">
-                    <div className="space-y-1 max-w-2xl">
-                      <div className="flex items-center gap-2 text-[var(--text-muted)]">
-                        <span className="font-medium text-[var(--text-primary)]">{item.author_name}</span>
+                  <div key={item.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans w-full min-w-0">
+                    <div className="space-y-1.5 w-full min-w-0 max-w-2xl">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
+                        <span className="font-medium text-[var(--text-primary)] truncate max-w-[150px] sm:max-w-none">{item.author_name}</span>
                         <span>·</span>
-                        <span>{formatDate(item.created_at)}</span>
+                        <span className="shrink-0">{formatDate(item.created_at)}</span>
                         {item.entries?.slug && (
                           <>
                             <span>·</span>
-                            <Link to={`/entry/${item.entries.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-[var(--accent-warm)]">
+                            <Link to={`/entry/${item.entries.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-[var(--accent-warm)] truncate max-w-[160px] sm:max-w-xs inline-block align-bottom" title={item.entries.title}>
                               {item.entries.title || 'View Post'}
                             </Link>
                           </>
                         )}
                       </div>
-                      <p className="font-serif text-sm text-[var(--text-primary)] leading-relaxed">
+                      <p className="font-serif text-sm text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-wrap">
                         {item.content}
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteComment(item.id)}
-                      disabled={deletingCommentId === item.id}
-                      className="quiet-button-secondary text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5 shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>{deletingCommentId === item.id ? 'Deleting...' : 'Delete Comment'}</span>
-                    </button>
+                    <div className="w-full sm:w-auto flex justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--border-subtle)]/40 shrink-0">
+                      <button
+                        onClick={() => handleDeleteComment(item.id)}
+                        disabled={deletingCommentId === item.id}
+                        className="quiet-button-secondary text-xs text-red-500 hover:text-red-600 flex items-center gap-1.5 py-1 px-2.5 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{deletingCommentId === item.id ? 'Deleting...' : 'Delete Comment'}</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
             </div>

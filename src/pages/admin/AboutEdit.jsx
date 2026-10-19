@@ -72,6 +72,9 @@ export default function AboutEdit() {
   };
 
   const removeProject = (idx) => {
+    const proj = formData.projects[idx];
+    const name = proj?.title?.trim() || 'this project';
+    if (!window.confirm(`Are you sure you want to remove "${name}"?`)) return;
     setFormData(prev => ({
       ...prev,
       projects: prev.projects.filter((_, i) => i !== idx)
@@ -92,6 +95,9 @@ export default function AboutEdit() {
   };
 
   const removeLink = (idx) => {
+    const link = formData.links[idx];
+    const name = link?.label?.trim() || 'this link';
+    if (!window.confirm(`Are you sure you want to remove "${name}"?`)) return;
     setFormData(prev => ({
       ...prev,
       links: prev.links.filter((_, i) => i !== idx)

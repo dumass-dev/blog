@@ -485,6 +485,57 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
   };
 
+  // Touch drag handlers specifically optimized for mobile touchscreens
+  const handleTouchStart = (e) => {
+    if (e.target.closest('button, input, textarea, a')) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const el = imageToolbarRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      initialLeft: rect.left,
+      initialTop: rect.top
+    };
+
+    setIsDraggingToolbar(true);
+    e.stopPropagation();
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDraggingToolbar || !imageToolbarRef.current) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    if (e.cancelable) e.preventDefault();
+    e.stopPropagation();
+
+    const deltaX = touch.clientX - dragStartRef.current.startX;
+    const deltaY = touch.clientY - dragStartRef.current.startY;
+
+    const el = imageToolbarRef.current;
+    const rect = el.getBoundingClientRect();
+    const width = rect.width || 280;
+    const height = rect.height || 140;
+
+    let newLeft = dragStartRef.current.initialLeft + deltaX;
+    let newTop = dragStartRef.current.initialTop + deltaY;
+
+    newLeft = Math.max(8, Math.min(window.innerWidth - width - 8, newLeft));
+    newTop = Math.max(8, Math.min(window.innerHeight - height - 8, newTop));
+
+    el.style.left = `${Math.round(newLeft)}px`;
+    el.style.top = `${Math.round(newTop)}px`;
+    el.style.display = 'flex';
+    isUserDraggedRef.current = true;
+  };
+
+  const handleTouchEnd = () => {
+    setIsDraggingToolbar(false);
+  };
+
   // Update selection-dependent UI: Bubble Menu and Image Selection Toolbar
   const updatePopups = useCallback(() => {
     if (!editor) return;
@@ -539,15 +590,21 @@ const VisualEditor = forwardRef(function VisualEditor(
     if (slashState && slashMenuRef.current && slashState.clientRect) {
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
       if (isMobile) {
+        const vp = typeof window !== 'undefined' ? window.visualViewport : null;
+        const vpHeight = vp ? vp.height : window.innerHeight;
+        const vpTop = vp ? vp.offsetTop : 0;
+        const maxMenuH = Math.max(180, Math.min(280, vpHeight - 48));
+
         slashMenuRef.current.style.position = 'fixed';
-        slashMenuRef.current.style.left = '12px';
-        slashMenuRef.current.style.right = '12px';
-        slashMenuRef.current.style.bottom = '12px';
-        slashMenuRef.current.style.top = 'auto';
+        slashMenuRef.current.style.left = '16px';
+        slashMenuRef.current.style.right = '16px';
+        slashMenuRef.current.style.top = `${Math.round(vpTop + 16)}px`;
+        slashMenuRef.current.style.bottom = 'auto';
         slashMenuRef.current.style.width = 'auto';
-        slashMenuRef.current.style.maxWidth = 'calc(100vw - 24px)';
-        slashMenuRef.current.style.maxHeight = '42vh';
-        slashMenuRef.current.style.display = 'block';
+        slashMenuRef.current.style.maxWidth = 'calc(100vw - 32px)';
+        slashMenuRef.current.style.maxHeight = `${maxMenuH}px`;
+        slashMenuRef.current.style.display = 'flex';
+        slashMenuRef.current.style.flexDirection = 'column';
       } else {
         const virtualElement = {
           getBoundingClientRect: slashState.clientRect
@@ -565,7 +622,8 @@ const VisualEditor = forwardRef(function VisualEditor(
             slashMenuRef.current.style.width = '';
             slashMenuRef.current.style.maxWidth = '';
             slashMenuRef.current.style.maxHeight = '20rem';
-            slashMenuRef.current.style.display = 'block';
+            slashMenuRef.current.style.display = 'flex';
+            slashMenuRef.current.style.flexDirection = 'column';
           }
         });
       }
@@ -637,6 +695,7 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   const deleteSelectedImage = () => {
     if (!editor || !selectedImageNode) return;
+    if (!window.confirm('Remove this photo from the post?')) return;
     editor
       .chain()
       .focus()
@@ -845,9 +904,12 @@ const VisualEditor = forwardRef(function VisualEditor(
           if (e.target.closest('button, input, textarea')) return;
           e.preventDefault();
         }}
-        onTouchStart={(e) => e.stopPropagation()}
-        style={{ display: 'none', position: 'fixed', zIndex: 110 }}
-        className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        style={{ display: 'none', position: 'fixed', zIndex: 110, touchAction: 'none' }}
+        className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans select-none"
       >
         {selectedImageNode && (
           <>
@@ -856,16 +918,24 @@ const VisualEditor = forwardRef(function VisualEditor(
             onPointerMove={handleToolbarPointerMove}
             onPointerUp={handleToolbarPointerUp}
             onPointerCancel={handleToolbarPointerUp}
-            className={`flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 gap-2 select-none touch-none ${
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            style={{ touchAction: 'none' }}
+            className={`flex flex-col border-b border-[var(--border-subtle)] pb-2 gap-1.5 select-none touch-none ${
               isDraggingToolbar ? 'cursor-grabbing' : 'cursor-grab'
             }`}
             title="Drag with finger or mouse to move anywhere"
           >
-            <div className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
-              <GripHorizontal className="w-4 h-4 text-[var(--text-muted)] opacity-70" />
-              <span>Photo</span>
-            </div>
-            <div className="flex items-center gap-1">
+            {/* Obvious tactile drag pill for mobile fingers */}
+            <div className="w-12 h-1 rounded-full bg-[var(--text-muted)] opacity-40 mx-auto cursor-grab" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                <GripHorizontal className="w-4 h-4 text-[var(--text-muted)] opacity-70" />
+                <span>Photo</span>
+              </div>
+              <div className="flex items-center gap-1">
               <button
                 type="button"
                 onMouseDown={(e) => {
@@ -915,6 +985,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 <span className="hidden sm:inline">Remove</span>
               </button>
             </div>
+          </div>
           </div>
 
           {/* Size choices */}
@@ -1026,9 +1097,9 @@ const VisualEditor = forwardRef(function VisualEditor(
           onMouseDown={(e) => e.preventDefault()}
           onTouchStart={(e) => e.stopPropagation()}
           style={{ display: 'none', position: 'fixed', zIndex: 120 }}
-          className="w-full sm:w-72 max-h-80 overflow-y-auto p-1.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-lg font-sans"
+          className="w-full sm:w-72 max-h-80 flex flex-col p-1.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-lg font-sans"
         >
-          <div className="flex items-center justify-between text-[10px] font-sans font-medium uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-[var(--border-subtle)] mb-1">
+          <div className="flex items-center justify-between text-[10px] font-sans font-medium uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-[var(--border-subtle)] mb-1 shrink-0">
             <span>Insert Block</span>
             <button
               type="button"
@@ -1040,16 +1111,17 @@ const VisualEditor = forwardRef(function VisualEditor(
                 e.preventDefault();
                 setSlashState(null);
               }}
-              className="sm:hidden text-xs text-[var(--text-muted)] p-1 hover:text-[var(--text-primary)]"
+              className="text-xs text-[var(--text-muted)] p-1 hover:text-[var(--text-primary)] cursor-pointer"
             >
               ✕
             </button>
           </div>
-          {slashItems.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-[var(--text-muted)] text-center italic">
-              No matching commands
-            </div>
-          ) : (
+          <div className="overflow-y-auto flex-1 overscroll-contain pr-1">
+            {slashItems.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-[var(--text-muted)] text-center italic">
+                No matching commands
+              </div>
+            ) : (
             slashItems.map((item, idx) => (
               <button
                 key={item.title}
@@ -1082,6 +1154,7 @@ const VisualEditor = forwardRef(function VisualEditor(
               </button>
             ))
           )}
+          </div>
         </div>
       )}
 
