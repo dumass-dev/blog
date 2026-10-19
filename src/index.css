@@ -624,43 +624,30 @@ html {
 
 .prose-editorial h1,
 .prose-editorial h2,
-.prose-editorial h3,
-.prose-editorial h4,
-.prose-editorial h5,
-.prose-editorial h6 {
+.prose-editorial h3 {
   font-family: var(--font-serif);
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--text-primary);
-  margin-top: 17px;
-  margin-bottom: 0.45rem;
+  margin-top: 2.75rem;
+  margin-bottom: 1.15rem;
 }
 
-.prose-editorial > h1:first-child,
-.prose-editorial > h2:first-child,
-.prose-editorial > h3:first-child,
-.prose-editorial > h4:first-child,
-.prose-editorial > h5:first-child,
-.prose-editorial > h6:first-child {
-  margin-top: 0;
-}
-
-.prose-editorial h1 { font-size: 2.25rem; line-height: 1.25; }
+.prose-editorial h1 { font-size: 2.35rem; line-height: 1.25; }
 .prose-editorial hr {
   clear: both;
 }
 
-.prose-editorial h2 { font-size: 1.75rem; line-height: 1.3; }
-.prose-editorial h3 { font-size: 1.45rem; line-height: 1.35; }
-.prose-editorial h4 { font-size: 1.25rem; line-height: 1.4; }
+.prose-editorial h2 { font-size: 1.85rem; line-height: 1.3; }
+.prose-editorial h3 { font-size: 1.55rem; line-height: 1.35; }
 
 .prose-editorial blockquote {
   border-left: 2px solid var(--accent-warm);
-  padding-left: 1.25rem;
+  padding-left: 1.35rem;
   margin-left: 0;
   margin-right: 0;
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
   font-style: italic;
   color: var(--text-secondary);
 }
@@ -698,24 +685,28 @@ html {
   margin-top: 0 !important;
 }
 
-/* When image is directly attached to adjacent text (no empty line in editor) */
-.prose-editorial .has-adjacent-media {
-  margin-bottom: 0.2rem !important;
-  margin-top: 0.2rem !important;
+/* Eliminate excessive gap when paragraph is adjacent to an image/figure */
+.prose-editorial p:has(+ img),
+.prose-editorial p:has(+ figure),
+.prose-editorial p:has(+ .image-wrapper),
+.prose-editorial p:has(+ .media-figure),
+.prose-editorial p:has(+ p > img:only-child),
+.prose-editorial p:has(+ p:has(> img:only-child)) {
+  margin-bottom: 0.35rem;
 }
 
-.prose-editorial .media-tight,
-.prose-editorial .media-figure.media-tight,
-.prose-editorial img.media-tight {
-  margin-top: 0.2rem !important;
-  margin-bottom: 0.35rem !important;
+.prose-editorial p + img,
+.prose-editorial p + figure,
+.prose-editorial p + .image-wrapper,
+.prose-editorial p + .media-figure {
+  margin-top: 0.35rem;
 }
 
-/* Default spacing when image is separated by blank line in editor */
-.prose-editorial .media-figure:not(.media-tight),
-.prose-editorial img:not(.media-tight) {
-  margin-top: 0.5rem;
-  margin-bottom: 0.75rem;
+.prose-editorial img + p,
+.prose-editorial figure + p,
+.prose-editorial .image-wrapper + p,
+.prose-editorial .media-figure + p {
+  margin-top: 0.35rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
