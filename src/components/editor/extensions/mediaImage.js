@@ -4,7 +4,7 @@ export const MediaImage = Node.create({
   name: 'mediaImage',
   group: 'block',
   atom: true,
-  draggable: true,
+  draggable: false,
 
   addAttributes() {
     return {

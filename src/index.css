@@ -784,6 +784,17 @@ html {
   text-align: center;
 }
 
+/* Selected photo visual outline in editor */
+.ProseMirror .ProseMirror-selectednode,
+.ProseMirror .media-image-block.ProseMirror-selectednode,
+.ProseMirror .media-figure.ProseMirror-selectednode,
+.ProseMirror [data-node-type="mediaImage"].ProseMirror-selectednode {
+  outline: 3px solid var(--accent-warm) !important;
+  outline-offset: 3px !important;
+  border-radius: 6px !important;
+  transition: outline 150ms ease-in-out;
+}
+
 /* Intentional blank line spacer */
 .prose-editorial .content-spacer {
   display: block;

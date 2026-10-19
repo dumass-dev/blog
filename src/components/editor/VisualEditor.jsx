@@ -6,6 +6,7 @@ import { Placeholder } from '@tiptap/extension-placeholder';
 import { computePosition, offset, flip, shift } from '@floating-ui/dom';
 import { customEditorialExtensions } from './extensions/index.js';
 import { SlashCommands } from './slashCommands.js';
+import { NodeSelection } from '@tiptap/pm/state';
 import {
   Bold,
   Italic,
@@ -20,7 +21,10 @@ import {
   AlignCenter,
   AlignRight,
   Check,
-  X
+  X,
+  ArrowUp,
+  ArrowDown,
+  RefreshCw
 } from 'lucide-react';
 
 const VisualEditor = forwardRef(function VisualEditor(
@@ -36,6 +40,7 @@ const VisualEditor = forwardRef(function VisualEditor(
   const bubbleMenuRef = useRef(null);
   const slashMenuRef = useRef(null);
   const imageToolbarRef = useRef(null);
+  const replacingImagePosRef = useRef(null);
 
   const [slashState, setSlashState] = useState(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
@@ -117,6 +122,22 @@ const VisualEditor = forwardRef(function VisualEditor(
       attributes: {
         class:
           'prose-editorial font-serif text-lg leading-relaxed focus:outline-none min-h-[420px] max-w-none text-[var(--text-primary)] cursor-text select-text p-4 sm:p-6'
+      },
+      handleClick: (view, _pos, event) => {
+        const target = event.target;
+        if (target && (target.tagName === 'IMG' || target.closest?.('.media-image-block') || target.closest?.('.media-figure') || target.closest?.('[data-node-type="mediaImage"]'))) {
+          const nodeDom = target.closest?.('[data-node-type="mediaImage"]') || target.closest?.('.media-image-block') || target.closest?.('.media-figure') || target;
+          try {
+            const nodePos = view.posAtDOM(nodeDom, 0);
+            if (typeof nodePos === 'number' && nodePos >= 0) {
+              const $pos = view.state.doc.resolve(nodePos);
+              const targetPos = $pos.nodeAfter?.type?.name === 'mediaImage' ? nodePos : ($pos.parent?.type?.name === 'mediaImage' ? $pos.before() : nodePos);
+              view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, targetPos)));
+              return true;
+            }
+          } catch (_e) {}
+        }
+        return false;
       }
     },
     onUpdate: ({ editor: ed }) => {
@@ -151,6 +172,26 @@ const VisualEditor = forwardRef(function VisualEditor(
     },
     insertMediaImage: ({ src, alt, size, align, caption }) => {
       if (!editor) return;
+      if (replacingImagePosRef.current !== null && replacingImagePosRef.current !== undefined) {
+        const pos = replacingImagePosRef.current;
+        replacingImagePosRef.current = null;
+        const existingNode = editor.state.doc.nodeAt(pos);
+        if (existingNode && existingNode.type.name === 'mediaImage') {
+          editor
+            .chain()
+            .focus()
+            .setNodeSelection(pos)
+            .updateAttributes('mediaImage', {
+              src,
+              alt: alt !== undefined && alt !== '' ? alt : (existingNode.attrs.alt || ''),
+              size: size !== undefined && size !== '' ? size : (existingNode.attrs.size || ''),
+              align: align !== undefined && align !== '' ? align : (existingNode.attrs.align || ''),
+              caption: caption !== undefined ? caption : (existingNode.attrs.caption || '')
+            })
+            .run();
+          return;
+        }
+      }
       editor
         .chain()
         .focus()
@@ -224,11 +265,15 @@ const VisualEditor = forwardRef(function VisualEditor(
 
     // Check if a mediaImage node is selected
     let activeMediaImage = null;
-    state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
-      if (node.type.name === 'mediaImage') {
-        activeMediaImage = { node, pos, attrs: node.attrs };
-      }
-    });
+    if (selection instanceof NodeSelection && selection.node?.type?.name === 'mediaImage') {
+      activeMediaImage = { node: selection.node, pos: selection.from, attrs: selection.node.attrs };
+    } else {
+      state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+        if (node.type.name === 'mediaImage') {
+          activeMediaImage = { node, pos, attrs: node.attrs };
+        }
+      });
+    }
     setSelectedImageNode(activeMediaImage);
 
     // Position Bubble Menu if text is selected
@@ -337,6 +382,45 @@ const VisualEditor = forwardRef(function VisualEditor(
       .setNodeSelection(selectedImageNode.pos)
       .updateAttributes('mediaImage', newAttrs)
       .run();
+  };
+
+  const handleReplaceImage = () => {
+    if (!selectedImageNode) return;
+    replacingImagePosRef.current = selectedImageNode.pos;
+    if (onOpenMediaPicker) onOpenMediaPicker();
+  };
+
+  const moveSelectedImage = (direction) => {
+    if (!editor || !selectedImageNode) return;
+    const { state } = editor;
+    const { doc } = state;
+    const pos = selectedImageNode.pos;
+    const node = doc.nodeAt(pos);
+    if (!node) return;
+
+    const $pos = doc.resolve(pos);
+    const index = $pos.index();
+    const parent = $pos.parent;
+
+    if (direction === 'up') {
+      if (index === 0) return;
+      const prevNode = parent.child(index - 1);
+      const prevPos = pos - prevNode.nodeSize;
+      const tr = state.tr
+        .delete(pos, pos + node.nodeSize)
+        .insert(prevPos, node);
+      tr.setSelection(NodeSelection.create(tr.doc, prevPos));
+      editor.view.dispatch(tr);
+    } else if (direction === 'down') {
+      if (index >= parent.childCount - 1) return;
+      const nextNode = parent.child(index + 1);
+      const targetPos = pos + nextNode.nodeSize;
+      const tr = state.tr
+        .delete(pos, pos + node.nodeSize)
+        .insert(targetPos, node);
+      tr.setSelection(NodeSelection.create(tr.doc, targetPos));
+      editor.view.dispatch(tr);
+    }
   };
 
   const deleteSelectedImage = () => {
@@ -546,22 +630,65 @@ const VisualEditor = forwardRef(function VisualEditor(
       {selectedImageNode && (
         <div
           ref={imageToolbarRef}
+          onMouseDown={(e) => e.preventDefault()}
+          onTouchStart={(e) => e.stopPropagation()}
           style={{ display: 'none', position: 'fixed', zIndex: 110 }}
-          className="flex flex-col gap-2 p-2 rounded-lg bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px]"
+          className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans"
         >
-          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-1.5 gap-2">
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 gap-2">
             <span className="text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
-              Photo Settings
+              Photo
             </span>
-            <button
-              type="button"
-              onClick={deleteSelectedImage}
-              className="p-1 rounded text-red-500 hover:bg-red-500/10 flex items-center gap-1 text-[11px] font-sans"
-              title="Delete Photo"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Remove</span>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  moveSelectedImage('up');
+                }}
+                className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-1 text-[11px] font-sans text-[var(--text-primary)] cursor-pointer"
+                title="Move Photo Up"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Up</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  moveSelectedImage('down');
+                }}
+                className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-1 text-[11px] font-sans text-[var(--text-primary)] cursor-pointer"
+                title="Move Photo Down"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Down</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleReplaceImage();
+                }}
+                className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--accent-warm)] flex items-center gap-1 text-[11px] font-sans font-medium cursor-pointer"
+                title="Replace with another photo from library"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Change</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  deleteSelectedImage();
+                }}
+                className="p-1 px-1.5 rounded text-red-500 hover:bg-red-500/10 flex items-center gap-1 text-[11px] font-sans cursor-pointer"
+                title="Delete Photo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Remove</span>
+              </button>
+            </div>
           </div>
 
           {/* Size choices */}
@@ -576,7 +703,10 @@ const VisualEditor = forwardRef(function VisualEditor(
               <button
                 key={value}
                 type="button"
-                onClick={() => setImageAttribute('size', selectedImageNode.attrs.size === value ? '' : value)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setImageAttribute('size', selectedImageNode.attrs.size === value ? '' : value);
+                }}
                 className={`px-2 py-1 min-h-[32px] rounded text-xs font-medium cursor-pointer transition-colors ${
                   selectedImageNode.attrs.size === value
                     ? 'bg-[var(--text-primary)] text-[var(--bg-main)]'
@@ -599,7 +729,10 @@ const VisualEditor = forwardRef(function VisualEditor(
               <button
                 key={value}
                 type="button"
-                onClick={() => setImageAttribute('align', selectedImageNode.attrs.align === value ? '' : value)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setImageAttribute('align', selectedImageNode.attrs.align === value ? '' : value);
+                }}
                 className={`p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded cursor-pointer transition-colors ${
                   selectedImageNode.attrs.align === value
                     ? 'bg-[var(--text-primary)] text-[var(--bg-main)]'

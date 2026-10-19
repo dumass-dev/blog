@@ -1046,9 +1046,18 @@ export default function Editor() {
 
               <button
                 type="button"
-                onClick={() => {
+                onMouseDown={() => {
                   const textarea = document.getElementById('content-textarea');
                   if (textarea) {
+                    cursorPosRef.current = {
+                      start: textarea.selectionStart,
+                      end: textarea.selectionEnd
+                    };
+                  }
+                }}
+                onClick={() => {
+                  const textarea = document.getElementById('content-textarea');
+                  if (textarea && (cursorPosRef.current.start === null || cursorPosRef.current.start === undefined)) {
                     cursorPosRef.current = {
                       start: textarea.selectionStart,
                       end: textarea.selectionEnd
