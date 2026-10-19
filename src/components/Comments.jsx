@@ -205,10 +205,11 @@ export default function Comments({ postId }) {
         <span>Reader Comments ({comments.length})</span>
       </div>
 
-      {/* Add Comment Form - Minimalist & Compact */}
+      {/* Add Comment Form - Minimalist & Compact with Generous Internal Breathing Room */}
       <form
         onSubmit={handleSubmit}
-        className="mb-8 rounded-xl border border-[var(--border-subtle)] bg-[var(--card-bg)] p-3.5 sm:p-4 shadow-xs focus-within:border-[var(--accent-warm)] transition-all duration-200"
+        className="comment-form-card"
+        style={{ padding: '1.25rem', boxSizing: 'border-box' }}
       >
         {/* Bot Honeypot field (hidden from real users) */}
         <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
@@ -234,13 +235,17 @@ export default function Comments({ postId }) {
             background: 'transparent',
             resize: 'none',
             width: '100%',
-            padding: 0
+            padding: '4px',
+            boxSizing: 'border-box'
           }}
-          className="text-sm font-serif leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] block"
+          className="comment-textarea"
           required
         />
 
-        <div className="flex items-center justify-between gap-3 pt-3 mt-2 border-t border-[var(--border-subtle)]">
+        <div
+          className="flex items-center justify-between gap-3 border-t border-[var(--border-subtle)]"
+          style={{ paddingTop: '0.75rem', marginTop: '0.75rem' }}
+        >
           <input
             type="text"
             value={authorName}
@@ -251,9 +256,10 @@ export default function Comments({ postId }) {
               outline: 'none',
               boxShadow: 'none',
               background: 'transparent',
-              padding: 0
+              padding: '4px 6px',
+              boxSizing: 'border-box'
             }}
-            className="text-xs font-sans text-[var(--text-secondary)] placeholder-[var(--text-muted)] flex-1 min-w-0"
+            className="comment-name-input"
           />
           <button
             type="submit"

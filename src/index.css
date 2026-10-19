@@ -2168,3 +2168,60 @@ html.dark .now-playing-card-cover {
 .resize-none { resize: none !important; }
 .box-border { box-sizing: border-box !important; }
 
+/* Dedicated Comment Form Styling with Generous Breathing Room */
+.comment-form-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem !important;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.comment-form-card:focus-within {
+  border-color: var(--accent-warm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.comment-textarea {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  resize: none !important;
+  width: 100% !important;
+  padding: 0.25rem 0.25rem !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.6 !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-serif) !important;
+  display: block;
+  box-sizing: border-box;
+}
+
+.comment-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.comment-name-input {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0.35rem 0.25rem !important;
+  font-size: 0.8125rem !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-sans) !important;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.comment-name-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
