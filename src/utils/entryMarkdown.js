@@ -35,9 +35,9 @@ export const processEmbeds = (rawText) => {
   });
 
   // Convert raw B2 storage keys in markdown images to /api/media/file/... permanent proxy URLs
-  processed = processed.replace(/!\[(.*?)\]\(((?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+)\)/gi, '![$1](/api/media/file/$2)');
+  processed = processed.replace(/(?:\\)?!\[(.*?)\]\(((?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+)\)/gi, '![$1](/api/media/file/$2)');
   // Convert presigned Backblaze B2 URLs to clean permanent proxy URLs so they never expire
-  processed = processed.replace(/!\[(.*?)\]\((https?:\/\/[^\s)]*backblazeb2\.com[^\s)]*(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+[^\s)]*)\)/gi, (_m, alt, fullUrl) => {
+  processed = processed.replace(/(?:\\)?!\[(.*?)\]\((https?:\/\/[^\s)]*backblazeb2\.com[^\s)]*(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+[^\s)]*)\)/gi, (_m, alt, fullUrl) => {
     const match = fullUrl.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
     return match ? `![${alt}](/api/media/file/${match[0]})` : _m;
   });
@@ -98,18 +98,18 @@ export const processEmbeds = (rawText) => {
   };
 
   // Convert images followed by "Caption: " into HTML figure blocks (with size support)
-  const captionRegex = /!\[(.*?)\]\((.*?)\)\nCaption:\s*(.+)/gi;
+  const captionRegex = /(?:\\)?!\[(.*?)\]\((.*?)\)\s*\r?\n\s*[Cc]aption:\s*([^\r\n]+)/gi;
   processed = processed.replace(captionRegex, (_match, rawAlt, url, captionText) => {
     const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
     const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');
     const safeAlt = cleanAlt.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const classes = ['media-figure', sizeClass, alignClass].filter(Boolean).join(' ');
     const styleAttr = customStyle ? ` style="${customStyle}"` : '';
-    return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${captionText}</figcaption></figure>\n`;
+    return `\n<figure class="${classes}"${styleAttr}><img src="${safeUrl}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${captionText.trim()}</figcaption></figure>\n`;
   });
 
   // Convert all markdown images directly into <img> tags with alignment/size classes
-  const allImageRegex = /!\[(.*?)\]\((.*?)\)/gi;
+  const allImageRegex = /(?:\\)?!\[(.*?)\]\((.*?)\)/gi;
   processed = processed.replace(allImageRegex, (_match, rawAlt, url) => {
     const { cleanAlt, sizeClass, alignClass, customStyle } = parseImageSizeAndAlign(rawAlt);
     const safeUrl = url.replace(/"/g, '%22').replace(/'/g, '%27');

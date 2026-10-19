@@ -470,6 +470,16 @@ export default function Editor() {
           align: (media.align && media.align !== 'center') ? media.align : ''
         });
       }
+      const rawUrl = media.url || media.storageKey || media.signed_url || '';
+      const keyMatch = typeof rawUrl === 'string' && rawUrl.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
+      const canonicalKey = keyMatch ? keyMatch[0] : (rawUrl && !rawUrl.includes('?') ? rawUrl : '');
+      if (canonicalKey) {
+        setFormData(prev => ({
+          ...prev,
+          cover_image: prev.type === 'photo' && (!prev.cover_image || !prev.cover_image.trim()) ? canonicalKey : prev.cover_image
+        }));
+      }
+      return;
     }
 
     const rawUrl = media.url || media.storageKey || media.signed_url || '';
@@ -507,8 +517,9 @@ export default function Editor() {
     if (id && !dirtyRef.current && originalContentRef.current !== undefined) {
       // Unedited existing post: guarantee 100% byte-for-byte identity by using original
       contentToSave = originalContentRef.current;
-    } else if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
-      contentToSave = visualEditorRef.current.getMarkdown();
+    } else if (visualEditorRef.current?.getMarkdown && (mode === 'visual' || mode === 'preview')) {
+      const liveMd = visualEditorRef.current.getMarkdown();
+      if (liveMd) contentToSave = liveMd;
     }
 
     if (!formData.title && formData.type !== 'update' && formData.type !== 'photo') {
@@ -848,7 +859,7 @@ export default function Editor() {
         </div>
       </div>
 
-      {mode === 'preview' ? (
+      {mode === 'preview' && (
         /* Reading Preview Mode */
         <div className="notebook-container py-6 sm:py-8 border border-[var(--border-subtle)] rounded p-4 sm:p-8 bg-[var(--card-bg)]">
           <div className="text-xs font-sans text-[var(--text-muted)] uppercase mb-2">
@@ -869,9 +880,15 @@ export default function Editor() {
           })()}
           <RichViewer content={formData.content} />
         </div>
-      ) : (
-        /* Edit & Split Mode */
-        <form onSubmit={handleSave} className={mode === 'split' ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "grid grid-cols-1 lg:grid-cols-3 gap-8"}>
+      )}
+
+      {/* Edit & Split Mode */}
+      <form
+        onSubmit={handleSave}
+        className={`${mode === 'preview' ? 'hidden' : ''} ${
+          mode === 'split' ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "grid grid-cols-1 lg:grid-cols-3 gap-8"
+        }`}
+      >
           {/* Main Content Area */}
           <div className={mode === 'split' ? "space-y-6" : "lg:col-span-2 space-y-6"}>
             {/* Title */}
@@ -1185,7 +1202,7 @@ export default function Editor() {
                 )}
               </div>
 
-              {mode === 'visual' ? (
+              <div className={(mode === 'visual' || mode === 'preview') ? '' : 'hidden'}>
                 <React.Suspense fallback={<div className="p-8 text-center text-xs text-[var(--text-muted)] italic">Loading visual editor...</div>}>
                   <VisualEditor
                     ref={visualEditorRef}
@@ -1194,12 +1211,12 @@ export default function Editor() {
                     onOpenMediaPicker={() => setShowMediaPicker(true)}
                   />
                 </React.Suspense>
-              ) : null}
+              </div>
 
               <textarea
                 id="content-textarea"
                 name="content"
-                rows={mode === 'visual' ? 2 : 16}
+                rows={(mode === 'visual' || mode === 'preview') ? 2 : 16}
                 value={formData.content}
                 onChange={(e) => {
                   handleChange(e);
@@ -1211,7 +1228,7 @@ export default function Editor() {
                 onBlur={updateCursorPos}
                 placeholder="Write your story, diary entry, or update here..."
                 className={
-                  mode === 'visual'
+                  (mode === 'visual' || mode === 'preview')
                     ? 'w-full h-8 px-3 py-1 text-xs font-mono bg-transparent border border-[var(--border-subtle)] rounded opacity-50 mt-3 transition-opacity hover:opacity-100'
                     : 'quiet-input font-serif text-lg leading-relaxed p-4'
                 }
@@ -1540,7 +1557,6 @@ export default function Editor() {
             </div>
           )}
         </form>
-      )}
     </div>
   );
 }

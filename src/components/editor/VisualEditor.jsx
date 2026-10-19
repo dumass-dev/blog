@@ -49,6 +49,7 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   // Configure TipTap Editor
   const editor = useEditor({
+    contentType: 'markdown',
     extensions: [
       StarterKit.configure({
         underline: false,
@@ -126,11 +127,27 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
   });
 
+  // Sync initialContent if it changes from external sources (e.g. entry load or mode toggle)
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    if (initialContent !== undefined) {
+      const currentMd = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
+      if (initialContent !== currentMd) {
+        editor.commands.setContent(initialContent || '', { contentType: 'markdown' });
+      }
+    }
+  }, [editor, initialContent]);
+
   // Expose imperative methods to parent (e.g. Editor.jsx)
   useImperativeHandle(ref, () => ({
     getMarkdown: () => {
       if (!editor) return '';
       return editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
+    },
+    setContent: (md) => {
+      if (editor && !editor.isDestroyed) {
+        editor.commands.setContent(md || '', { contentType: 'markdown' });
+      }
     },
     insertMediaImage: ({ src, alt, size, align, caption }) => {
       if (!editor) return;

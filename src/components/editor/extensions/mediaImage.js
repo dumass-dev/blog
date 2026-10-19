@@ -108,11 +108,12 @@ export const MediaImage = Node.create({
     name: 'mediaImage',
     level: 'block',
     start(src) {
-      return src.indexOf('![');
+      const match = src.match(/(?:\\)?!\[/);
+      return match ? match.index : -1;
     },
     tokenize(src) {
       // Must be at the start of block (or trimmed start)
-      const match = src.match(/^!\[(.*?)\]\((.*?)\)(?:\r?\nCaption:\s*([^\r\n]+))?/i);
+      const match = src.match(/^(?:\\)?!\[(.*?)\]\((.*?)\)(?:\s*\r?\n\s*[Cc]aption:\s*([^\r\n]+))?/i);
       if (match) {
         return {
           type: 'mediaImage',
