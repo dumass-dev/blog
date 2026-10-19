@@ -708,18 +708,20 @@ export default function Editor() {
       />
 
       {/* Top action bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
-        <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
-          <div className="flex items-center space-x-3 min-w-0">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
+        {/* Row 1: Back + Title on left, ThemeToggle + Publish on right for mobile */}
+        <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+          <div className="flex items-center space-x-2.5 min-w-0">
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"
+              className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0 cursor-pointer"
+              title="Back to Admin"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-xl font-serif font-medium truncate">
+              <h1 className="text-lg sm:text-xl font-serif font-medium truncate">
                 {id ? 'Edit Entry' : 'New Entry'}
               </h1>
               {formData.type === 'photo' && (
@@ -735,11 +737,28 @@ export default function Editor() {
               )}
             </div>
           </div>
+
+          {/* On mobile, place ThemeToggle + Publish directly in top row so it NEVER overflows or cuts off */}
+          <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+            <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
+              <ThemeToggle />
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="quiet-button text-xs flex items-center gap-1 shrink-0 px-2.5 py-1.5 cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5 shrink-0" />
+              <span>{saving ? 'Saving...' : 'Publish'}</span>
+            </button>
+          </div>
         </div>
 
+        {/* Mode switcher tabs (and on desktop: ThemeToggle + Publish) */}
         <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
           {/* Visual / Markdown / Split / Preview Toggle */}
-          <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)] shrink-0">
+          <div className="flex border border-[var(--border-subtle)] rounded p-0.5 text-xs font-sans bg-[var(--card-bg)] w-full sm:w-auto justify-between sm:justify-start">
             <button
               type="button"
               onClick={() => {
@@ -753,7 +772,7 @@ export default function Editor() {
                 }
                 setMode('visual');
               }}
-              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'visual'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -778,7 +797,7 @@ export default function Editor() {
                 }
                 setMode('markdown');
               }}
-              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'markdown'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -828,7 +847,7 @@ export default function Editor() {
                 }
                 setMode('preview');
               }}
-              className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'preview'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -845,7 +864,8 @@ export default function Editor() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Desktop-only ThemeToggle + Publish button */}
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <div className="p-1 border border-[var(--border-subtle)] rounded bg-[var(--card-bg)] flex items-center justify-center shrink-0">
               <ThemeToggle />
             </div>
@@ -854,7 +874,7 @@ export default function Editor() {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="quiet-button text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5"
+              className="quiet-button text-xs flex items-center gap-1.5 shrink-0 px-3 py-1.5 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5 shrink-0" />
               <span>{saving ? 'Publishing...' : 'Publish'}</span>

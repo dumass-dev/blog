@@ -784,11 +784,12 @@ html {
   text-align: center;
 }
 
-/* Selected photo visual outline in editor - ONLY for media images and figures */
-.ProseMirror .media-image-block.ProseMirror-selectednode,
-.ProseMirror .media-figure.ProseMirror-selectednode,
-.ProseMirror [data-node-type="mediaImage"].ProseMirror-selectednode,
-.ProseMirror figure.ProseMirror-selectednode {
+/* Selected photo visual outline in editor - ONLY for the actual <img> element */
+.ProseMirror .media-image-block.ProseMirror-selectednode img,
+.ProseMirror .media-figure.ProseMirror-selectednode img,
+.ProseMirror [data-node-type="mediaImage"].ProseMirror-selectednode img,
+.ProseMirror figure.ProseMirror-selectednode img,
+.ProseMirror img.ProseMirror-selectednode {
   outline: 3px solid var(--accent-warm) !important;
   outline-offset: 3px !important;
   border-radius: 6px !important;
@@ -848,6 +849,7 @@ html {
   margin-right: auto;
 }
 
+.prose-editorial .media-image-block.image-align-left,
 .prose-editorial img.image-align-left,
 .prose-editorial .media-figure.image-align-left,
 .prose-editorial .image-wrapper.image-align-left {
@@ -861,6 +863,7 @@ html {
   display: block;
 }
 
+.prose-editorial .media-image-block.image-align-right,
 .prose-editorial img.image-align-right,
 .prose-editorial .media-figure.image-align-right,
 .prose-editorial .image-wrapper.image-align-right {
@@ -962,6 +965,7 @@ html {
 
 @media (max-width: 640px) {
   /* On mobile screens, left & right floats stay floated with 44% width and tight margins so text wraps cleanly beside them */
+  .prose-editorial .media-image-block.image-align-left,
   .prose-editorial img.image-align-left,
   .prose-editorial .media-figure.image-align-left,
   .prose-editorial .image-wrapper.image-align-left,
@@ -977,6 +981,7 @@ html {
     display: block !important;
   }
 
+  .prose-editorial .media-image-block.image-align-right,
   .prose-editorial img.image-align-right,
   .prose-editorial .media-figure.image-align-right,
   .prose-editorial .image-wrapper.image-align-right,
@@ -2156,3 +2161,10 @@ html.dark .now-playing-card-cover {
   margin-top: 0.5rem;
   width: 100%;
 }
+
+/* Missing Form & Layout Utilities */
+.border-none { border: none !important; }
+.outline-none { outline: none !important; }
+.resize-none { resize: none !important; }
+.box-border { box-sizing: border-box !important; }
+

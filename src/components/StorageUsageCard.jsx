@@ -97,7 +97,7 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
         <div className="p-3.5 sm:p-5 border-t border-[var(--border-subtle)] bg-[var(--code-bg)]/20 animate-fadeIn">
           {/* Main Visual Storage Distribution Bar */}
           <div className="mb-4 pb-4 border-b border-[var(--border-subtle)]">
-            <div className="flex items-center justify-between text-xs mb-2 font-sans">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-xs mb-2 font-sans">
               <div className="flex items-center gap-1.5 font-medium text-[var(--text-primary)]">
                 <span>Total Usage:</span>
                 <span className="font-mono text-[var(--accent-warm)]">{formatBytes(totalUsed)}</span>

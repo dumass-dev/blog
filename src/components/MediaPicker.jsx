@@ -198,7 +198,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
 
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Insert Media from Library" maxWidthClass="max-w-2xl w-full">
+    <Modal isOpen={isOpen} onClose={onClose} title="Insert Media from Library" maxWidthClass="max-w-2xl">
       <div className="flex flex-col space-y-3">
         {/* Modal Header */}
         <div className="pb-3 border-b border-[var(--border-subtle)] flex justify-between items-center">
@@ -232,16 +232,19 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
         {/* Image Layout & Size Controls */}
         <div className="p-2.5 sm:p-3 border border-[var(--border-subtle)] rounded bg-[var(--code-bg)] flex flex-col gap-2.5 text-xs font-sans">
           {/* Layout & Text Wrapping Mode */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[var(--border-subtle)]/60 pb-2">
-            <span className="text-[var(--text-secondary)] font-medium">Text Layout & Wrapping:</span>
-            <div className="grid grid-cols-3 sm:flex rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
+          <div className="flex flex-col gap-1.5 border-b border-[var(--border-subtle)]/60 pb-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[var(--text-secondary)] font-medium">Text Layout & Wrapping:</span>
+              <span className="text-[11px] font-mono text-[var(--accent-warm)] capitalize">{selectedAlign}</span>
+            </div>
+            <div className="flex w-full rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedAlign('left');
                   if (selectedSize === '100%') setSelectedSize('45%');
                 }}
-                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                className={`flex-1 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'left'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -254,7 +257,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
               <button
                 type="button"
                 onClick={() => setSelectedAlign('center')}
-                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                className={`flex-1 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'center'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -270,7 +273,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                   setSelectedAlign('right');
                   if (selectedSize === '100%') setSelectedSize('45%');
                 }}
-                className={`px-2 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                className={`flex-1 py-1 rounded text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                   selectedAlign === 'right'
                     ? 'bg-[var(--accent-warm)] text-white font-medium'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -284,25 +287,28 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
           </div>
 
           {/* Width adjustment */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-            <div className="flex items-center justify-between sm:justify-start gap-2">
+          <div className="flex flex-col gap-1.5 pt-0.5">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-[var(--text-secondary)] font-medium">Image Width:</span>
               <input
                 type="text"
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value.trim())}
                 placeholder="100% or 400px"
-                className="quiet-input text-xs px-2 py-0.5 w-16 text-center font-mono border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
+                style={{ width: '72px', minWidth: '72px' }}
+                className="quiet-input text-xs px-2 py-0.5 text-center font-mono border border-[var(--border-subtle)] rounded bg-[var(--bg-main)]"
                 title="Enter percentage (e.g. 45%) or pixels (e.g. 400px)"
               />
             </div>
-            <div className="grid grid-cols-5 sm:flex items-center gap-1 p-0.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-main)]">
+
+            {/* Horizontal segmented 5-button bar */}
+            <div className="flex w-full rounded border border-[var(--border-subtle)] p-0.5 bg-[var(--bg-main)]">
               {['25%', '33%', '45%', '60%', '100%'].map((preset) => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => setSelectedSize(preset)}
-                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono text-center transition-colors cursor-pointer ${
+                  className={`flex-1 py-1 rounded text-[11px] font-mono text-center transition-colors cursor-pointer ${
                     selectedSize === preset
                       ? 'bg-[var(--accent-warm)] text-white font-medium'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -312,20 +318,21 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                 </button>
               ))}
             </div>
-          </div>
-          {/* Live Range Slider */}
-          <div className="flex items-center gap-2 pt-0.5">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">15%</span>
-            <input
-              type="range"
-              min="15"
-              max="100"
-              step="1"
-              value={getNumericPercent(selectedSize)}
-              onChange={(e) => setSelectedSize(`${e.target.value}%`)}
-              className="w-full accent-[var(--accent-warm)] cursor-pointer h-1.5 bg-[var(--border-subtle)] rounded-lg"
-            />
-            <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">100%</span>
+
+            {/* Live Range Slider */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">15%</span>
+              <input
+                type="range"
+                min="15"
+                max="100"
+                step="1"
+                value={getNumericPercent(selectedSize)}
+                onChange={(e) => setSelectedSize(`${e.target.value}%`)}
+                className="w-full accent-[var(--accent-warm)] cursor-pointer h-1.5 bg-[var(--border-subtle)] rounded-lg"
+              />
+              <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">100%</span>
+            </div>
           </div>
         </div>
 

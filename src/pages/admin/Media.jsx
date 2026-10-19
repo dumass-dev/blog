@@ -210,7 +210,8 @@ export default function Media() {
 
           <label className="relative overflow-hidden quiet-button text-xs flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
-            <span>{uploading ? 'Uploading...' : 'Upload Photo, GIF, or Video'}</span>
+            <span>{uploading ? 'Uploading...' : 'Upload'}</span>
+            {!uploading && <span className="hidden sm:inline">&nbsp;Photo, GIF, or Video</span>}
             <input
               type="file"
               accept="image/*,video/*,.gif,.heic,.heif,.jpg,.jpeg,.png,.webp"

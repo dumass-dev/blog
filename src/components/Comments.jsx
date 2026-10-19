@@ -206,7 +206,10 @@ export default function Comments({ postId }) {
       </div>
 
       {/* Add Comment Form - Minimalist & Compact */}
-      <form onSubmit={handleSubmit} className="mb-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)] p-3 focus-within:border-[var(--accent-warm)] transition-colors">
+      <form
+        onSubmit={handleSubmit}
+        className="mb-8 rounded-xl border border-[var(--border-subtle)] bg-[var(--card-bg)] p-3.5 sm:p-4 shadow-xs focus-within:border-[var(--accent-warm)] transition-all duration-200"
+      >
         {/* Bot Honeypot field (hidden from real users) */}
         <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
           <input
@@ -224,22 +227,42 @@ export default function Comments({ postId }) {
           value={content}
           onChange={e => setContent(e.target.value)}
           placeholder="Share your reflection or response..."
-          className="w-full bg-transparent resize-none text-xs font-serif leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none block"
+          style={{
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
+            background: 'transparent',
+            resize: 'none',
+            width: '100%',
+            padding: 0
+          }}
+          className="text-sm font-serif leading-relaxed text-[var(--text-primary)] placeholder-[var(--text-muted)] block"
           required
         />
 
-        <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-[var(--border-subtle)]">
+        <div className="flex items-center justify-between gap-3 pt-3 mt-2 border-t border-[var(--border-subtle)]">
           <input
             type="text"
             value={authorName}
             onChange={e => setAuthorName(e.target.value)}
             placeholder="Name (optional)"
-            className="bg-transparent text-[11px] font-sans text-[var(--text-secondary)] placeholder-[var(--text-muted)] focus:outline-none flex-1 min-w-0 max-w-[160px] sm:max-w-[200px]"
+            style={{
+              border: 'none',
+              outline: 'none',
+              boxShadow: 'none',
+              background: 'transparent',
+              padding: 0
+            }}
+            className="text-xs font-sans text-[var(--text-secondary)] placeholder-[var(--text-muted)] flex-1 min-w-0"
           />
           <button
             type="submit"
             disabled={submitting || !content.trim()}
-            className="text-xs font-sans font-medium px-3 py-1 rounded bg-[var(--text-primary)] text-[var(--bg-main)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity inline-flex items-center gap-1.5 shrink-0"
+            className="quiet-button text-xs py-1.5 px-3.5 rounded-full font-medium inline-flex items-center gap-1.5 shrink-0 transition-opacity"
+            style={{
+              cursor: submitting || !content.trim() ? 'not-allowed' : 'pointer',
+              opacity: submitting || !content.trim() ? 0.45 : 1
+            }}
           >
             <Send className="w-3 h-3" />
             <span>{submitting ? 'Posting...' : 'Comment'}</span>
