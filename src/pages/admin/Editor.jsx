@@ -59,7 +59,8 @@ export default function Editor() {
 
   // Instant state pre-fill from navigation state or dashboard cache to eliminate editor open delay
   const entryFromLocation = location.state?.entry;
-  const entryFromCache = (!entryFromLocation && id) ? (() => {
+  const entryFromCache = React.useMemo(() => {
+    if (entryFromLocation || !id) return null;
     try {
       const raw = localStorage.getItem('cached_admin_dashboard_v2');
       if (raw) {
@@ -68,7 +69,7 @@ export default function Editor() {
       }
     } catch {}
     return null;
-  })() : null;
+  }, [entryFromLocation, id]);
 
   const initialEntry = entryFromLocation || entryFromCache;
 
@@ -132,6 +133,7 @@ export default function Editor() {
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
   const cursorPosRef = React.useRef({ start: null, end: null });
+  const loadedEntryIdRef = React.useRef(null);
 
   const getShareableUrl = () => {
     const activeSlug = (formData.slug && formData.slug.trim()) || id || '';
@@ -223,7 +225,7 @@ export default function Editor() {
 
   // Fetch existing entry if editing
   useEffect(() => {
-    if (!id) return;
+    if (!id || loadedEntryIdRef.current === id) return;
     let isMounted = true;
     if (!initialEntry) {
       setLoading(true);
@@ -256,6 +258,7 @@ export default function Editor() {
       }
 
       if (isMounted) {
+        loadedEntryIdRef.current = id;
         if (entryData) {
           const formattedDate = toLocalDatetimeInputString(entryData.date);
 
@@ -293,7 +296,8 @@ export default function Editor() {
             setMode('markdown');
             setGateWarning(gate.reason);
           } else {
-            setMode('visual');
+            // Preserve user's explicitly chosen mode if already set, otherwise default to visual
+            setMode(prev => (prev === 'markdown' || prev === 'split' || prev === 'preview') ? prev : 'visual');
             setGateWarning(null);
           }
         } else if (!initialEntry) {
@@ -308,7 +312,8 @@ export default function Editor() {
     return () => {
       isMounted = false;
     };
-  }, [id, token, initialEntry, toastError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token]);
 
   const handleVisualChange = (newMd) => {
     if (mode !== 'visual' && mode !== 'split') return;

@@ -58,6 +58,9 @@ const VisualEditor = forwardRef(function VisualEditor(
   const [slashState, setSlashState] = useState(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
+  const showLinkPromptRef = useRef(false);
+  showLinkPromptRef.current = showLinkPrompt;
+  const savedLinkRangeRef = useRef(null);
   const [linkUrl, setLinkUrl] = useState('');
   const [selectedImageNode, setSelectedImageNode] = useState(null);
   const [editingCaption, setEditingCaption] = useState(false);
@@ -552,30 +555,40 @@ const VisualEditor = forwardRef(function VisualEditor(
     setSelectedImageNode(activeMediaImage);
 
     // Position Bubble Menu if text is selected
-    if (isTextSelected && !activeMediaImage && bubbleMenuRef.current) {
-      const virtualElement = {
-        getBoundingClientRect: () => {
-          const domSelection = window.getSelection();
-          if (domSelection && domSelection.rangeCount > 0) {
-            return domSelection.getRangeAt(0).getBoundingClientRect();
+    if ((isTextSelected || showLinkPromptRef.current) && !activeMediaImage && bubbleMenuRef.current) {
+      if (!showLinkPromptRef.current) {
+        const virtualElement = {
+          getBoundingClientRect: () => {
+            const domSelection = window.getSelection();
+            if (domSelection && domSelection.rangeCount > 0) {
+              const rect = domSelection.getRangeAt(0).getBoundingClientRect();
+              if (rect.width > 0 || rect.height > 0) return rect;
+            }
+            if (bubbleMenuRef.current) {
+              return bubbleMenuRef.current.getBoundingClientRect();
+            }
+            return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 };
           }
-          return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 };
-        }
-      };
+        };
 
-      computePosition(virtualElement, bubbleMenuRef.current, {
-        placement: 'top',
-        middleware: [offset(8), flip(), shift({ padding: 8 })]
-      }).then(({ x, y }) => {
-        if (bubbleMenuRef.current) {
-          bubbleMenuRef.current.style.left = `${x}px`;
-          bubbleMenuRef.current.style.top = `${y}px`;
-          bubbleMenuRef.current.style.display = 'flex';
-        }
-      });
-    } else if (bubbleMenuRef.current) {
+        computePosition(virtualElement, bubbleMenuRef.current, {
+          placement: 'top',
+          middleware: [offset(8), flip(), shift({ padding: 12 })]
+        }).then(({ x, y }) => {
+          if (bubbleMenuRef.current && !showLinkPromptRef.current) {
+            const menuWidth = bubbleMenuRef.current.offsetWidth || 280;
+            const viewportWidth = window.innerWidth;
+            const clampedX = Math.max(8, Math.min(x, viewportWidth - menuWidth - 8));
+            const clampedY = Math.max(8, y);
+            bubbleMenuRef.current.style.left = `${clampedX}px`;
+            bubbleMenuRef.current.style.top = `${clampedY}px`;
+            bubbleMenuRef.current.style.display = 'flex';
+          }
+        });
+      }
+    } else if (bubbleMenuRef.current && !showLinkPromptRef.current) {
       bubbleMenuRef.current.style.display = 'none';
-      if (!isTextSelected) setShowLinkPrompt(false);
+      setShowLinkPrompt(false);
     }
 
     // Position Image Toolbar if image is selected
@@ -641,6 +654,26 @@ const VisualEditor = forwardRef(function VisualEditor(
       editor.off('transaction', updatePopups);
     };
   }, [editor, updatePopups]);
+
+  // Close link prompt if user clicks/taps outside the bubble menu
+  useEffect(() => {
+    if (!showLinkPrompt) return;
+    const handleOutsidePointer = (e) => {
+      if (bubbleMenuRef.current && !bubbleMenuRef.current.contains(e.target)) {
+        savedLinkRangeRef.current = null;
+        showLinkPromptRef.current = false;
+        setShowLinkPrompt(false);
+        setLinkUrl('');
+        if (bubbleMenuRef.current) {
+          bubbleMenuRef.current.style.display = 'none';
+        }
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer);
+    };
+  }, [showLinkPrompt]);
 
   // Image actions
   const setImageAttribute = (key, value) => {
@@ -708,16 +741,37 @@ const VisualEditor = forwardRef(function VisualEditor(
   // Link actions
   const handleApplyLink = () => {
     if (!editor) return;
+    const range = savedLinkRangeRef.current;
+    if (range && typeof range.from === 'number' && typeof range.to === 'number' && range.from !== range.to) {
+      editor.commands.setTextSelection({ from: range.from, to: range.to });
+    }
+
     if (!linkUrl.trim()) {
       editor.chain().focus().unsetLink().run();
+      savedLinkRangeRef.current = null;
+      showLinkPromptRef.current = false;
       setShowLinkPrompt(false);
       return;
     }
     let href = linkUrl.trim();
-    if (!/^(https?:\/\/|mailto:|tel:|\/)/i.test(href)) {
+    if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href)) {
       href = `https://${href}`;
     }
     editor.chain().focus().setLink({ href }).run();
+    savedLinkRangeRef.current = null;
+    showLinkPromptRef.current = false;
+    setShowLinkPrompt(false);
+    setLinkUrl('');
+  };
+
+  const handleCancelLink = () => {
+    const range = savedLinkRangeRef.current;
+    if (editor && range && typeof range.from === 'number' && typeof range.to === 'number') {
+      editor.commands.setTextSelection({ from: range.from, to: range.to });
+      editor.commands.focus();
+    }
+    savedLinkRangeRef.current = null;
+    showLinkPromptRef.current = false;
     setShowLinkPrompt(false);
     setLinkUrl('');
   };
@@ -761,106 +815,11 @@ const VisualEditor = forwardRef(function VisualEditor(
       <div
         ref={bubbleMenuRef}
         style={{ display: 'none', position: 'fixed', zIndex: 100 }}
-        className="flex items-center gap-0.5 p-1 rounded-lg bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-xl text-xs backdrop-blur-md"
+        className="items-center gap-0.5 p-1 rounded-lg bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-xl text-xs backdrop-blur-md max-w-[calc(100vw-16px)]"
       >
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('bold') ? 'text-[var(--accent-warm)] font-bold' : 'text-[var(--text-primary)]'
-          }`}
-          title="Bold"
-        >
-          <Bold className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('italic') ? 'text-[var(--accent-warm)] italic' : 'text-[var(--text-primary)]'
-          }`}
-          title="Italic"
-        >
-          <Italic className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('strike') ? 'text-[var(--accent-warm)] line-through' : 'text-[var(--text-primary)]'
-          }`}
-          title="Strikethrough"
-        >
-          <Strikethrough className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleCode().run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('code') ? 'text-[var(--accent-warm)] font-mono' : 'text-[var(--text-primary)]'
-          }`}
-          title="Inline Code"
-        >
-          <Code className="w-4 h-4" />
-        </button>
-
-        <span className="w-[1px] h-4 bg-[var(--border-subtle)] mx-1" />
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('heading', { level: 2 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
-          }`}
-          title="Heading 2"
-        >
-          <Heading2 className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('heading', { level: 3 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
-          }`}
-          title="Heading 3"
-        >
-          <Heading3 className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('blockquote') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
-          }`}
-          title="Blockquote"
-        >
-          <Quote className="w-4 h-4" />
-        </button>
-
-        <span className="w-[1px] h-4 bg-[var(--border-subtle)] mx-1" />
-
-        <button
-          type="button"
-          onClick={() => {
-            const previousUrl = editor.getAttributes('link').href || '';
-            setLinkUrl(previousUrl);
-            setShowLinkPrompt(true);
-          }}
-          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
-            editor.isActive('link') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
-          }`}
-          title="Link"
-        >
-          <LinkIcon className="w-4 h-4" />
-        </button>
-
-        {showLinkPrompt && (
-          <div className="absolute top-full left-0 mt-2 p-2 rounded-lg bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl flex items-center gap-1.5 min-w-[280px]">
+        {showLinkPrompt ? (
+          <div className="flex items-center gap-1.5 w-full py-0.5 px-1 min-w-[220px] sm:min-w-[280px] max-w-[calc(100vw-24px)]">
+            <LinkIcon className="w-3.5 h-3.5 text-[var(--accent-warm)] shrink-0 ml-1" />
             <input
               type="url"
               value={linkUrl}
@@ -870,30 +829,131 @@ const VisualEditor = forwardRef(function VisualEditor(
                   e.preventDefault();
                   handleApplyLink();
                 } else if (e.key === 'Escape') {
-                  setShowLinkPrompt(false);
+                  handleCancelLink();
                 }
               }}
-              placeholder="Paste URL (https://...)"
+              placeholder="Paste or type URL (https://...)"
               autoFocus
-              className="quiet-input text-xs py-1 px-2 flex-1 font-sans"
+              className="quiet-input text-xs py-1 px-2 flex-1 font-sans bg-transparent min-w-0"
             />
             <button
               type="button"
               onClick={handleApplyLink}
-              className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--accent-warm)]"
-              title="Save Link"
+              className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--accent-warm)] shrink-0"
+              title="Apply Link"
             >
               <Check className="w-4 h-4" />
             </button>
             <button
               type="button"
-              onClick={() => setShowLinkPrompt(false)}
-              className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-muted)]"
+              onClick={handleCancelLink}
+              className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-muted)] shrink-0"
               title="Cancel"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('bold') ? 'text-[var(--accent-warm)] font-bold' : 'text-[var(--text-primary)]'
+              }`}
+              title="Bold"
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('italic') ? 'text-[var(--accent-warm)] italic' : 'text-[var(--text-primary)]'
+              }`}
+              title="Italic"
+            >
+              <Italic className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('strike') ? 'text-[var(--accent-warm)] line-through' : 'text-[var(--text-primary)]'
+              }`}
+              title="Strikethrough"
+            >
+              <Strikethrough className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleCode().run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('code') ? 'text-[var(--accent-warm)] font-mono' : 'text-[var(--text-primary)]'
+              }`}
+              title="Inline Code"
+            >
+              <Code className="w-4 h-4" />
+            </button>
+
+            <span className="w-[1px] h-4 bg-[var(--border-subtle)] mx-0.5 sm:mx-1 shrink-0" />
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('heading', { level: 2 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
+              }`}
+              title="Heading 2"
+            >
+              <Heading2 className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('heading', { level: 3 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
+              }`}
+              title="Heading 3"
+            >
+              <Heading3 className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('blockquote') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
+              }`}
+              title="Blockquote"
+            >
+              <Quote className="w-4 h-4" />
+            </button>
+
+            <span className="w-[1px] h-4 bg-[var(--border-subtle)] mx-0.5 sm:mx-1 shrink-0" />
+
+            <button
+              type="button"
+              onClick={() => {
+                const previousUrl = editor.getAttributes('link').href || '';
+                const { from, to } = editor.state.selection;
+                savedLinkRangeRef.current = { from, to };
+                showLinkPromptRef.current = true;
+                setLinkUrl(previousUrl);
+                setShowLinkPrompt(true);
+              }}
+              className={`p-1.5 sm:p-2 min-w-[30px] sm:min-w-[36px] min-h-[32px] sm:min-h-[36px] flex items-center justify-center rounded hover:bg-black/10 dark:hover:bg-white/10 ${
+                editor.isActive('link') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
+              }`}
+              title="Link"
+            >
+              <LinkIcon className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
 
