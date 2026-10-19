@@ -197,15 +197,22 @@ export default function RichViewer({ content = '' }) {
     // 1. Unwrap paragraphs that contain ONLY an image or figure
     let out = html.replace(/<p>\s*((?:<img\b[^>]*>|<figure\b[\s\S]*?<\/figure>))\s*<\/p>/gi, '$1\n');
 
-    // 2. If a paragraph contains an image/figure mixed with text or line breaks, split it so media renders as its own element
+    // 2. If a paragraph contains an image/figure mixed with text or line breaks,
+    // it was written on directly adjacent lines without an empty line in the editor.
+    // Tag them with media-tight and has-adjacent-media so they sit snug without large gaps.
     out = out.replace(/<p>([\s\S]*?)<\/p>/gi, (match, inner) => {
       if (!/<img\b|<figure\b/i.test(inner)) return match;
       const parts = inner.split(/(<img\b[^>]*>|<figure\b[\s\S]*?<\/figure>)/gi);
       return parts.map(part => {
         const trimmed = part.trim();
-        if (/^<(?:img|figure)\b/i.test(trimmed)) return trimmed;
+        if (/^<(?:img|figure)\b/i.test(trimmed)) {
+          if (/class="/i.test(trimmed)) {
+            return trimmed.replace(/class="([^"]*)"/i, 'class="$1 media-tight"');
+          }
+          return trimmed.replace(/^(<(?:img|figure)\b)/i, '$1 class="media-tight"');
+        }
         const cleanText = trimmed.replace(/^(?:\s*<br\s*\/?>\s*)+|(?:\s*<br\s*\/?>\s*)+$/gi, '').trim();
-        return cleanText ? `<p>${cleanText}</p>` : '';
+        return cleanText ? `<p class="has-adjacent-media">${cleanText}</p>` : '';
       }).filter(Boolean).join('\n');
     });
 

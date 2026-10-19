@@ -698,28 +698,24 @@ html {
   margin-top: 0 !important;
 }
 
-/* Eliminate excessive gap when paragraph is adjacent to an image/figure */
-.prose-editorial p:has(+ img),
-.prose-editorial p:has(+ figure),
-.prose-editorial p:has(+ .image-wrapper),
-.prose-editorial p:has(+ .media-figure),
-.prose-editorial p:has(+ p > img:only-child),
-.prose-editorial p:has(+ p:has(> img:only-child)) {
-  margin-bottom: 0.35rem;
+/* When image is directly attached to adjacent text (no empty line in editor) */
+.prose-editorial .has-adjacent-media {
+  margin-bottom: 0.2rem !important;
+  margin-top: 0.2rem !important;
 }
 
-.prose-editorial p + img,
-.prose-editorial p + figure,
-.prose-editorial p + .image-wrapper,
-.prose-editorial p + .media-figure {
-  margin-top: 0.35rem;
+.prose-editorial .media-tight,
+.prose-editorial .media-figure.media-tight,
+.prose-editorial img.media-tight {
+  margin-top: 0.2rem !important;
+  margin-bottom: 0.35rem !important;
 }
 
-.prose-editorial img + p,
-.prose-editorial figure + p,
-.prose-editorial .image-wrapper + p,
-.prose-editorial .media-figure + p {
-  margin-top: 0.35rem;
+/* Default spacing when image is separated by blank line in editor */
+.prose-editorial .media-figure:not(.media-tight),
+.prose-editorial img:not(.media-tight) {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
