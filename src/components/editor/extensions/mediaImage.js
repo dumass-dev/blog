@@ -100,7 +100,7 @@ export const MediaImage = Node.create({
     return [
       'div',
       { class: classes, 'data-node-type': 'mediaImage' },
-      ['img', { src, alt: alt || '', class: [sizeClass, alignClass].filter(Boolean).join(' ') || undefined, loading: 'lazy' }]
+      ['img', { src, alt: alt || '', loading: 'lazy' }]
     ];
   },
 

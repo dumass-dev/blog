@@ -24,7 +24,8 @@ import {
   X,
   ArrowUp,
   ArrowDown,
-  RefreshCw
+  RefreshCw,
+  GripHorizontal
 } from 'lucide-react';
 
 const VisualEditor = forwardRef(function VisualEditor(
@@ -32,7 +33,8 @@ const VisualEditor = forwardRef(function VisualEditor(
     initialContent = '',
     onChange,
     onOpenMediaPicker,
-    placeholder = "Write with clarity... (Type '/' for commands)"
+    placeholder = "Write with clarity... (Type '/' for commands)",
+    mode = 'visual'
   },
   ref
 ) {
@@ -41,6 +43,17 @@ const VisualEditor = forwardRef(function VisualEditor(
   const slashMenuRef = useRef(null);
   const imageToolbarRef = useRef(null);
   const replacingImagePosRef = useRef(null);
+
+  // Dragging and positioning state for image floating toolbar
+  const isUserDraggedRef = useRef(false);
+  const lastSelectedPosRef = useRef(null);
+  const dragStartRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0 });
+  const [isDraggingToolbar, setIsDraggingToolbar] = useState(false);
+
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const [slashState, setSlashState] = useState(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
@@ -213,9 +226,9 @@ const VisualEditor = forwardRef(function VisualEditor(
       }
     },
     onUpdate: ({ editor: ed }) => {
-      if (onChange) {
+      if (onChangeRef.current && (modeRef.current === 'visual' || modeRef.current === 'split')) {
         const md = ed.storage.markdown?.getMarkdown?.() ?? ed.getMarkdown?.() ?? '';
-        onChange(md);
+        onChangeRef.current(md);
       }
     }
   });
@@ -223,13 +236,15 @@ const VisualEditor = forwardRef(function VisualEditor(
   // Sync initialContent if it changes from external sources (e.g. entry load or mode toggle)
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
+    // CRITICAL: When in markdown mode, do not sync or overwrite content on every keystroke
+    if (mode !== 'visual' && mode !== 'split') return;
     if (initialContent !== undefined) {
       const currentMd = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
       if (initialContent !== currentMd) {
         editor.commands.setContent(initialContent || '', { contentType: 'markdown' });
       }
     }
-  }, [editor, initialContent]);
+  }, [editor, initialContent, mode]);
 
   // Expose imperative methods to parent (e.g. Editor.jsx)
   useImperativeHandle(ref, () => ({
@@ -241,6 +256,9 @@ const VisualEditor = forwardRef(function VisualEditor(
       if (editor && !editor.isDestroyed) {
         editor.commands.setContent(md || '', { contentType: 'markdown' });
       }
+    },
+    getSelectedImageInfo: () => {
+      return selectedImageNode;
     },
     insertMediaImage: ({ src, alt, size, align, caption }) => {
       if (!editor) return;
@@ -329,9 +347,12 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   // Helper to accurately position the Image Toolbar above the selected photo
   const positionImageToolbar = useCallback((imageInfo) => {
+    // If user has explicitly dragged the toolbar with hand/mouse, do not auto-reposition!
+    if (isUserDraggedRef.current) return;
+
     const targetImage = imageInfo || selectedImageNode;
     if (!editor || !targetImage || !imageToolbarRef.current) {
-      if (imageToolbarRef.current) {
+      if (imageToolbarRef.current && !selectedImageNode) {
         imageToolbarRef.current.style.display = 'none';
       }
       return;
@@ -348,7 +369,7 @@ const VisualEditor = forwardRef(function VisualEditor(
         placement: 'top',
         middleware: [offset(10), flip(), shift({ padding: 8 })]
       }).then(({ x, y }) => {
-        if (imageToolbarRef.current) {
+        if (imageToolbarRef.current && !isUserDraggedRef.current) {
           imageToolbarRef.current.style.left = `${Math.round(x)}px`;
           imageToolbarRef.current.style.top = `${Math.round(y)}px`;
           imageToolbarRef.current.style.display = 'flex';
@@ -360,26 +381,109 @@ const VisualEditor = forwardRef(function VisualEditor(
   // Position image toolbar immediately when selectedImageNode changes
   useEffect(() => {
     if (selectedImageNode) {
-      requestAnimationFrame(() => {
-        positionImageToolbar(selectedImageNode);
-      });
-    } else if (imageToolbarRef.current) {
-      imageToolbarRef.current.style.display = 'none';
-      setEditingCaption(false);
+      // If user selected a new or different image, reset drag so toolbar auto-anchors to it
+      if (lastSelectedPosRef.current !== selectedImageNode.pos) {
+        isUserDraggedRef.current = false;
+        lastSelectedPosRef.current = selectedImageNode.pos;
+      }
+      if (!isUserDraggedRef.current) {
+        requestAnimationFrame(() => {
+          positionImageToolbar(selectedImageNode);
+        });
+      } else if (imageToolbarRef.current) {
+        imageToolbarRef.current.style.display = 'flex';
+      }
+    } else {
+      lastSelectedPosRef.current = null;
+      isUserDraggedRef.current = false;
+      if (imageToolbarRef.current) {
+        imageToolbarRef.current.style.display = 'none';
+        setEditingCaption(false);
+      }
     }
   }, [selectedImageNode, positionImageToolbar]);
 
-  // Keep image toolbar positioned when scrolling or resizing
+  // Keep image toolbar positioned when scrolling or resizing (without flickering or vanishing!)
   useEffect(() => {
     if (!selectedImageNode) return;
-    const handleReposition = () => positionImageToolbar(selectedImageNode);
-    window.addEventListener('scroll', handleReposition, true);
-    window.addEventListener('resize', handleReposition);
+    let ticking = false;
+    const handleReposition = () => {
+      if (isUserDraggedRef.current) return;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (!isUserDraggedRef.current && selectedImageNode) {
+            positionImageToolbar(selectedImageNode);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
+    window.addEventListener('resize', handleReposition, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleReposition, true);
       window.removeEventListener('resize', handleReposition);
     };
   }, [selectedImageNode, positionImageToolbar]);
+
+  // Pointer drag handlers for freely moving the toolbar via touch or mouse
+  const handleToolbarPointerDown = (e) => {
+    if (e.target.closest('button, input, textarea, a')) return;
+    const el = imageToolbarRef.current;
+    if (!el) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = el.getBoundingClientRect();
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialLeft: rect.left,
+      initialTop: rect.top
+    };
+
+    setIsDraggingToolbar(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_err) {}
+  };
+
+  const handleToolbarPointerMove = (e) => {
+    if (!isDraggingToolbar || !imageToolbarRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const deltaX = e.clientX - dragStartRef.current.startX;
+    const deltaY = e.clientY - dragStartRef.current.startY;
+
+    const el = imageToolbarRef.current;
+    const rect = el.getBoundingClientRect();
+    const width = rect.width || 280;
+    const height = rect.height || 140;
+
+    let newLeft = dragStartRef.current.initialLeft + deltaX;
+    let newTop = dragStartRef.current.initialTop + deltaY;
+
+    // Clamp strictly within viewport margins
+    newLeft = Math.max(8, Math.min(window.innerWidth - width - 8, newLeft));
+    newTop = Math.max(8, Math.min(window.innerHeight - height - 8, newTop));
+
+    el.style.left = `${Math.round(newLeft)}px`;
+    el.style.top = `${Math.round(newTop)}px`;
+    el.style.display = 'flex';
+    isUserDraggedRef.current = true;
+  };
+
+  const handleToolbarPointerUp = (e) => {
+    if (isDraggingToolbar) {
+      setIsDraggingToolbar(false);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (_err) {}
+    }
+  };
 
   // Update selection-dependent UI: Bubble Menu and Image Selection Toolbar
   const updatePopups = useCallback(() => {
@@ -737,17 +841,30 @@ const VisualEditor = forwardRef(function VisualEditor(
       {/* Floating Toolbar for Selected Image */}
       <div
         ref={imageToolbarRef}
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => {
+          if (e.target.closest('button, input, textarea')) return;
+          e.preventDefault();
+        }}
         onTouchStart={(e) => e.stopPropagation()}
         style={{ display: 'none', position: 'fixed', zIndex: 110 }}
         className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-[var(--border-subtle)] shadow-2xl backdrop-blur-md min-w-[280px] max-w-[95vw] font-sans"
       >
         {selectedImageNode && (
           <>
-          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 gap-2">
-            <span className="text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
-              Photo
-            </span>
+          <div
+            onPointerDown={handleToolbarPointerDown}
+            onPointerMove={handleToolbarPointerMove}
+            onPointerUp={handleToolbarPointerUp}
+            onPointerCancel={handleToolbarPointerUp}
+            className={`flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 gap-2 select-none touch-none ${
+              isDraggingToolbar ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            title="Drag with finger or mouse to move anywhere"
+          >
+            <div className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-[var(--text-muted)] uppercase tracking-wider">
+              <GripHorizontal className="w-4 h-4 text-[var(--text-muted)] opacity-70" />
+              <span>Photo</span>
+            </div>
             <div className="flex items-center gap-1">
               <button
                 type="button"

@@ -311,6 +311,7 @@ export default function Editor() {
   }, [id, token, initialEntry, toastError]);
 
   const handleVisualChange = (newMd) => {
+    if (mode !== 'visual' && mode !== 'split') return;
     dirtyRef.current = true;
     setFormData(prev => ({ ...prev, content: newMd }));
   };
@@ -762,6 +763,7 @@ export default function Editor() {
             <button
               type="button"
               onClick={() => {
+                const currentScrollY = window.scrollY;
                 if (mode === 'markdown') {
                   const gate = checkFidelity(formData.content);
                   if (!gate.ok) {
@@ -769,8 +771,14 @@ export default function Editor() {
                   } else {
                     setGateWarning(null);
                   }
+                  if (visualEditorRef.current?.setContent) {
+                    visualEditorRef.current.setContent(formData.content || '');
+                  }
                 }
                 setMode('visual');
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                });
               }}
               className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'visual'
@@ -791,11 +799,36 @@ export default function Editor() {
             <button
               type="button"
               onClick={() => {
+                const currentScrollY = window.scrollY;
+                let activeImgSrc = null;
+                if (visualEditorRef.current?.getSelectedImageInfo) {
+                  activeImgSrc = visualEditorRef.current.getSelectedImageInfo()?.attrs?.src;
+                }
+                let nextContent = formData.content;
                 if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
-                  const md = visualEditorRef.current.getMarkdown();
-                  setFormData(prev => ({ ...prev, content: md }));
+                  nextContent = visualEditorRef.current.getMarkdown();
+                  setFormData(prev => ({ ...prev, content: nextContent }));
                 }
                 setMode('markdown');
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                  const textarea = document.getElementById('content-textarea');
+                  if (textarea) {
+                    textarea.focus({ preventScroll: true });
+                    if (activeImgSrc && nextContent) {
+                      const idx = nextContent.indexOf(activeImgSrc);
+                      if (idx >= 0) {
+                        const lineStart = nextContent.lastIndexOf('\n', idx);
+                        const pos = lineStart >= 0 ? lineStart + 1 : idx;
+                        textarea.setSelectionRange(pos, pos);
+                        const textBefore = nextContent.substring(0, pos);
+                        const lineCount = textBefore.split('\n').length;
+                        textarea.scrollTop = Math.max(0, (lineCount - 2) * 26);
+                      }
+                    }
+                  }
+                  window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                });
               }}
               className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'markdown'
@@ -816,11 +849,15 @@ export default function Editor() {
             <button
               type="button"
               onClick={() => {
+                const currentScrollY = window.scrollY;
                 if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
                   const md = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: md }));
                 }
                 setMode('split');
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                });
               }}
               className={`hidden md:flex px-3 py-1 rounded items-center gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'split'
@@ -841,11 +878,15 @@ export default function Editor() {
             <button
               type="button"
               onClick={() => {
+                const currentScrollY = window.scrollY;
                 if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
                   const md = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: md }));
                 }
                 setMode('preview');
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                });
               }}
               className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
                 mode === 'preview'
@@ -1253,6 +1294,7 @@ export default function Editor() {
                     initialContent={formData.content}
                     onChange={handleVisualChange}
                     onOpenMediaPicker={() => setShowMediaPicker(true)}
+                    mode={mode}
                   />
                 </React.Suspense>
               </div>
