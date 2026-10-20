@@ -431,7 +431,14 @@ const VisualEditor = forwardRef(function VisualEditor(
   //   touchend    → if image was touched, create NodeSelection (more reliable than handleClick on mobile)
   //   effect body → sync inputmode from React state each time selectedImageNode changes
   useEffect(() => {
-    const dom = editor?.view?.dom;
+    // TipTap v3: before the view mounts, editor.view is a proxy that THROWS
+    // when .dom is accessed — optional chaining does not protect against it.
+    let dom = null;
+    try {
+      dom = editor?.view?.dom ?? null;
+    } catch {
+      dom = null;
+    }
     if (!dom) return;
 
     // Sync inputmode from current state
