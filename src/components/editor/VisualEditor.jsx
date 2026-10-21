@@ -5,7 +5,7 @@ import { Markdown } from '@tiptap/markdown';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { computePosition, offset, flip, shift } from '@floating-ui/dom';
 import { customEditorialExtensions } from './extensions/index.js';
-import { serializeVisualMarkdown } from '../../utils/entryMarkdown.js';
+import { serializeVisualMarkdown, markdownForVisualParse } from '../../utils/entryMarkdown.js';
 import { SlashCommands } from './slashCommands.js';
 import { NodeSelection } from '@tiptap/pm/state';
 import {
@@ -55,6 +55,17 @@ const VisualEditor = forwardRef(function VisualEditor(
   modeRef.current = mode;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  // Single-source-of-truth sync state. The parent owns the markdown string;
+  // this editor is a view of it. lastSyncedRef holds the exact markdown
+  // string the document currently represents (the last value we emitted via
+  // onChange, or the last external value we applied). The sync effect reloads
+  // the document ONLY when the incoming markdown differs from that — never
+  // because of a representation mismatch. applyingExternalRef suppresses the
+  // onUpdate echo while a programmatic reload is in flight, so applying
+  // external content can never overwrite the parent's string.
+  const lastSyncedRef = useRef(null);
+  const applyingExternalRef = useRef(false);
 
   const [slashState, setSlashState] = useState(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
@@ -134,7 +145,7 @@ const VisualEditor = forwardRef(function VisualEditor(
         }
       })
     ],
-    content: initialContent || '',
+    content: markdownForVisualParse(initialContent || ''),
     editorProps: {
       attributes: {
         class:
@@ -239,17 +250,22 @@ const VisualEditor = forwardRef(function VisualEditor(
       }
     },
     onUpdate: ({ editor: ed }) => {
-      if (onChangeRef.current && (modeRef.current === 'visual' || modeRef.current === 'split')) {
-        const md = ed.storage.markdown?.getMarkdown?.() ?? ed.getMarkdown?.() ?? '';
-        onChangeRef.current(md);
-      }
+      // Never echo programmatic reloads back into the parent's markdown.
+      if (applyingExternalRef.current) return;
+      if (!onChangeRef.current) return;
+      if (modeRef.current !== 'visual' && modeRef.current !== 'split') return;
+      const raw = ed.storage.markdown?.getMarkdown?.() ?? ed.getMarkdown?.() ?? '';
+      const canonical = serializeVisualMarkdown(raw);
+      lastSyncedRef.current = canonical;
+      onChangeRef.current(canonical);
     }
   });
 
-  // A spacer marker line (&nbsp;) parses into a paragraph holding only a
-  // non-breaking space. Convert those into true empty paragraphs so a
-  // deliberate spacer renders exactly like an Enter-made empty paragraph
-  // (same height, no paragraph margins) and serializes back to one marker.
+  // The internal parse shim (markdownForVisualParse) represents each extra
+  // blank line as a paragraph holding only a non-breaking space. Convert
+  // those into true empty paragraphs so a deliberate spacer renders exactly
+  // like an Enter-made empty paragraph (same height, no paragraph margins)
+  // and serializes back into one extra blank line.
   const clearSpacerParagraphs = useCallback((ed) => {
     if (!ed || ed.isDestroyed) return;
     const ranges = [];
@@ -272,19 +288,40 @@ const VisualEditor = forwardRef(function VisualEditor(
     if (editor) clearSpacerParagraphs(editor);
   }, [editor, clearSpacerParagraphs]);
 
-  // Sync initialContent if it changes from external sources (e.g. entry load or mode toggle)
+  // Load external markdown into the document. The applyingExternal flag
+  // swallows the onUpdate echo of this programmatic reload, and lastSynced
+  // records the exact string the document now represents.
+  const applyExternalContent = useCallback((ed, md) => {
+    if (!ed || ed.isDestroyed) return;
+    applyingExternalRef.current = true;
+    try {
+      ed.commands.setContent(markdownForVisualParse(md || ''), { contentType: 'markdown' });
+      clearSpacerParagraphs(ed);
+    } finally {
+      applyingExternalRef.current = false;
+    }
+    lastSyncedRef.current = md || '';
+  }, [clearSpacerParagraphs]);
+
+  // Re-sync from the parent's markdown string (the single source of truth)
+  // whenever it changed OUTSIDE this editor: entry load, Markdown-tab edits,
+  // tab switches back to Visual. While in markdown mode the document is left
+  // untouched (no per-keystroke reloads); the reload happens when the mode
+  // returns to visual/split and the string no longer matches lastSynced.
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
-    // CRITICAL: When in markdown mode, do not sync or overwrite content on every keystroke
     if (mode !== 'visual' && mode !== 'split') return;
-    if (initialContent !== undefined) {
-      const currentMd = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
-      if (initialContent !== currentMd) {
-        editor.commands.setContent(initialContent || '', { contentType: 'markdown' });
-        clearSpacerParagraphs(editor);
-      }
+    if (initialContent === undefined) return;
+    if (initialContent === lastSyncedRef.current) return;
+    // The document may already represent exactly this string (initial mount,
+    // or the parent echoing our own last edit back): just record the sync.
+    const raw = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
+    if (serializeVisualMarkdown(raw) === initialContent) {
+      lastSyncedRef.current = initialContent;
+      return;
     }
-  }, [editor, initialContent, mode, clearSpacerParagraphs]);
+    applyExternalContent(editor, initialContent);
+  }, [editor, initialContent, mode, applyExternalContent]);
 
   // Expose imperative methods to parent (e.g. Editor.jsx)
   useImperativeHandle(ref, () => ({
@@ -295,8 +332,7 @@ const VisualEditor = forwardRef(function VisualEditor(
     },
     setContent: (md) => {
       if (editor && !editor.isDestroyed) {
-        editor.commands.setContent(md || '', { contentType: 'markdown' });
-        clearSpacerParagraphs(editor);
+        applyExternalContent(editor, md || '');
       }
     },
     getSelectedImageInfo: () => {

@@ -1,27 +1,61 @@
 import { marked } from 'marked';
 import { escapeNonStandardTags } from './markdown.js';
 
-// Normalize entry markdown so accidental blank lines never create extra space.
-// Outside fenced code blocks:
-// - runs of blank lines collapse to a single blank line
-// - lines containing only <br> tags are dropped
+const NBSP_ONLY_LINE = /^(?:&nbsp;\s*)+$/i;
+const BR_ONLY_LINE = /^(?:<br\s*\/?>\s*)+$/i;
+const LIST_OR_TABLE_LINE = /^\s{0,3}(?:[-*+]|\d{1,9}[.)])\s|^\s*\|/;
+export const CONTENT_SPACER_DIV = '<div class="content-spacer" aria-hidden="true"></div>';
+
+// Spacing model (the ONLY model, everywhere):
+// - Blocks are separated by blank lines. One blank line = the standard
+//   paragraph break. Each ADDITIONAL blank line is one deliberate extra
+//   spacer worth exactly one standard paragraph gap.
+// - No markers are ever stored: no &nbsp;, no <br>, no HTML comments.
+// - Legacy migration: a line containing only &nbsp; (the old spacer marker)
+//   converts into one extra blank line, preserving the spacer count the old
+//   rendering produced.
+
+// How many empty lines a gap between two blocks must contain, given how many
+// plain blank lines (blanks) and legacy &nbsp; lines (nbsp) were found in it.
+// One deliberate spacer = one extra empty line beyond the standard break.
+const gapEmptyLineCount = (blanks, nbsp) => {
+  if (nbsp > 0) {
+    // Canonical old form "block, blank, (&nbsp;, blank) x N, block" carried
+    // nbsp + 1 blanks for nbsp spacers; any blanks beyond that pattern are
+    // additional deliberate spacers of their own.
+    const extra = nbsp + Math.max(0, blanks - (nbsp + 1));
+    return 1 + extra;
+  }
+  return Math.max(1, blanks);
+};
+
+// Normalize entry markdown. Outside fenced code blocks:
 // - trailing whitespace is trimmed from every line
-// - a line containing only &nbsp; is the ONE deliberate spacer marker: a single
-//   one is kept per run, and rendering turns it into a .content-spacer block
+// - lines containing only <br> tags are dropped (real junk)
+// - deliberate blank-line runs are PRESERVED (they are the spacing)
+// - legacy &nbsp;-only lines migrate to extra blank lines (see above)
+// - leading and trailing blank lines are dropped
 export const normalizeEntryMarkdown = (md) => {
   if (!md) return '';
   const lines = String(md).replace(/\r\n/g, '\n').split('\n');
   const out = [];
   let inFence = false;
-  let prevBlank = true; // also drops leading blank lines
-  let prevSpacer = false;
+  let pendingBlanks = 0;
+  let pendingNbsp = 0;
+  const flushGap = () => {
+    if (out.length && (pendingBlanks > 0 || pendingNbsp > 0)) {
+      const count = gapEmptyLineCount(pendingBlanks, pendingNbsp);
+      for (let i = 0; i < count; i++) out.push('');
+    }
+    pendingBlanks = 0;
+    pendingNbsp = 0;
+  };
   for (const rawLine of lines) {
     const line = rawLine.replace(/[ \t]+$/g, '');
     if (/^\s*```/.test(line)) {
+      flushGap();
       inFence = !inFence;
       out.push(line);
-      prevBlank = false;
-      prevSpacer = false;
       continue;
     }
     if (inFence) {
@@ -29,70 +63,130 @@ export const normalizeEntryMarkdown = (md) => {
       continue;
     }
     const trimmed = line.trim();
-    if (/^(?:<br\s*\/?>\s*)+$/i.test(trimmed)) continue;
-    if (/^(?:&nbsp;\s*)+$/i.test(trimmed)) {
-      if (!prevSpacer) {
-        out.push('&nbsp;');
-        prevSpacer = true;
-        prevBlank = false;
-      }
+    if (BR_ONLY_LINE.test(trimmed)) continue; // junk: drop, gap counting unaffected
+    if (NBSP_ONLY_LINE.test(trimmed)) {
+      pendingNbsp += 1;
       continue;
     }
     if (trimmed === '') {
-      if (!prevBlank) {
-        out.push('');
-        prevBlank = true;
-      }
-      prevSpacer = false;
+      pendingBlanks += 1;
       continue;
     }
+    flushGap();
     out.push(line);
-    prevBlank = false;
-    prevSpacer = false;
   }
-  while (out.length && out[out.length - 1] === '') out.pop();
   return out.join('\n');
 };
+
+// Walk the blank-line gaps of a markdown string (outside fenced code blocks)
+// and rebuild each gap with `buildGap({ blanks, prevLine, nextLine })`, which
+// returns the array of lines to emit for that gap. Leading/trailing gaps are
+// dropped. Shared by the renderer (blank lines -> spacer divs) and the Visual
+// editor parse shim (blank lines -> parseable empty-paragraph placeholders).
+const rebuildBlankGaps = (md, buildGap) => {
+  const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let inFence = false;
+  let pendingBlanks = 0;
+  let prevContentLine = null;
+  const flush = (nextLine) => {
+    if (pendingBlanks > 0 && out.length) {
+      out.push(...buildGap({ blanks: pendingBlanks, prevLine: prevContentLine, nextLine }));
+    }
+    pendingBlanks = 0;
+  };
+  for (const rawLine of lines) {
+    if (/^\s*```/.test(rawLine)) {
+      flush(rawLine);
+      inFence = !inFence;
+      out.push(rawLine);
+      prevContentLine = rawLine;
+      continue;
+    }
+    if (inFence) {
+      out.push(rawLine);
+      prevContentLine = rawLine;
+      continue;
+    }
+    if (rawLine.trim() === '') {
+      pendingBlanks += 1;
+      continue;
+    }
+    flush(rawLine);
+    out.push(rawLine);
+    prevContentLine = rawLine;
+  }
+  return out.join('\n');
+};
+
+// Render-time expansion: each extra blank line (beyond the standard single
+// blank line between blocks) becomes one .content-spacer block whose height
+// is exactly one standard paragraph gap. Inside/between list items and table
+// rows, extra blanks collapse to a normal break instead (a spacer element
+// would break the list/table structure).
+export const expandBlankLineSpacers = (md) => rebuildBlankGaps(md, ({ blanks, prevLine, nextLine }) => {
+  const extra = blanks - 1;
+  if (extra <= 0) return [''];
+  if ((prevLine && LIST_OR_TABLE_LINE.test(prevLine)) || (nextLine && LIST_OR_TABLE_LINE.test(nextLine))) return [''];
+  const gap = [''];
+  for (let i = 0; i < extra; i++) gap.push(CONTENT_SPACER_DIV, '');
+  return gap;
+});
+
+// INTERNAL parse shim for the Visual editor only. TipTap/marked cannot turn
+// extra blank lines into empty paragraphs (it collapses them), so while
+// loading markdown into the editor each extra blank line is temporarily
+// expanded into a placeholder paragraph line. This representation never
+// reaches storage and never the Markdown tab: the editor converts those
+// placeholder paragraphs into true empty paragraphs on load, and serializing
+// the document converts empty paragraphs back into plain blank lines.
+export const markdownForVisualParse = (md) => rebuildBlankGaps(md, ({ blanks, prevLine, nextLine }) => {
+  const extra = blanks - 1;
+  if (extra <= 0) return [''];
+  if ((prevLine && LIST_OR_TABLE_LINE.test(prevLine)) || (nextLine && LIST_OR_TABLE_LINE.test(nextLine))) return [''];
+  const gap = [''];
+  for (let i = 0; i < extra; i++) gap.push('&nbsp;', '');
+  return gap;
+});
 
 // Convert raw TipTap serializer output into canonical entry markdown.
 // The serializer joins document blocks with exactly "\n\n" and renders an
 // empty paragraph block as an empty item (or, from the second consecutive
 // one, as an &nbsp; item). Every empty paragraph in the visual document is
 // a deliberate spacer the author added with Enter, so each empty item is
-// stored as exactly one &nbsp; marker block:
-// [p, empty, p] -> "p\n\n&nbsp;\n\np". Fenced code blocks pass through
-// verbatim; the empty items touching a fence are block separators, not
-// paragraphs, and are preserved as-is.
+// stored as exactly ONE extra plain blank line:
+// [p, empty, p] -> "p\n\n\np". Fenced code blocks pass through verbatim; the
+// empty items touching a fence are block separators, not paragraphs, and are
+// preserved as-is.
 export const serializeVisualMarkdown = (md) => {
   if (!md) return '';
   const fenceSplit = String(md).replace(/\r\n/g, '\n').split(/(```[\s\S]*?```)/g);
+  const lastSegIdx = fenceSplit.length - 1;
   const rebuilt = fenceSplit.map((segment, segIdx) => {
     if (segIdx % 2 === 1) return segment; // fenced code block: verbatim
     const items = segment.split('\n\n');
-    const lastSegIdx = fenceSplit.length - 1;
-    return items.map((item, itemIdx) => {
-      if (item.trim() !== '') return item; // real block (incl. &nbsp; markers)
-      const touchesFenceLeft = itemIdx === 0 && segIdx > 0;
-      const touchesFenceRight = itemIdx === items.length - 1 && segIdx < lastSegIdx;
-      if (touchesFenceLeft || touchesFenceRight) return item; // separator glue
-      return '&nbsp;'; // empty paragraph -> one spacer marker
-    }).join('\n\n');
+    let out = '';
+    items.forEach((item, itemIdx) => {
+      const trimmed = item.trim();
+      const isEmptyPara = trimmed === '' || NBSP_ONLY_LINE.test(trimmed);
+      const touchesFence = (itemIdx === 0 && segIdx > 0) || (itemIdx === items.length - 1 && segIdx < lastSegIdx);
+      if (itemIdx === 0) {
+        out += isEmptyPara && !touchesFence ? '' : item;
+        return;
+      }
+      if (isEmptyPara && !touchesFence) {
+        out += '\n'; // one extra blank line per empty paragraph
+      } else {
+        out += '\n\n' + item;
+      }
+    });
+    return out;
   }).join('');
   return normalizeEntryMarkdown(rebuilt);
 };
 
 export const processEmbeds = (rawText) => {
   let processed = rawText ? String(rawText).replace(/\\n/g, '\n').replace(/\r\n/g, '\n') : '';
-
-  // Convert a standalone &nbsp; marker line (the deliberate spacer) outside
-  // fenced code blocks into a single content-spacer block
-  const codeBlockRegex = /(```[\s\S]*?```)/g;
-  const parts = processed.split(codeBlockRegex);
-  processed = parts.map((part, index) => {
-    // Leave code blocks untouched
-    if (index % 2 === 1) return part;
-    return part.replace(/^[ \t]*&nbsp;[ \t]*$/gim, '\n<div class="content-spacer" aria-hidden="true"></div>\n');
-  }).join('');
 
   // Convert standalone YouTube URLs into iframe embeds (supports watch, shorts, embed, youtu.be, mobile)
   const youtubeRegex = /(?:^|\n)\s*(?:https?:\/\/)?(?:(?:www|m)\.)?(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:\S*)?/g;
@@ -240,7 +334,7 @@ export const unwrapMediaFromParagraphs = (html) => {
 
 export function markdownToHtmlUnsanitized(content) {
   if (!content) return '';
-  const processedContent = escapeNonStandardTags(processEmbeds(normalizeEntryMarkdown(content)));
+  const processedContent = escapeNonStandardTags(processEmbeds(expandBlankLineSpacers(normalizeEntryMarkdown(content))));
   const rawHtml = unwrapMediaFromParagraphs(marked.parse(processedContent, {
     gfm: true,
     breaks: true

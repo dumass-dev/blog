@@ -122,6 +122,11 @@ export default function Editor() {
   const visualEditorRef = React.useRef(null);
   const originalContentRef = React.useRef(initialEntry?.content || '');
   const dirtyRef = React.useRef(false);
+  // True only while the Visual editor holds edits that have not yet been
+  // pulled into formData.content. Tab switches and saves pull the live
+  // Visual document ONLY when this is set, so merely opening Visual can
+  // never rewrite the markdown string byte-for-byte.
+  const visualEditedRef = React.useRef(false);
   const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
   const [saving, setSaving] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
@@ -292,6 +297,7 @@ export default function Editor() {
           const rawContent = entryData.content || '';
           originalContentRef.current = rawContent;
           dirtyRef.current = false;
+          visualEditedRef.current = false;
           const gate = checkFidelity(rawContent);
           if (!gate.ok) {
             setMode('markdown');
@@ -319,6 +325,7 @@ export default function Editor() {
   const handleVisualChange = (newMd) => {
     if (mode !== 'visual' && mode !== 'split') return;
     dirtyRef.current = true;
+    visualEditedRef.current = true;
     setFormData(prev => ({ ...prev, content: newMd }));
   };
 
@@ -326,6 +333,9 @@ export default function Editor() {
     const { name, value } = e.target;
     if (name === 'content') {
       dirtyRef.current = true;
+      // The markdown string is now owned by the textarea side; any pending
+      // Visual pull is moot and the Visual editor must re-sync from it.
+      visualEditedRef.current = false;
     }
     if (name === 'title') {
       setFormData(prev => ({
@@ -524,7 +534,11 @@ export default function Editor() {
     if (id && !dirtyRef.current && originalContentRef.current !== undefined) {
       // Unedited existing post: guarantee 100% byte-for-byte identity by using original
       contentToSave = originalContentRef.current;
-    } else if (visualEditorRef.current?.getMarkdown && (mode === 'visual' || mode === 'preview')) {
+    } else if (visualEditedRef.current && visualEditorRef.current?.getMarkdown && (mode === 'visual' || mode === 'preview' || mode === 'split')) {
+      // Pull the live Visual document ONLY when the user actually edited in
+      // Visual. Otherwise formData.content (the single source of truth,
+      // e.g. typed in the Markdown tab) is what gets saved — never a stale
+      // or re-serialized copy.
       const liveMd = visualEditorRef.current.getMarkdown();
       if (liveMd) contentToSave = liveMd;
     }
@@ -550,9 +564,9 @@ export default function Editor() {
       ? slugify(formData.slug.trim())
       : (slugify(formData.title || fallbackTitle) || (isPhotoPost ? `photo-${Date.now()}` : `entry-${Date.now()}`));
 
-    // Normalize markdown on save: collapse accidental blank-line runs, drop
-    // <br>-only lines, trim trailing whitespace (deliberate &nbsp; spacer
-    // marker lines are preserved as a single marker)
+    // Normalize markdown on save: trim trailing whitespace, drop <br>-only
+    // junk lines, migrate any legacy &nbsp; lines to extra blank lines.
+    // Deliberate blank-line runs are preserved — they are the spacing.
     const normalizedContent = normalizeEntryMarkdown(contentToSave);
 
     const payload = {
@@ -701,8 +715,9 @@ export default function Editor() {
     } else if (typeof payload.passcode === 'string') {
       setHasExistingPasscode(true);
     }
-    originalContentRef.current = contentToSave;
+    originalContentRef.current = normalizedContent;
     dirtyRef.current = false;
+    visualEditedRef.current = false;
     setSaving(false);
     isSavingRef.current = false;
 
@@ -795,6 +810,9 @@ export default function Editor() {
                   if (visualEditorRef.current?.setContent) {
                     visualEditorRef.current.setContent(formData.content || '');
                   }
+                  // The Visual document is now synced FROM the markdown
+                  // string; there are no unsynced Visual edits to pull.
+                  visualEditedRef.current = false;
                 }
                 setMode('visual');
                 requestAnimationFrame(() => {
@@ -826,10 +844,11 @@ export default function Editor() {
                   activeImgSrc = visualEditorRef.current.getSelectedImageInfo()?.attrs?.src;
                 }
                 let nextContent = formData.content;
-                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                if (mode === 'visual' && visualEditedRef.current && visualEditorRef.current?.getMarkdown) {
                   nextContent = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: nextContent }));
                 }
+                visualEditedRef.current = false;
                 setMode('markdown');
                 requestAnimationFrame(() => {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
@@ -870,10 +889,11 @@ export default function Editor() {
               type="button"
               onClick={() => {
                 const currentScrollY = window.scrollY;
-                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                if (mode === 'visual' && visualEditedRef.current && visualEditorRef.current?.getMarkdown) {
                   const md = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: md }));
                 }
+                visualEditedRef.current = false;
                 setMode('split');
                 requestAnimationFrame(() => {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
@@ -899,10 +919,11 @@ export default function Editor() {
               type="button"
               onClick={() => {
                 const currentScrollY = window.scrollY;
-                if (mode === 'visual' && visualEditorRef.current?.getMarkdown) {
+                if (mode === 'visual' && visualEditedRef.current && visualEditorRef.current?.getMarkdown) {
                   const md = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: md }));
                 }
+                visualEditedRef.current = false;
                 setMode('preview');
                 requestAnimationFrame(() => {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });

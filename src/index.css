@@ -735,13 +735,14 @@ html {
   margin-top: 0.35rem;
 }
 
-/* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class) */
+/* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class).
+   An empty paragraph here is one deliberate spacer: margin 0 and height equal
+   to exactly one standard paragraph gap (1.35rem), same as .content-spacer. */
 .prose-editorial:not(.ProseMirror) p:has(> br:only-child),
 .prose-editorial:not(.ProseMirror) p:empty {
-  margin-top: 0;
-  margin-bottom: 0.35rem;
-  min-height: 0.85em;
-  line-height: 1.4;
+  margin: 0;
+  height: 1.35rem;
+  line-height: 1.35rem;
 }
 
 /* === TipTap Visual Editor — SHARED paragraph spacing ===
@@ -753,15 +754,16 @@ html {
 */
 
 /* Blank-line paragraph (empty or trailing-break only) = one deliberate spacer.
-   Height matches the published .content-spacer (1.85em = one line height), so
-   an Enter-made empty paragraph takes exactly the same space in the editor
-   as its spacer marker does on the published page. */
+   Height is exactly one standard paragraph gap (1.35rem = the .prose-editorial
+   paragraph margin), margin 0, matching the published .content-spacer, so an
+   Enter-made empty paragraph adds exactly one standard gap in the editor,
+   Preview, and the published page alike. */
 .ProseMirror.prose-editorial p:empty,
 .ProseMirror.prose-editorial p:has(> br:only-child) {
   margin: 0 !important;
   min-height: 0 !important;
-  height: 1.85em !important;
-  line-height: 1.85 !important; /* match height so <br> doesn't overflow              */
+  height: 1.35rem !important;
+  line-height: 1.35rem !important; /* match height so <br> doesn't overflow              */
   overflow: hidden;
 }
 
@@ -828,11 +830,15 @@ html {
   transition: outline 150ms ease-in-out;
 }
 
-/* Intentional blank line spacer (from a deliberate &nbsp; marker line):
-   adds about one extra line height on top of the standard paragraph gap */
+/* Intentional spacer (one per extra blank line in the markdown):
+   margin 0 and height equal to exactly one standard paragraph gap
+   (1.35rem, the .prose-editorial paragraph margin-bottom), so each extra
+   blank line adds precisely one standard gap of space — never a full
+   line height plus margins. */
 .prose-editorial .content-spacer {
   display: block;
-  height: 1.85em;
+  height: 1.35rem;
+  margin: 0;
   width: 100%;
   pointer-events: none;
 }
