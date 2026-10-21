@@ -785,7 +785,7 @@ export default function Editor() {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
                 });
               }}
-              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs whitespace-nowrap ${
                 mode === 'visual'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -835,7 +835,7 @@ export default function Editor() {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
                 });
               }}
-              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs whitespace-nowrap ${
                 mode === 'markdown'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -893,7 +893,7 @@ export default function Editor() {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
                 });
               }}
-              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs ${
+              className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1 rounded flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer text-xs whitespace-nowrap ${
                 mode === 'preview'
                   ? 'font-medium shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'

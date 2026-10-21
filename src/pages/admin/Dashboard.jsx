@@ -785,7 +785,7 @@ export default function Dashboard() {
                       <span>{item.views || 0} views</span>
                     </button>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <Link
                         to={`/admin/edit/${item.id}`}
                         state={{ entry: item }}
