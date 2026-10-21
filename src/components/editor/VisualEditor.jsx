@@ -5,6 +5,7 @@ import { Markdown } from '@tiptap/markdown';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { computePosition, offset, flip, shift } from '@floating-ui/dom';
 import { customEditorialExtensions } from './extensions/index.js';
+import { serializeVisualMarkdown } from '../../utils/entryMarkdown.js';
 import { SlashCommands } from './slashCommands.js';
 import { NodeSelection } from '@tiptap/pm/state';
 import {
@@ -262,7 +263,8 @@ const VisualEditor = forwardRef(function VisualEditor(
   useImperativeHandle(ref, () => ({
     getMarkdown: () => {
       if (!editor) return '';
-      return editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
+      const raw = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
+      return serializeVisualMarkdown(raw);
     },
     setContent: (md) => {
       if (editor && !editor.isDestroyed) {

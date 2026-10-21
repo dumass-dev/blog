@@ -741,17 +741,13 @@ html {
   line-height: 1.4;
 }
 
-/* === TipTap Visual Editor — compact paragraph & blank-line spacing ===
+/* === TipTap Visual Editor — SHARED paragraph spacing ===
    The editor root has class="ProseMirror prose-editorial …" (set in editorProps.attributes.class).
-   Compound selector specificity (0,2,1) beats .prose-editorial p (0,1,1), so no !important needed
-   for the base rule, yet it NEVER matches the published RichViewer which has only prose-editorial.
-
-   Goal: intentional blank line ≈ natural word-wrap line spacing (~1 line height), not a huge gap.
+   There is deliberately NO editor-specific paragraph margin override: the editor
+   uses the exact same .prose-editorial block spacing as the published page, so
+   one blank line between blocks looks identical in the Visual editor, Preview,
+   and the published entry. (Empty-paragraph caret sizing below still applies.)
 */
-.ProseMirror.prose-editorial p {
-  margin-top: 0;
-  margin-bottom: 0.5em; /* compact editor gap; compound selector beats .prose-editorial p */
-}
 
 /* Blank-line paragraph (empty or trailing-break only) = thin spacer, not a full paragraph block */
 .ProseMirror.prose-editorial p:empty,
@@ -826,10 +822,11 @@ html {
   transition: outline 150ms ease-in-out;
 }
 
-/* Intentional blank line spacer */
+/* Intentional blank line spacer (from a deliberate &nbsp; marker line):
+   adds about one extra line height on top of the standard paragraph gap */
 .prose-editorial .content-spacer {
   display: block;
-  height: 1.35rem;
+  height: 1.85em;
   width: 100%;
   pointer-events: none;
 }
@@ -1829,6 +1826,41 @@ html, body {
   white-space: nowrap !important;
   max-width: 100% !important;
   display: flex !important;
+}
+
+/* Admin entry card actions — small phones (<= 480px):
+   Row 1: views badge on its own, left-aligned.
+   Row 2: Edit / Open / Copy / Delete in ONE grid row, nothing wraps or overflows. */
+@media (max-width: 480px) {
+  .entry-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .entry-card-actions > button {
+    align-self: flex-start;
+  }
+  .entry-card-actions-buttons {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .entry-card-actions-buttons > * {
+    height: 44px;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+  }
+  .entry-card-actions-buttons > .quiet-button {
+    justify-content: center;
+  }
+  .entry-card-actions-buttons > .quiet-button-secondary {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 /* Photo Lightbox Close Button - Fixed Top-Left Position & 44px Tap Target (Transparent Box) */

@@ -757,15 +757,11 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Title & Preview */}
+                  {/* Title & Preview (plain text — only the Edit button opens the editor) */}
                   <div>
-                    <Link
-                      to={`/admin/edit/${item.id}`}
-                      state={{ entry: item }}
-                      className="font-serif text-base font-medium text-[var(--text-primary)] hover:text-[var(--accent-warm)] transition-colors line-clamp-2 block"
-                    >
+                    <div className="font-serif text-base font-medium text-[var(--text-primary)] line-clamp-2 block">
                       {item.title || item.content}
-                    </Link>
+                    </div>
                     {item.excerpt && (
                       <p className="text-[var(--text-muted)] text-xs line-clamp-2 mt-1 font-serif">
                         {stripMarkdown(item.excerpt)}
@@ -774,7 +770,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Actions & Metrics Row */}
-                  <div className="pt-2.5 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)]/60 text-xs font-sans">
+                  <div className="entry-card-actions pt-2.5 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)]/60 text-xs font-sans">
                     <button
                       type="button"
                       onClick={() => setAnalyticsTarget(item)}
@@ -785,7 +781,7 @@ export default function Dashboard() {
                       <span>{item.views || 0} views</span>
                     </button>
 
-                    <div className="flex items-center gap-1 flex-wrap">
+                    <div className="entry-card-actions-buttons flex items-center gap-1 flex-wrap">
                       <Link
                         to={`/admin/edit/${item.id}`}
                         state={{ entry: item }}

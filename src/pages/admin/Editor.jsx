@@ -12,6 +12,7 @@ import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../
 import { resolveMediaUrl } from '../../utils/media';
 import { slugify } from '../../utils/slug';
 import { checkFidelity } from '../../utils/editorFidelity';
+import { normalizeEntryMarkdown } from '../../utils/entryMarkdown';
 import {
   Save,
   ArrowLeft,
@@ -82,7 +83,7 @@ export default function Editor() {
       return {
         title: initialEntry.title || '',
         slug: initialEntry.slug || '',
-        content: initialEntry.content || '',
+        content: normalizeEntryMarkdown(initialEntry.content || ''),
         type: isPhoto ? 'photo' : (initialEntry.type || 'journal'),
         status: initialEntry.status || 'published',
         category: initialEntry.category || '',
@@ -274,7 +275,7 @@ export default function Editor() {
             ...prev,
             title: entryData.title || prev.title,
             slug: entryData.slug || prev.slug,
-            content: entryData.content || prev.content,
+            content: normalizeEntryMarkdown(entryData.content || prev.content),
             type: isPhotoEntry ? 'photo' : (entryData.type || prev.type),
             status: entryData.status || prev.status,
             category: entryData.category || prev.category,
@@ -549,15 +550,20 @@ export default function Editor() {
       ? slugify(formData.slug.trim())
       : (slugify(formData.title || fallbackTitle) || (isPhotoPost ? `photo-${Date.now()}` : `entry-${Date.now()}`));
 
+    // Normalize markdown on save: collapse accidental blank-line runs, drop
+    // <br>-only lines, trim trailing whitespace (deliberate &nbsp; spacer
+    // marker lines are preserved as a single marker)
+    const normalizedContent = normalizeEntryMarkdown(contentToSave);
+
     const payload = {
       ...formData,
-      content: contentToSave,
+      content: normalizedContent,
       title: formData.title || fallbackTitle,
       slug: payloadSlug,
       type: isPhotoPost ? 'journal' : formData.type,
       category: isPhotoPost ? (formData.category || 'Photos') : formData.category,
       show_in_feed: formData.show_in_feed !== undefined ? Boolean(formData.show_in_feed) : !isPhotoPost,
-      excerpt: stripMarkdown(contentToSave, 150),
+      excerpt: stripMarkdown(normalizedContent, 150),
       date: fromLocalDatetimeInputString(formData.date)
     };
 
@@ -565,6 +571,10 @@ export default function Editor() {
       payload.passcode = null;
     } else if (formData.passcode && formData.passcode.trim() !== '') {
       payload.passcode = formData.passcode.trim();
+    } else if (id && hasExistingPasscode) {
+      // Protected entry published with a blank passcode field = remove
+      // protection. The passcode UI warns about this state before publish.
+      payload.passcode = null;
     } else if (id) {
       delete payload.passcode;
     } else {
@@ -685,6 +695,12 @@ export default function Editor() {
       data: savedData
     });
     toastSuccess(id ? 'Entry updated successfully.' : 'Entry published successfully.');
+    if (payload.passcode === null) {
+      setHasExistingPasscode(false);
+      setRemovePasscodeFlag(false);
+    } else if (typeof payload.passcode === 'string') {
+      setHasExistingPasscode(true);
+    }
     originalContentRef.current = contentToSave;
     dirtyRef.current = false;
     setSaving(false);
@@ -817,19 +833,18 @@ export default function Editor() {
                 setMode('markdown');
                 requestAnimationFrame(() => {
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
+                  // Do NOT focus the textarea here: switching tabs must never
+                  // pop the mobile keyboard. The user focuses it by tapping.
+                  // Only preserve the scroll position near a selected image.
                   const textarea = document.getElementById('content-textarea');
-                  if (textarea) {
-                    textarea.focus({ preventScroll: true });
-                    if (activeImgSrc && nextContent) {
-                      const idx = nextContent.indexOf(activeImgSrc);
-                      if (idx >= 0) {
-                        const lineStart = nextContent.lastIndexOf('\n', idx);
-                        const pos = lineStart >= 0 ? lineStart + 1 : idx;
-                        textarea.setSelectionRange(pos, pos);
-                        const textBefore = nextContent.substring(0, pos);
-                        const lineCount = textBefore.split('\n').length;
-                        textarea.scrollTop = Math.max(0, (lineCount - 2) * 26);
-                      }
+                  if (textarea && activeImgSrc && nextContent) {
+                    const idx = nextContent.indexOf(activeImgSrc);
+                    if (idx >= 0) {
+                      const lineStart = nextContent.lastIndexOf('\n', idx);
+                      const pos = lineStart >= 0 ? lineStart + 1 : idx;
+                      const textBefore = nextContent.substring(0, pos);
+                      const lineCount = textBefore.split('\n').length;
+                      textarea.scrollTop = Math.max(0, (lineCount - 2) * 26);
                     }
                   }
                   window.scrollTo({ top: currentScrollY, behavior: 'instant' });
@@ -1506,6 +1521,16 @@ export default function Editor() {
                 >
                   Remove passcode protection
                 </button>
+              )}
+              {hasExistingPasscode && !removePasscodeFlag && !(formData.passcode && formData.passcode.trim() !== '') && (
+                <p className="text-[11px] font-sans text-red-500 mt-1 leading-snug">
+                  This entry is protected. Publishing with an empty passcode field will remove the passcode and make it public. Type a new passcode to change it instead.
+                </p>
+              )}
+              {removePasscodeFlag && (
+                <p className="text-[11px] font-sans text-red-500 mt-1 leading-snug">
+                  Passcode protection will be removed when you publish.
+                </p>
               )}
               <p className="text-[11px] font-sans text-[var(--text-muted)] mt-1 leading-snug">
                 Public readers must enter passcode to read. Passcodes are hashed securely by the database.

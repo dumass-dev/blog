@@ -1,22 +1,90 @@
 import { marked } from 'marked';
 import { escapeNonStandardTags } from './markdown.js';
 
+// Normalize entry markdown so accidental blank lines never create extra space.
+// Outside fenced code blocks:
+// - runs of blank lines collapse to a single blank line
+// - lines containing only <br> tags are dropped
+// - trailing whitespace is trimmed from every line
+// - a line containing only &nbsp; is the ONE deliberate spacer marker: a single
+//   one is kept per run, and rendering turns it into a .content-spacer block
+export const normalizeEntryMarkdown = (md) => {
+  if (!md) return '';
+  const lines = String(md).replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let inFence = false;
+  let prevBlank = true; // also drops leading blank lines
+  let prevSpacer = false;
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/[ \t]+$/g, '');
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      prevBlank = false;
+      prevSpacer = false;
+      continue;
+    }
+    if (inFence) {
+      out.push(rawLine);
+      continue;
+    }
+    const trimmed = line.trim();
+    if (/^(?:<br\s*\/?>\s*)+$/i.test(trimmed)) continue;
+    if (/^(?:&nbsp;\s*)+$/i.test(trimmed)) {
+      if (!prevSpacer) {
+        out.push('&nbsp;');
+        prevSpacer = true;
+        prevBlank = false;
+      }
+      continue;
+    }
+    if (trimmed === '') {
+      if (!prevBlank) {
+        out.push('');
+        prevBlank = true;
+      }
+      prevSpacer = false;
+      continue;
+    }
+    out.push(line);
+    prevBlank = false;
+    prevSpacer = false;
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return out.join('\n');
+};
+
+// The TipTap markdown serializer emits a line containing only &nbsp; for runs
+// of 2+ empty paragraphs, and it is always preceded by 2+ blank lines. A
+// deliberate spacer paragraph instead serializes as a lone &nbsp; line with
+// exactly one blank line before it. Strip only the artifact pattern (outside
+// code fences) so deliberate spacers survive, then normalize.
+export const serializeVisualMarkdown = (md) => {
+  if (!md) return '';
+  const lines = String(md).replace(/\r\n/g, '\n').split('\n');
+  const kept = [];
+  let inFence = false;
+  let blankRun = 0;
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+    if (!inFence && blankRun >= 2 && /^[ \t]*(?:&nbsp;[ \t]*)+$/i.test(line)) continue;
+    kept.push(line);
+    blankRun = line.trim() === '' ? blankRun + 1 : 0;
+  }
+  return normalizeEntryMarkdown(kept.join('\n'));
+};
+
 export const processEmbeds = (rawText) => {
   let processed = rawText ? String(rawText).replace(/\\n/g, '\n').replace(/\r\n/g, '\n') : '';
 
-  // Convert intentional consecutive empty lines (3 or more newlines) outside fenced code blocks into content spacers
+  // Convert a standalone &nbsp; marker line (the deliberate spacer) outside
+  // fenced code blocks into a single content-spacer block
   const codeBlockRegex = /(```[\s\S]*?```)/g;
   const parts = processed.split(codeBlockRegex);
   processed = parts.map((part, index) => {
     // Leave code blocks untouched
     if (index % 2 === 1) return part;
-    // Normalize empty lines with whitespace so spaces/tabs on blank lines don't break detection
-    const normalized = part.replace(/\n[ \t]+(?=\n)/g, '\n');
-    return normalized.replace(/\n{3,}/g, (match) => {
-      const extraLines = match.length - 2;
-      const spacers = Array(extraLines).fill('<div class="content-spacer" aria-hidden="true"></div>').join('\n');
-      return `\n\n${spacers}\n\n`;
-    });
+    return part.replace(/^[ \t]*&nbsp;[ \t]*$/gim, '\n<div class="content-spacer" aria-hidden="true"></div>\n');
   }).join('');
 
   // Convert standalone YouTube URLs into iframe embeds (supports watch, shorts, embed, youtu.be, mobile)
@@ -165,7 +233,7 @@ export const unwrapMediaFromParagraphs = (html) => {
 
 export function markdownToHtmlUnsanitized(content) {
   if (!content) return '';
-  const processedContent = escapeNonStandardTags(processEmbeds(content));
+  const processedContent = escapeNonStandardTags(processEmbeds(normalizeEntryMarkdown(content)));
   const rawHtml = unwrapMediaFromParagraphs(marked.parse(processedContent, {
     gfm: true,
     breaks: true
