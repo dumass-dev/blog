@@ -1040,6 +1040,50 @@ html {
   }
 }
 
+/* Small phones (≤480px): side-aligned images and wrap boxes STACK full-width
+   instead of floating — no text beside the image, following text starts below
+   it at full width. Margins are 0 (line-height-only spacing model): authors
+   add extra Enter lines when they want more space. This block must stay
+   after the ≤640px float rules above so its !important declarations win,
+   and it also overrides the published renderer's inline width styles. */
+@media (max-width: 480px) {
+  .prose-editorial .media-image-block.image-align-left,
+  .prose-editorial .media-image-block.image-align-right,
+  .prose-editorial img.image-align-left,
+  .prose-editorial img.image-align-right,
+  .prose-editorial .media-figure.image-align-left,
+  .prose-editorial .media-figure.image-align-right,
+  .prose-editorial .image-wrapper.image-align-left,
+  .prose-editorial .image-wrapper.image-align-right,
+  .prose-editorial .editorial-wrap-left,
+  .prose-editorial .editorial-wrap-right {
+    float: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    display: block !important;
+  }
+
+  /* Exception: S-size images keep their 320px cap and stay centered —
+     they stack (no float) but are not stretched to full width. */
+  .prose-editorial .media-image-block.image-size-small.image-align-left,
+  .prose-editorial .media-image-block.image-size-small.image-align-right,
+  .prose-editorial img.image-size-small.image-align-left,
+  .prose-editorial img.image-size-small.image-align-right,
+  .prose-editorial .media-figure.image-size-small.image-align-left,
+  .prose-editorial .media-figure.image-size-small.image-align-right,
+  .prose-editorial .image-wrapper.image-size-small.image-align-left,
+  .prose-editorial .image-wrapper.image-size-small.image-align-right {
+    max-width: 320px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prose-editorial img {
     transition: none !important;
