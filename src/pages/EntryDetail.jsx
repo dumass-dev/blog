@@ -128,8 +128,8 @@ export default function EntryDetail() {
       return;
     }
 
-    // When views are hidden by admin, completely strip views from non-admin state
-    if (!showViewCount && !isAdmin) {
+    // When views are hidden by admin, completely strip views from state (hidden means hidden for everyone on the public page)
+    if (!showViewCount) {
       delete postData.views;
     }
 
@@ -138,7 +138,7 @@ export default function EntryDetail() {
     if (!isSilent && !viewedSlugsRef.current.has(viewKey)) {
       viewedSlugsRef.current.add(viewKey);
       const optimisticViews = (postData.views || 0) + 1;
-      if (showViewCount || isAdmin) {
+      if (showViewCount) {
         postData.views = optimisticViews;
       }
       cacheEntry(postData);
@@ -148,7 +148,7 @@ export default function EntryDetail() {
         .then(async (res) => {
           if (res.ok) {
             const json = await res.json();
-            if ((showViewCount || isAdmin) && json && typeof json.views === 'number') {
+            if (showViewCount && json && typeof json.views === 'number') {
               setData(prev => {
                 if (!prev?.entry) return prev;
                 return {
@@ -162,7 +162,7 @@ export default function EntryDetail() {
             // Direct RPC fallback if server endpoint is unavailable
             supabase.rpc('increment_views', { target_slug: postData.id || identifier })
               .then(() => {
-                if (showViewCount || isAdmin) {
+                if (showViewCount) {
                   publishRealtimeUpdate({
                     type: 'entry_view_updated',
                     id: postData.id,
@@ -178,7 +178,7 @@ export default function EntryDetail() {
           // Network failure fallback
           supabase.rpc('increment_views', { target_slug: postData.id || identifier })
             .then(() => {
-              if (showViewCount || isAdmin) {
+              if (showViewCount) {
                 publishRealtimeUpdate({
                   type: 'entry_view_updated',
                   id: postData.id,
@@ -206,8 +206,8 @@ export default function EntryDetail() {
         ? (prevData.entry.cover_image || postData.cover_image)
         : (hasPasscode && !alreadyUnlocked ? '' : postData.cover_image);
 
-      const effectiveViews = (showViewCount || isAdmin)
-        ? Math.max(postData.views || 0, prevData?.entry?.views || 0, 1)
+      const effectiveViews = showViewCount
+        ? Math.max(postData.views || 0, prevData?.entry?.views || 0)
         : undefined;
 
       return {
@@ -228,7 +228,7 @@ export default function EntryDetail() {
       setIsUnlocked(true);
     }
     setLoading(false);
-  }, [slug, isAdmin, showViewCount]);
+  }, [slug, showViewCount]);
 
   useEffect(() => {
     const cached = getCachedEntry(slug);
@@ -513,12 +513,11 @@ export default function EntryDetail() {
             </span>
           )}
 
-          {/* View Count Display (Admin Toggle vs Public Visitor Static View) */}
-          {/* View Count Display: Only rendered when showViewCount is true! When hidden, render nothing (no 'views hidden' text) */}
-          {(showViewCount || isAdmin) && (entry.views !== undefined && entry.views !== null) && (
+          {/* View Count Display: rendered only when the site setting says visible. Hidden means fully hidden for everyone on the public page. */}
+          {showViewCount && entry.views !== undefined && entry.views !== null && (
             <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
               <Eye className="w-3 h-3 opacity-60 shrink-0" />
-              <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
+              <span>{entry.views} {entry.views === 1 ? 'view' : 'views'}</span>
             </span>
           )}
 

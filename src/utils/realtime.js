@@ -63,7 +63,10 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
   const eventType = payload.type || payload.event || inner.event || inner.type || 'entry';
   const targetId = inner.id || payload.id || inner.data?.id || payload.data?.id || inner.commentId || payload.commentId || inner.postId || payload.postId || '';
   const op = inner.op || payload.op || inner.eventType || payload.eventType || '';
-  const dedupeKey = `${eventType}:${op}:${targetId}:${payload.version || inner.version || ''}`;
+  // broadcastId distinguishes separate updates that share type/op/target —
+  // without it, two different settings saves inside the 4s window collapse
+  // into one dedupe key and the second is silently dropped on receivers.
+  const dedupeKey = `${eventType}:${op}:${targetId}:${payload.version || inner.version || ''}:${payload.broadcastId || inner.broadcastId || ''}`;
 
   if (!isLocal && isDuplicateEvent(dedupeKey)) {
     return;

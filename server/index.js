@@ -632,6 +632,7 @@ app.get('/api/sync-check', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   let currentVer = realtimeVersion;
   let eventType = null;
+  let settingsPayload = null;
 
   try {
     const client = getSupabaseClient(req);
@@ -646,7 +647,21 @@ app.get('/api/sync-check', async (req, res) => {
     if (syncRow && syncRow.version) {
       currentVer = Math.max(currentVer, Number(syncRow.version) || 0);
       eventType = syncRow.event;
-      // HIGH-3: payload intentionally omitted — contains mutation data not for public consumption
+      // HIGH-3: the 'latest' row's payload is not returned (it can carry
+      // arbitrary mutation data). Settings events are the exception: open
+      // pages need the new values to converge without a refresh, so for
+      // those we attach the site_settings payload — the same public
+      // settings GET /api/about already serves to anyone.
+      if (eventType === 'about_updated' || eventType === 'site_settings_updated' || eventType === 'about' || eventType === 'site_settings') {
+        const { data: settingsRow } = await client
+          .from('realtime_sync')
+          .select('payload')
+          .eq('id', 'site_settings')
+          .maybeSingle();
+        if (settingsRow && settingsRow.payload) {
+          settingsPayload = settingsRow.payload;
+        }
+      }
     } else {
       // 2. Fallback: check latest updated_at from public_published_entries
       const { data: latestEntry } = await client
@@ -666,6 +681,7 @@ app.get('/api/sync-check', async (req, res) => {
     status: 'ok',
     version: currentVer,
     event: eventType,
+    ...(settingsPayload ? { payload: settingsPayload } : {}),
     timestamp: new Date().toISOString()
   });
 });
