@@ -51,9 +51,11 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         if (json) {
           setData(json);
           setImgError(false);
-        } else {
-          setData(null);
         }
+        // A failed/slow poll (safeApiFetch returns null on timeouts and
+        // server errors) must not blank the card: keep the last known track
+        // until a poll actually succeeds. Blanking here is what made the
+        // card "hide by itself" whenever the backend hiccuped.
       } catch (_err) {
         // silently fail
       }

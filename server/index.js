@@ -1105,20 +1105,18 @@ async function checkIsAdmin(req) {
 }
 
 let cachedShowViews = null;
-let lastShowViewsFetch = 0;
 
 export function setCachedShowViews(show) {
   if (typeof show === 'boolean') {
     cachedShowViews = show;
-    lastShowViewsFetch = Date.now();
   }
 }
 
 export async function getEffectiveShowViews(supabase) {
-  const now = Date.now();
-  if (cachedShowViews !== null && (now - lastShowViewsFetch < 3000)) {
-    return cachedShowViews;
-  }
+  // Always read the setting fresh: a short-lived cache here kept serving the
+  // previous value for seconds after the admin flipped it, so hidden counts
+  // leaked into API responses (and, via serveInjectedHtml, into first paint).
+  // The cache remains only as the fallback when the read itself fails.
   try {
     const { data: syncRow } = await supabase
       .from('realtime_sync')
@@ -1127,7 +1125,6 @@ export async function getEffectiveShowViews(supabase) {
       .maybeSingle();
     if (syncRow?.payload && typeof syncRow.payload.show_view_count === 'boolean') {
       cachedShowViews = syncRow.payload.show_view_count;
-      lastShowViewsFetch = now;
       return cachedShowViews;
     }
     const { data: aboutRow } = await supabase
@@ -1136,11 +1133,10 @@ export async function getEffectiveShowViews(supabase) {
       .limit(1);
     if (aboutRow && aboutRow[0] && typeof aboutRow[0].show_view_count === 'boolean') {
       cachedShowViews = aboutRow[0].show_view_count;
-      lastShowViewsFetch = now;
       return cachedShowViews;
     }
   } catch {}
-  return true;
+  return cachedShowViews !== null ? cachedShowViews : true;
 }
 
 // GET /api/posts — List entries with filtering
@@ -1408,9 +1404,17 @@ app.get('/api/about', async (req, res) => {
       });
     }
 
+    // Both sources missed. If the about read itself failed, say so (500):
+    // returning fabricated defaults with a 200 makes every open page apply
+    // them (theme flips, hidden counts reappear) on a transient DB error.
+    // Defaults below are only for a genuinely unconfigured site, where the
+    // read succeeded and simply found no rows.
+    if (error) {
+      return res.status(500).json({ error: 'Failed to load site settings.' });
+    }
     return res.json(defaultAboutData);
   } catch (_err) {
-    return res.json(defaultAboutData);
+    return res.status(500).json({ error: 'Failed to load site settings.' });
   }
 });
 
@@ -1698,19 +1702,43 @@ async function handleSaveAbout(req, res) {
 
   try {
     const payload = req.body || {};
+    const supabase = getSupabaseClient(req);
+
+    // Merge over the currently stored settings: a field the caller omits
+    // keeps its stored value instead of snapping to a hard default. A
+    // partial save used to reset the theme to dark, the view count to on
+    // and the typewriter to off as a side effect of saving anything else.
+    let currentRow = null;
+    let currentSync = null;
+    try {
+      const { data: rows } = await supabase.from('about').select('*').limit(1);
+      if (rows && rows[0]) currentRow = rows[0];
+    } catch {}
+    try {
+      const { data: syncRow } = await supabase.from('realtime_sync').select('payload').eq('id', 'site_settings').maybeSingle();
+      if (syncRow && syncRow.payload) currentSync = syncRow.payload;
+    } catch {}
+    const currentTheme = (currentRow?.default_theme === 'light' || currentRow?.default_theme === 'dark')
+      ? currentRow.default_theme
+      : (currentSync?.default_theme === 'light' || currentSync?.default_theme === 'dark' ? currentSync.default_theme : null);
+    const currentTypewriter = currentRow?.default_typewriter_enabled !== undefined
+      ? Boolean(currentRow.default_typewriter_enabled)
+      : (currentSync?.default_typewriter_enabled !== undefined ? Boolean(currentSync.default_typewriter_enabled) : null);
+    const currentShowViews = currentRow?.show_view_count !== undefined
+      ? Boolean(currentRow.show_view_count)
+      : (currentSync?.show_view_count !== undefined ? Boolean(currentSync.show_view_count) : null);
+
     const saveData = {
-      author_name: payload.author_name || 'q04ti',
-      tagline: payload.tagline || '',
-      bio: payload.bio || '',
-      default_typewriter_enabled: Boolean(payload.default_typewriter_enabled),
-      default_theme: payload.default_theme === 'light' ? 'light' : 'dark',
-      show_view_count: payload.show_view_count !== undefined ? Boolean(payload.show_view_count) : true,
-      projects: Array.isArray(payload.projects) ? payload.projects : [],
-      links: Array.isArray(payload.links) ? payload.links : [],
+      author_name: payload.author_name !== undefined ? (payload.author_name || 'q04ti') : (currentRow?.author_name || currentSync?.author_name || 'q04ti'),
+      tagline: payload.tagline !== undefined ? (payload.tagline || '') : (currentRow?.tagline || ''),
+      bio: payload.bio !== undefined ? (payload.bio || '') : (currentRow?.bio || ''),
+      default_typewriter_enabled: payload.default_typewriter_enabled !== undefined ? Boolean(payload.default_typewriter_enabled) : (currentTypewriter !== null ? currentTypewriter : false),
+      default_theme: (payload.default_theme === 'light' || payload.default_theme === 'dark') ? payload.default_theme : (currentTheme || 'dark'),
+      show_view_count: payload.show_view_count !== undefined ? Boolean(payload.show_view_count) : (currentShowViews !== null ? currentShowViews : true),
+      projects: payload.projects !== undefined ? (Array.isArray(payload.projects) ? payload.projects : []) : (currentRow?.projects ?? []),
+      links: payload.links !== undefined ? (Array.isArray(payload.links) ? payload.links : []) : (currentRow?.links ?? []),
       updated_at: new Date().toISOString()
     };
-
-    const supabase = getSupabaseClient(req);
     const { data: existing } = await supabase.from('about').select('id').limit(1);
 
     let error;
@@ -2552,22 +2580,38 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
     const { title, artist, album, isPaused, progress, coverUrl } = req.body;
     const supabase = getSupabaseClient(req);
 
-    const { error } = await supabase
+    const trackData = {
+      title,
+      artist,
+      album,
+      is_paused: isPaused,
+      progress,
+      cover_url: coverUrl,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedRows, error } = await supabase
       .from('now_playing')
-      .update({ 
-        title, 
-        artist, 
-        album, 
-        is_paused: isPaused, 
-        progress, 
-        cover_url: coverUrl,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', 1);
+      .update(trackData)
+      .eq('id', 1)
+      .select('id');
 
     if (error) {
       console.error('Failed to update now_playing:', error);
       return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      // The singleton row is missing: an update alone would silently affect
+      // zero rows and the track would never appear. Recreate the row so the
+      // webhook self-heals instead of the card staying stale forever.
+      const { error: insertError } = await supabase
+        .from('now_playing')
+        .insert({ id: 1, ...trackData, show_on_home: true });
+      if (insertError) {
+        console.error('Failed to insert now_playing row:', insertError);
+        return res.status(500).json({ error: 'Database error' });
+      }
     }
 
     broadcastRealtimeEvent('now_playing_updated', {
@@ -2591,7 +2635,13 @@ app.get('/api/now-playing', async (req, res) => {
       .eq('id', 1)
       .single();
 
-    if (error || !data) {
+    if (error && error.code !== 'PGRST116') {
+      // A real read failure is not "music is off": report it so clients keep
+      // their last known state instead of hiding the card on a transient
+      // error (the old code returned showOnHome:false for any failure).
+      return res.status(500).json({ error: 'Failed to load music status.' });
+    }
+    if (!data) {
       return res.json({ playing: false, showOnHome: false });
     }
 
@@ -2671,12 +2721,10 @@ app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
 });
 
 let cachedDefaultTheme = null;
-let lastThemeFetch = 0;
 
 export function setCachedDefaultTheme(theme) {
   if (theme === 'light' || theme === 'dark') {
     cachedDefaultTheme = theme;
-    lastThemeFetch = Date.now();
   }
 }
 
@@ -2700,51 +2748,54 @@ async function serveInjectedHtml(req, res, extraHead = '') {
 
   if (!html) return res.status(500).send('Unable to load application shell.');
 
-  let defaultTheme = cachedDefaultTheme;
-  const now = Date.now();
+  let defaultTheme = null;
   const supabase = getSupabaseClient(req);
 
-  if (!defaultTheme || (now - lastThemeFetch > 3000)) {
-    try {
-      const queryPromise = (async () => {
-        const { data: syncRow } = await supabase
-          .from('realtime_sync')
-          .select('payload')
-          .eq('id', 'site_settings')
-          .maybeSingle();
-        if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
-          return syncRow.payload.default_theme;
-        }
-        const { data: aboutRow } = await supabase
-          .from('about')
-          .select('default_theme')
-          .limit(1);
-        if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
-          return aboutRow[0].default_theme;
-        }
-        return null;
-      })();
-
-      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
-      let resolved = await Promise.race([queryPromise, timeoutPromise]);
-      if (resolved !== 'light' && resolved !== 'dark' && !defaultTheme) {
-        // Cold start with no cached theme: give the settings lookup one
-        // bounded extra window rather than injecting the wrong (light)
-        // theme, which visitors saw as a light-then-dark flash on load.
-        resolved = await Promise.race([
-          queryPromise,
-          new Promise(resolve => setTimeout(() => resolve(null), 2000))
-        ]);
+  // Always resolve the default theme fresh from the settings store. The old
+  // code trusted a seconds-old instance cache here, so the first page loads
+  // right after the admin changed the default were injected with the PREVIOUS
+  // theme — a dark flash on a light-default site (and vice versa) until the
+  // client's own fetch corrected it. The cache is now only the fallback for a
+  // lookup that cannot complete in the bounded window.
+  try {
+    const queryPromise = (async () => {
+      const { data: syncRow } = await supabase
+        .from('realtime_sync')
+        .select('payload')
+        .eq('id', 'site_settings')
+        .maybeSingle();
+      if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
+        return syncRow.payload.default_theme;
       }
-      if (resolved === 'light' || resolved === 'dark') {
-        defaultTheme = resolved;
-        cachedDefaultTheme = defaultTheme;
-        lastThemeFetch = now;
+      const { data: aboutRow } = await supabase
+        .from('about')
+        .select('default_theme')
+        .limit(1);
+      if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
+        return aboutRow[0].default_theme;
       }
-    } catch {}
-  }
+      return null;
+    })();
 
-  if (!defaultTheme) defaultTheme = 'light';
+    let resolved = await Promise.race([
+      queryPromise,
+      new Promise(resolve => setTimeout(() => resolve(null), 800))
+    ]);
+    if (resolved !== 'light' && resolved !== 'dark') {
+      // Bounded extra window (the same query promise is reused, so a slow
+      // cold-start lookup still lands) rather than injecting a stale theme.
+      resolved = await Promise.race([
+        queryPromise,
+        new Promise(resolve => setTimeout(() => resolve(null), 2200))
+      ]);
+    }
+    if (resolved === 'light' || resolved === 'dark') {
+      defaultTheme = resolved;
+      cachedDefaultTheme = resolved;
+    }
+  } catch {}
+
+  if (!defaultTheme) defaultTheme = cachedDefaultTheme || 'light';
 
   // Bound every settings lookup so a stalled database can never hang page HTML
   const bounded = (promise, fallback, ms = 2000) => Promise.race([
@@ -2752,7 +2803,15 @@ async function serveInjectedHtml(req, res, extraHead = '') {
     new Promise(resolve => setTimeout(() => resolve(fallback), ms))
   ]);
 
-  const effectiveShowViews = await bounded(getEffectiveShowViews(supabase), true);
+  // The fallback must never fabricate "show": when the setting cannot be
+  // read in time, reuse the last known value, and if none is known keep the
+  // counts out of the first paint rather than flashing counts the admin
+  // turned off (the old fallback of `true` did exactly that on slow reads).
+  const effectiveShowViews = await bounded(
+    getEffectiveShowViews(supabase),
+    cachedShowViews !== null ? cachedShowViews : false,
+    3000
+  );
 
   // Inject theme and view count attributes directly into <html> to guarantee ZERO flash
   html = html.replace(/<html([^>]*)>/i, (m, attrs) => {

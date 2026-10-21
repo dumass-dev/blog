@@ -353,9 +353,13 @@ async function runTests() {
     res = await fetch(`${baseUrl}/api/posts`);
     assert(res.status === 200, 'GET /api/posts returns 200 without token');
 
-    // f.3: GET /api/about
+    // f.3: GET /api/about — this suite's mock makes the settings read throw,
+    // and the route must NOT answer a failed read with fabricated default
+    // settings at 200 (open pages would apply them: theme flips, hidden view
+    // counts reappear). A broken settings store is a 500; the healthy-store
+    // 200-without-token path is covered by about-route.test.js.
     res = await fetch(`${baseUrl}/api/about`);
-    assert(res.status === 200, 'GET /api/about returns 200 without token');
+    assert(res.status === 500, 'GET /api/about returns 500 (no fabricated defaults) when the settings read fails');
 
     // f.4: GET /api/posts/:identifier
     res = await fetch(`${baseUrl}/api/posts/99999999-9999-9999-9999-999999999999`);

@@ -30,14 +30,24 @@ export default function AboutEdit() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     fetch('/api/about')
       .then(res => res.json())
       .then(data => {
+        // Only a real settings payload may populate the form. Anything else
+        // (an error body, a failed load) leaves the form at its hard-coded
+        // initial values — theme dark, views on — and saving from that
+        // state used to silently overwrite the site's actual settings.
+        if (!data || typeof data.show_view_count !== 'boolean' || (data.default_theme !== 'light' && data.default_theme !== 'dark')) {
+          setLoadFailed(true);
+          toastError('Failed loading settings.');
+          return;
+        }
         const defaultEnabled = Boolean(data.default_typewriter_enabled);
-        const defaultTheme = (data.default_theme === 'light' || data.default_theme === 'dark') ? data.default_theme : 'dark';
-        const defaultShowViews = typeof data.show_view_count === 'boolean' ? data.show_view_count : true;
+        const defaultTheme = data.default_theme;
+        const defaultShowViews = data.show_view_count;
         setFormData({
           author_name: data.author_name || 'q04ti',
           tagline: data.tagline || '',
@@ -48,8 +58,12 @@ export default function AboutEdit() {
           projects: Array.isArray(data.projects) ? data.projects : [],
           links: Array.isArray(data.links) ? data.links : []
         });
+        setLoadFailed(false);
       })
-      .catch(_err => toastError('Failed loading settings.'))
+      .catch(_err => {
+        setLoadFailed(true);
+        toastError('Failed loading settings.');
+      })
       .finally(() => setLoading(false));
   }, [toastError]);
 
@@ -118,6 +132,10 @@ export default function AboutEdit() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loadFailed) {
+      toastError('Settings did not load. Reload the page before saving.');
+      return;
+    }
     setSaving(true);
 
     try {
@@ -214,7 +232,7 @@ export default function AboutEdit() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || loadFailed}
             className="quiet-button text-xs flex items-center gap-1.5"
           >
             <Save className="w-3.5 h-3.5" />
