@@ -634,28 +634,35 @@ html {
   color: var(--text-primary);
 }
 
+/* Spacing model: line-height alone creates ALL block spacing. Every block
+   (paragraphs, headings, figures, lists, quotes) has margin 0, so the
+   baseline-to-baseline distance between any two blocks is exactly the
+   prose line-height — identical to the distance between two wrapped lines
+   of one paragraph. Extra space is authored only with extra blank lines
+   (one extra blank line = one spacer of exactly 1lh). */
 .prose-editorial p {
-  margin-top: 0;
-  margin-bottom: 1.35rem;
+  margin: 0;
 }
 
 .prose-editorial h1,
 .prose-editorial h2,
-.prose-editorial h3 {
+.prose-editorial h3,
+.prose-editorial h4,
+.prose-editorial h5,
+.prose-editorial h6 {
   font-family: var(--font-serif);
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--text-primary);
-  /* Headings add NO extra space of their own: the gap above and below a
-     heading is exactly the standard paragraph gap. Authors add deliberate
-     spacer lines when they want a heading to stand apart. */
-  margin-top: 1.35rem;
-  margin-bottom: 1.35rem;
+  /* Headings add NO space of their own: no margins above or below. Authors
+     add extra blank lines when they want a heading to stand apart. */
+  margin: 0;
 }
 
 .prose-editorial h1 { font-size: 2.35rem; line-height: 1.25; }
 .prose-editorial hr {
   clear: both;
+  margin: 0;
 }
 
 .prose-editorial h2 { font-size: 1.85rem; line-height: 1.3; }
@@ -664,23 +671,19 @@ html {
 .prose-editorial blockquote {
   border-left: 2px solid var(--accent-warm);
   padding-left: 1.35rem;
-  margin-left: 0;
-  margin-right: 0;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin: 0;
   font-style: italic;
   color: var(--text-secondary);
 }
 
 .prose-editorial ul,
 .prose-editorial ol {
-  margin-top: 1rem;
-  margin-bottom: 1.75rem;
+  margin: 0;
   padding-left: 1.5rem;
 }
 
 .prose-editorial li {
-  margin-bottom: 0.5rem;
+  margin: 0;
 }
 
 .prose-editorial ul { list-style-type: disc; }
@@ -693,85 +696,47 @@ html {
   display: block;
   background-color: transparent;
   transition: opacity 300ms ease-out;
-  margin-top: 0.35rem;
-  margin-bottom: 0.5rem;
-}
-
-/* If an image or figure is first-child or at the top of editorial, zero top margin */
-.prose-editorial > img:first-child,
-.prose-editorial > figure:first-child,
-.prose-editorial > .image-wrapper:first-child,
-.prose-editorial > p:first-child > img:only-child {
-  margin-top: 0 !important;
-}
-
-/* Eliminate excessive gap when paragraph is adjacent to an image/figure/block */
-.prose-editorial p:has(+ img),
-.prose-editorial p:has(+ figure),
-.prose-editorial p:has(+ .image-wrapper),
-.prose-editorial p:has(+ .media-figure),
-.prose-editorial p:has(+ .media-image-block),
-.prose-editorial p:has(+ div[data-node-type="mediaImage"]),
-.prose-editorial p:has(+ p > img:only-child),
-.prose-editorial p:has(+ p:has(> img:only-child)) {
-  margin-bottom: 0.35rem;
-}
-
-.prose-editorial p + img,
-.prose-editorial p + figure,
-.prose-editorial p + .image-wrapper,
-.prose-editorial p + .media-figure,
-.prose-editorial p + .media-image-block,
-.prose-editorial p + div[data-node-type="mediaImage"] {
-  margin-top: 0.35rem;
-}
-
-.prose-editorial img + p,
-.prose-editorial figure + p,
-.prose-editorial .image-wrapper + p,
-.prose-editorial .media-figure + p,
-.prose-editorial .media-image-block + p,
-.prose-editorial div[data-node-type="mediaImage"] + p {
-  margin-top: 0.35rem;
+  margin: 0;
 }
 
 /* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class).
-   An empty paragraph here is one deliberate spacer: margin 0 and height equal
-   to exactly one standard paragraph gap (1.35rem), same as .content-spacer. */
+   An empty paragraph here is one deliberate spacer: margin 0 and height of
+   exactly one line (1lh), same as .content-spacer. */
 .prose-editorial:not(.ProseMirror) p:has(> br:only-child),
 .prose-editorial:not(.ProseMirror) p:empty {
   margin: 0;
-  height: 1.35rem;
-  line-height: 1.35rem;
+  height: 1lh;
+  line-height: 1lh;
 }
 
-/* === TipTap Visual Editor — SHARED paragraph spacing ===
+/* === TipTap Visual Editor — SHARED spacing ===
    The editor root has class="ProseMirror prose-editorial …" (set in editorProps.attributes.class).
-   There is deliberately NO editor-specific paragraph margin override: the editor
-   uses the exact same .prose-editorial block spacing as the published page, so
-   one blank line between blocks looks identical in the Visual editor, Preview,
-   and the published entry. (Empty-paragraph caret sizing below still applies.)
+   There is deliberately NO editor-specific spacing override: the editor uses
+   the exact same line-height-only block spacing as the published page, so
+   one blank line between blocks looks identical in the Visual editor,
+   Preview, and the published entry. (Empty-paragraph caret sizing below
+   still applies.)
 */
 
 /* Blank-line paragraph (empty or trailing-break only) = one deliberate spacer.
-   Height is exactly one standard paragraph gap (1.35rem = the .prose-editorial
-   paragraph margin), margin 0, matching the published .content-spacer, so an
-   Enter-made empty paragraph adds exactly one standard gap in the editor,
-   Preview, and the published page alike. */
+   Height is exactly one line (1lh), margin 0, matching the published
+   .content-spacer, so an Enter-made empty paragraph adds exactly one line
+   of space in the editor, Preview, and the published page alike. The fixed
+   height + matching line-height cap keeps the ProseMirror trailing <br>
+   from making the paragraph taller than one line. */
 .ProseMirror.prose-editorial p:empty,
 .ProseMirror.prose-editorial p:has(> br:only-child),
 .ProseMirror.prose-editorial p:has(> br.ProseMirror-trailingBreak:only-child) {
   margin: 0 !important;
   min-height: 0 !important;
-  height: 1.35rem !important;
-  line-height: 1.35rem !important; /* match height so <br> doesn't overflow              */
+  height: 1lh !important;
+  line-height: 1lh !important; /* match height so <br> doesn't overflow              */
   overflow: hidden;
 }
 
 .prose-editorial .media-image-block,
 .prose-editorial div[data-node-type="mediaImage"] {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin: 0;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
@@ -788,8 +753,7 @@ html {
 
 /* Paragraph containing standalone image */
 .prose-editorial p:has(> img:only-child) {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin: 0;
 }
 
 .prose-editorial p > img:only-child {
@@ -799,8 +763,7 @@ html {
 
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin: 0;
   width: 100%;
 }
 
@@ -814,8 +777,7 @@ html {
 }
 
 .prose-editorial .media-figure {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin: 0;
   text-align: center;
 }
 
@@ -832,13 +794,11 @@ html {
 }
 
 /* Intentional spacer (one per extra blank line in the markdown):
-   margin 0 and height equal to exactly one standard paragraph gap
-   (1.35rem, the .prose-editorial paragraph margin-bottom), so each extra
-   blank line adds precisely one standard gap of space — never a full
-   line height plus margins. */
+   margin 0 and height of exactly one line (1lh, the prose line-height),
+   so each extra blank line adds precisely one line of space. */
 .prose-editorial .content-spacer {
   display: block;
-  height: 1.35rem;
+  height: 1lh;
   margin: 0;
   width: 100%;
   pointer-events: none;
@@ -848,38 +808,11 @@ html {
   display: none;
 }
 
-/* A media block directly after a spacer (an extra blank line in the editor
-   or in the rendered page) must NOT stack its own top margin on top of the
-   spacer. Without this, a paragraph -> spacer -> image gap becomes
-   standard gap + spacer + the image's 0.25-0.35rem top margin; with it the
-   total is exactly standard gap + one standard gap per extra blank line,
-   identical in the Visual editor, Preview, and the published page. */
-.prose-editorial .content-spacer + img,
-.prose-editorial .content-spacer + figure,
-.prose-editorial .content-spacer + .media-figure,
-.prose-editorial .content-spacer + .media-image-block,
-.prose-editorial .content-spacer + .image-wrapper,
-.prose-editorial .content-spacer + div[data-node-type="mediaImage"],
-.prose-editorial p:empty + img,
-.prose-editorial p:empty + figure,
-.prose-editorial p:empty + .media-figure,
-.prose-editorial p:empty + .media-image-block,
-.prose-editorial p:empty + .image-wrapper,
-.prose-editorial p:empty + div[data-node-type="mediaImage"],
-.prose-editorial p:has(> br:only-child) + img,
-.prose-editorial p:has(> br:only-child) + figure,
-.prose-editorial p:has(> br:only-child) + .media-figure,
-.prose-editorial p:has(> br:only-child) + .media-image-block,
-.prose-editorial p:has(> br:only-child) + .image-wrapper,
-.prose-editorial p:has(> br:only-child) + div[data-node-type="mediaImage"] {
-  margin-top: 0 !important;
-}
-
 .prose-editorial .media-figure figcaption {
   font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--text-muted);
-  margin-top: 0.35rem;
+  margin: 0;
   font-style: italic;
   text-align: center;
 }
@@ -964,8 +897,8 @@ html {
   clear: both;
   margin-left: auto !important;
   margin-right: auto !important;
-  margin-top: 0.5rem !important;
-  margin-bottom: 0.75rem !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   text-align: center;
   display: block;
 }
@@ -1004,7 +937,7 @@ html {
   font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--text-muted);
-  margin-top: 0.375rem;
+  margin: 0;
   font-style: italic;
 }
 
@@ -1028,8 +961,8 @@ html {
   float: none;
   margin-left: auto;
   margin-right: auto;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin-top: 0;
+  margin-bottom: 0;
   max-width: 70%;
   text-align: center;
 }
@@ -1089,8 +1022,8 @@ html {
     width: 100% !important;
     margin-left: auto !important;
     margin-right: auto !important;
-    margin-top: 0.75rem !important;
-    margin-bottom: 0.75rem !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     clear: both !important;
     display: block !important;
   }
@@ -1121,8 +1054,7 @@ html {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.95rem;
   line-height: 1.65;
-  margin-top: 1.85rem;
-  margin-bottom: 1.85rem;
+  margin: 0;
   border: 1px solid var(--border-subtle);
 }
 
@@ -1137,8 +1069,7 @@ html {
 .prose-editorial hr {
   border: 0;
   border-top: 1px solid var(--border-subtle);
-  margin-top: 3rem;
-  margin-bottom: 3rem;
+  margin: 0;
 }
 
 /* Video embed wrapper */
@@ -1146,8 +1077,7 @@ html {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin: 0;
   border-radius: 4px;
   overflow: hidden;
   background-color: #000;

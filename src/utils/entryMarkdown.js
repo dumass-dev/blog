@@ -9,7 +9,7 @@ export const CONTENT_SPACER_DIV = '<div class="content-spacer" aria-hidden="true
 // Spacing model (the ONLY model, everywhere):
 // - Blocks are separated by blank lines. One blank line = the standard
 //   paragraph break. Each ADDITIONAL blank line is one deliberate extra
-//   spacer worth exactly one standard paragraph gap.
+//   spacer worth exactly one line-height (rendered as a 1lh spacer).
 // - No markers are ever stored: no &nbsp;, no <br>, no HTML comments.
 // - Legacy migration: a line containing only &nbsp; (the old spacer marker)
 //   converts into one extra blank line, preserving the spacer count the old
@@ -121,7 +121,7 @@ const rebuildBlankGaps = (md, buildGap) => {
 
 // Render-time expansion: each extra blank line (beyond the standard single
 // blank line between blocks) becomes one .content-spacer block whose height
-// is exactly one standard paragraph gap. Inside/between list items and table
+// is exactly one line tall (1lh). Inside/between list items and table
 // rows, extra blanks collapse to a normal break instead (a spacer element
 // would break the list/table structure).
 export const expandBlankLineSpacers = (md) => rebuildBlankGaps(md, ({ blanks, prevLine, nextLine }) => {
