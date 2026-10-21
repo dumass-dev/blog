@@ -759,7 +759,8 @@ html {
    Enter-made empty paragraph adds exactly one standard gap in the editor,
    Preview, and the published page alike. */
 .ProseMirror.prose-editorial p:empty,
-.ProseMirror.prose-editorial p:has(> br:only-child) {
+.ProseMirror.prose-editorial p:has(> br:only-child),
+.ProseMirror.prose-editorial p:has(> br.ProseMirror-trailingBreak:only-child) {
   margin: 0 !important;
   min-height: 0 !important;
   height: 1.35rem !important;
@@ -845,6 +846,33 @@ html {
 
 .prose-editorial > .content-spacer:first-child {
   display: none;
+}
+
+/* A media block directly after a spacer (an extra blank line in the editor
+   or in the rendered page) must NOT stack its own top margin on top of the
+   spacer. Without this, a paragraph -> spacer -> image gap becomes
+   standard gap + spacer + the image's 0.25-0.35rem top margin; with it the
+   total is exactly standard gap + one standard gap per extra blank line,
+   identical in the Visual editor, Preview, and the published page. */
+.prose-editorial .content-spacer + img,
+.prose-editorial .content-spacer + figure,
+.prose-editorial .content-spacer + .media-figure,
+.prose-editorial .content-spacer + .media-image-block,
+.prose-editorial .content-spacer + .image-wrapper,
+.prose-editorial .content-spacer + div[data-node-type="mediaImage"],
+.prose-editorial p:empty + img,
+.prose-editorial p:empty + figure,
+.prose-editorial p:empty + .media-figure,
+.prose-editorial p:empty + .media-image-block,
+.prose-editorial p:empty + .image-wrapper,
+.prose-editorial p:empty + div[data-node-type="mediaImage"],
+.prose-editorial p:has(> br:only-child) + img,
+.prose-editorial p:has(> br:only-child) + figure,
+.prose-editorial p:has(> br:only-child) + .media-figure,
+.prose-editorial p:has(> br:only-child) + .media-image-block,
+.prose-editorial p:has(> br:only-child) + .image-wrapper,
+.prose-editorial p:has(> br:only-child) + div[data-node-type="mediaImage"] {
+  margin-top: 0 !important;
 }
 
 .prose-editorial .media-figure figcaption {
