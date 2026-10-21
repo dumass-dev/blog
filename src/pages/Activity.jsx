@@ -35,14 +35,11 @@ export default function Activity() {
       .catch(() => {});
   }, []);
 
-  const extractedUser = (() => {
-    try {
-      const match = githubUrl.match(/github\.com\/([^/?#]+)/i);
-      return match ? match[1] : 'shuaib-mk,q04ti';
-    } catch {
-      return 'shuaib-mk,q04ti';
-    }
-  })();
+  // The contribution graph must show the exact same merged accounts as the
+  // Chrono feed on Home (which passes "shuaib-mk,q04ti"). Extracting a single
+  // username from the About GitHub link only ever yields one account, which
+  // made this page's graph differ from the feed's.
+  const contributionsUsername = 'shuaib-mk,q04ti';
 
   return (
     <div className="notebook-container py-4 sm:py-8 animate-content-fade">
@@ -61,7 +58,7 @@ export default function Activity() {
 
       {/* GitHub Contributions Component */}
       <section className="mb-10" aria-label="GitHub Contribution Heatmap">
-        <GitHubContributions username={extractedUser} showHeader={true} compact={false} />
+        <GitHubContributions username={contributionsUsername} showHeader={true} compact={false} />
       </section>
 
       {/* Info Card / External Link */}
