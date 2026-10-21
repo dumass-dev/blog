@@ -246,6 +246,32 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
   });
 
+  // A spacer marker line (&nbsp;) parses into a paragraph holding only a
+  // non-breaking space. Convert those into true empty paragraphs so a
+  // deliberate spacer renders exactly like an Enter-made empty paragraph
+  // (same height, no paragraph margins) and serializes back to one marker.
+  const clearSpacerParagraphs = useCallback((ed) => {
+    if (!ed || ed.isDestroyed) return;
+    const ranges = [];
+    ed.state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'paragraph' || node.childCount === 0) return;
+      let onlySpacerText = true;
+      node.forEach((child) => {
+        if (!child.isText || !/^[\s\u00A0]+$/.test(child.text || '')) onlySpacerText = false;
+      });
+      if (onlySpacerText) ranges.push({ from: pos + 1, to: pos + node.nodeSize - 1 });
+    });
+    if (!ranges.length) return;
+    const tr = ed.state.tr;
+    ranges.reverse().forEach(({ from, to }) => tr.delete(from, to));
+    ed.view.dispatch(tr);
+  }, []);
+
+  // Clear spacer paragraphs in the initially parsed document
+  useEffect(() => {
+    if (editor) clearSpacerParagraphs(editor);
+  }, [editor, clearSpacerParagraphs]);
+
   // Sync initialContent if it changes from external sources (e.g. entry load or mode toggle)
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -255,9 +281,10 @@ const VisualEditor = forwardRef(function VisualEditor(
       const currentMd = editor.storage.markdown?.getMarkdown?.() ?? editor.getMarkdown?.() ?? '';
       if (initialContent !== currentMd) {
         editor.commands.setContent(initialContent || '', { contentType: 'markdown' });
+        clearSpacerParagraphs(editor);
       }
     }
-  }, [editor, initialContent, mode]);
+  }, [editor, initialContent, mode, clearSpacerParagraphs]);
 
   // Expose imperative methods to parent (e.g. Editor.jsx)
   useImperativeHandle(ref, () => ({
@@ -269,6 +296,7 @@ const VisualEditor = forwardRef(function VisualEditor(
     setContent: (md) => {
       if (editor && !editor.isDestroyed) {
         editor.commands.setContent(md || '', { contentType: 'markdown' });
+        clearSpacerParagraphs(editor);
       }
     },
     getSelectedImageInfo: () => {

@@ -646,8 +646,11 @@ html {
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--text-primary);
-  margin-top: 2.75rem;
-  margin-bottom: 1.15rem;
+  /* Headings add NO extra space of their own: the gap above and below a
+     heading is exactly the standard paragraph gap. Authors add deliberate
+     spacer lines when they want a heading to stand apart. */
+  margin-top: 1.35rem;
+  margin-bottom: 1.35rem;
 }
 
 .prose-editorial h1 { font-size: 2.35rem; line-height: 1.25; }
@@ -749,13 +752,16 @@ html {
    and the published entry. (Empty-paragraph caret sizing below still applies.)
 */
 
-/* Blank-line paragraph (empty or trailing-break only) = thin spacer, not a full paragraph block */
+/* Blank-line paragraph (empty or trailing-break only) = one deliberate spacer.
+   Height matches the published .content-spacer (1.85em = one line height), so
+   an Enter-made empty paragraph takes exactly the same space in the editor
+   as its spacer marker does on the published page. */
 .ProseMirror.prose-editorial p:empty,
 .ProseMirror.prose-editorial p:has(> br:only-child) {
   margin: 0 !important;
   min-height: 0 !important;
-  height: 1.35em !important;    /* ~1 natural line so blank line ≈ word-wrap spacing  */
-  line-height: 1.35 !important; /* match height so <br> doesn't overflow              */
+  height: 1.85em !important;
+  line-height: 1.85 !important; /* match height so <br> doesn't overflow              */
   overflow: hidden;
 }
 

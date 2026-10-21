@@ -54,24 +54,31 @@ export const normalizeEntryMarkdown = (md) => {
   return out.join('\n');
 };
 
-// The TipTap markdown serializer emits a line containing only &nbsp; for runs
-// of 2+ empty paragraphs, and it is always preceded by 2+ blank lines. A
-// deliberate spacer paragraph instead serializes as a lone &nbsp; line with
-// exactly one blank line before it. Strip only the artifact pattern (outside
-// code fences) so deliberate spacers survive, then normalize.
+// Convert raw TipTap serializer output into canonical entry markdown.
+// The serializer joins document blocks with exactly "\n\n" and renders an
+// empty paragraph block as an empty item (or, from the second consecutive
+// one, as an &nbsp; item). Every empty paragraph in the visual document is
+// a deliberate spacer the author added with Enter, so each empty item is
+// stored as exactly one &nbsp; marker block:
+// [p, empty, p] -> "p\n\n&nbsp;\n\np". Fenced code blocks pass through
+// verbatim; the empty items touching a fence are block separators, not
+// paragraphs, and are preserved as-is.
 export const serializeVisualMarkdown = (md) => {
   if (!md) return '';
-  const lines = String(md).replace(/\r\n/g, '\n').split('\n');
-  const kept = [];
-  let inFence = false;
-  let blankRun = 0;
-  for (const line of lines) {
-    if (/^\s*```/.test(line)) inFence = !inFence;
-    if (!inFence && blankRun >= 2 && /^[ \t]*(?:&nbsp;[ \t]*)+$/i.test(line)) continue;
-    kept.push(line);
-    blankRun = line.trim() === '' ? blankRun + 1 : 0;
-  }
-  return normalizeEntryMarkdown(kept.join('\n'));
+  const fenceSplit = String(md).replace(/\r\n/g, '\n').split(/(```[\s\S]*?```)/g);
+  const rebuilt = fenceSplit.map((segment, segIdx) => {
+    if (segIdx % 2 === 1) return segment; // fenced code block: verbatim
+    const items = segment.split('\n\n');
+    const lastSegIdx = fenceSplit.length - 1;
+    return items.map((item, itemIdx) => {
+      if (item.trim() !== '') return item; // real block (incl. &nbsp; markers)
+      const touchesFenceLeft = itemIdx === 0 && segIdx > 0;
+      const touchesFenceRight = itemIdx === items.length - 1 && segIdx < lastSegIdx;
+      if (touchesFenceLeft || touchesFenceRight) return item; // separator glue
+      return '&nbsp;'; // empty paragraph -> one spacer marker
+    }).join('\n\n');
+  }).join('');
+  return normalizeEntryMarkdown(rebuilt);
 };
 
 export const processEmbeds = (rawText) => {
