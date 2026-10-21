@@ -57,12 +57,16 @@ export default function Home() {
     <div className="notebook-container">
       <header className="mb-12 flex justify-between items-start gap-4">
         <div className="flex-1 min-w-0">
-          <h1 className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)] leading-none pt-1">
-            Chronological Feed
-          </h1>
-          <p className="text-sm font-sans text-[var(--text-secondary)] mt-2">
-            A stream of essays, notes, thoughts, photos, and recent updates.
-          </p>
+          <TypewriterText
+            text="Chronological Feed"
+            as="h1"
+            className="text-3xl font-serif font-medium tracking-tight mb-2 text-[var(--text-primary)] leading-none pt-1"
+          />
+          <TypewriterText
+            text="A stream of essays, notes, thoughts, photos, and recent updates."
+            as="p"
+            className="text-sm font-sans text-[var(--text-secondary)] mt-2"
+          />
         </div>
         <div className="flex-shrink-0 mt-1.5">
           <NowPlaying expandable={true} defaultExpanded={false} />
@@ -211,7 +215,7 @@ export default function Home() {
       {/* GitHub Contributions Section at the bottom of Chrono Feed */}
       {!loading && (
         <section className="mt-14 pt-8 border-t border-[var(--border-subtle)]" aria-label="GitHub Activity">
-          <GitHubContributions username="shuaib-mk,q04ti" showHeader={true} minimal={true} />
+          <GitHubContributions username="q04ti" showHeader={true} minimal={true} />
         </section>
       )}
     </div>

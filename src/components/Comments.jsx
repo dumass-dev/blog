@@ -10,7 +10,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function Comments({ postId }) {
+export default function Comments({ postId, passcode }) {
   const { isAdmin, token } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
   const [comments, setComments] = useState([]);
@@ -149,7 +149,7 @@ export default function Comments({ postId }) {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author_name: name, content: trimmedContent })
+        body: JSON.stringify({ author_name: name, content: trimmedContent, passcode: passcode || undefined })
       });
 
       if (res.ok) {

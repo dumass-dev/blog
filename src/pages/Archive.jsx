@@ -46,41 +46,24 @@ export default function Archive() {
   const initialQuery = searchParams.get('q') || searchParams.get('tag') || '';
 
   const cached = getCachedFeed('all');
+  const [allPosts, setAllPosts] = useState(() => (Array.isArray(cached) ? cached : []));
   const [archiveTree, setArchiveTree] = useState(() => buildTree(cached));
   const [searchResults, setSearchResults] = useState(() => (Array.isArray(cached) ? cached : []));
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(() => !cached || cached.length === 0);
 
-  // Load Archive Tree & Entries
+  // Load the full entry list ONCE (and again only when the feed is invalidated).
+  // Search / year-month filtering below is purely local — typing in the search
+  // box must not refetch the whole list on every keystroke.
   useEffect(() => {
     let isMounted = true;
     const loadArchive = async () => {
       const posts = await fetchPublishedEntries();
       if (!isMounted) return;
 
-      const tree = buildTree(posts);
-      setArchiveTree(tree);
-
-      // Filter search / year-month results
-      let filtered = posts || [];
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(p =>
-          (p.title && p.title.toLowerCase().includes(q)) ||
-          (p.content && p.content.toLowerCase().includes(q)) ||
-          (p.tags && p.tags.toLowerCase().includes(q)) ||
-          (p.category && p.category.toLowerCase().includes(q))
-        );
-      } else if (activeYear && activeMonth) {
-        filtered = filtered.filter(p => {
-          const d = new Date(p.date);
-          const y = String(d.getFullYear());
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          return y === String(activeYear) && m === String(activeMonth);
-        });
-      }
-
-      setSearchResults(filtered);
+      const list = Array.isArray(posts) ? posts : [];
+      setAllPosts(list);
+      setArchiveTree(buildTree(list));
       setLoading(false);
     };
 
@@ -95,7 +78,30 @@ export default function Archive() {
       isMounted = false;
       window.removeEventListener('feed-data-invalidated', handleInvalidate);
     };
-  }, [searchQuery, activeYear, activeMonth]);
+  }, []);
+
+  // Local filter: search query / year-month selection over the loaded list
+  useEffect(() => {
+    let filtered = allPosts || [];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        (p.title && p.title.toLowerCase().includes(q)) ||
+        (p.content && p.content.toLowerCase().includes(q)) ||
+        (p.tags && p.tags.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q))
+      );
+    } else if (activeYear && activeMonth) {
+      filtered = filtered.filter(p => {
+        const d = new Date(p.date);
+        const y = String(d.getFullYear());
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return y === String(activeYear) && m === String(activeMonth);
+      });
+    }
+
+    setSearchResults(filtered);
+  }, [allPosts, searchQuery, activeYear, activeMonth]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -114,10 +120,16 @@ export default function Archive() {
   return (
     <div className="notebook-container">
       <header className="mb-10">
-        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">Archive</h1>
-        <p className="text-sm font-sans text-[var(--text-secondary)] mb-6">
-          A full chronological index of everything written and logged.
-        </p>
+        <TypewriterText
+          text="Archive"
+          as="h1"
+          className="text-3xl font-serif font-medium tracking-tight mb-2"
+        />
+        <TypewriterText
+          text="A full chronological index of everything written and logged."
+          as="p"
+          className="text-sm font-sans text-[var(--text-secondary)] mb-6"
+        />
 
         {/* Minimal Search Bar */}
         <form onSubmit={handleSearchSubmit} className="relative max-w-md flex items-center">
@@ -200,9 +212,11 @@ export default function Archive() {
           ) : (
             Object.keys(archiveTree).map(year => (
               <div key={year} className="border-b border-[var(--border-subtle)] pb-8">
-                <h2 className="text-2xl font-serif font-medium mb-4 text-[var(--text-primary)]">
-                  {year}
-                </h2>
+                <TypewriterText
+                  text={year}
+                  as="h2"
+                  className="text-2xl font-serif font-medium mb-4 text-[var(--text-primary)]"
+                />
                 <ul className="space-y-2 text-sm font-sans">
                   {Object.keys(archiveTree[year]).map(monthNum => {
                     const monthItem = archiveTree[year][monthNum];
@@ -212,10 +226,10 @@ export default function Archive() {
                           to={`/archive?year=${year}&month=${monthNum}`}
                           className="hover:text-[var(--accent-warm)] underline underline-offset-4 text-[var(--text-primary)]"
                         >
-                          {monthItem.name}
+                          <TypewriterText text={monthItem.name} />
                         </Link>
                         <span className="text-xs text-[var(--text-muted)]">
-                          — {monthItem.count} {monthItem.count === 1 ? 'entry' : 'entries'}
+                          <TypewriterText text={`— ${monthItem.count} ${monthItem.count === 1 ? 'entry' : 'entries'}`} />
                         </span>
                       </li>
                     );

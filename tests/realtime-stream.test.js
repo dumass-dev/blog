@@ -64,6 +64,19 @@ describe('Realtime SSE Streaming & Live Updates Suite', () => {
           };
         }
 
+        if (tableName === 'public_published_entries') {
+          const publishedRow = { id: 'post-uuid-1', slug: 'existing-entry', status: 'published', has_passcode: false };
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: publishedRow, error: null }),
+                single: async () => ({ data: publishedRow, error: null })
+              }),
+              limit: async () => ({ data: [publishedRow], error: null })
+            })
+          };
+        }
+
         if (tableName === 'about') {
           return {
             select: () => ({

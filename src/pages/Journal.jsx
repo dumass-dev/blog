@@ -37,10 +37,16 @@ export default function Journal() {
   return (
     <div className="notebook-container">
       <header className="mb-12">
-        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">Journal</h1>
-        <p className="text-sm font-sans text-[var(--text-secondary)]">
-          Personal thoughts, daily notebook entries, and life logs.
-        </p>
+        <TypewriterText
+          text="Journal"
+          as="h1"
+          className="text-3xl font-serif font-medium tracking-tight mb-2"
+        />
+        <TypewriterText
+          text="Personal thoughts, daily notebook entries, and life logs."
+          as="p"
+          className="text-sm font-sans text-[var(--text-secondary)]"
+        />
       </header>
 
       {loading ? (

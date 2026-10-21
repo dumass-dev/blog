@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>q04ti — Journal, Writing & Archive</title>
+    <style>
+      /* Critical first-paint colors (same values as --bg-main in the app
+         stylesheet) so the canvas is already correct before that CSS loads. */
+      html { background-color: #FFFFFF; color-scheme: light; }
+      html.dark { background-color: #0C0C0C; color-scheme: dark; }
+    </style>
     <script>
       window.deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', function(e) {
@@ -32,8 +38,15 @@
               document.documentElement.classList.remove('dark');
               try { localStorage.setItem('site_default_theme', 'light'); } catch(e) {}
             } else {
-              // Client fallback if rendered statically without injection
-              var siteDefault = localStorage.getItem('site_default_theme');
+              // Client fallback if rendered statically without injection:
+              // a server-set cookie (kept for the session even in private
+              // windows) wins over the longer-lived local cache.
+              var cookieTheme = null;
+              try {
+                var themeCookieMatch = document.cookie.match(/(?:^|;\s*)site_default_theme=(light|dark)/);
+                if (themeCookieMatch) cookieTheme = themeCookieMatch[1];
+              } catch(e) {}
+              var siteDefault = cookieTheme || localStorage.getItem('site_default_theme');
               if (siteDefault === 'dark') {
                 document.documentElement.classList.add('dark');
               } else if (siteDefault === 'light') {

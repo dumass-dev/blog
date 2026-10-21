@@ -10,7 +10,7 @@ export default function GitHubContributions({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const [tooltip, setTooltip] = useState(null);
   const scrollContainerRef = useRef(null);
 
@@ -48,9 +48,10 @@ export default function GitHubContributions({
     };
   }, [username]);
 
-  // Guaranteed list of years (2026, 2025, 2024, plus any extra from backend)
+  // Guaranteed list of years (current year and the two before it, plus any extra from backend)
   const years = useMemo(() => {
-    const defaultYears = ['2026', '2025', '2024'];
+    const thisYear = new Date().getFullYear();
+    const defaultYears = [String(thisYear), String(thisYear - 1), String(thisYear - 2)];
     const set = new Set(defaultYears);
     if (data?.years && Array.isArray(data.years)) {
       data.years.forEach(y => set.add(String(y)));

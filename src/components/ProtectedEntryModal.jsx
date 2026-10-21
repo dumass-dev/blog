@@ -11,8 +11,11 @@ export default function ProtectedEntryModal({ postId, slug, entry, onUnlock, onS
   const isModal = Boolean(onClose || entry);
 
   const handleSuccess = (unlockedData) => {
-    if (onUnlock) onUnlock(unlockedData);
-    if (onSuccess) onSuccess(unlockedData);
+    // Include the verified passcode so the entry page can present it to the
+    // comments/reactions API, which now requires proof for protected entries.
+    const payload = { ...unlockedData, passcode: passcode.trim() };
+    if (onUnlock) onUnlock(payload);
+    if (onSuccess) onSuccess(payload);
     if (onClose) onClose();
   };
 
@@ -99,7 +102,7 @@ export default function ProtectedEntryModal({ postId, slug, entry, onUnlock, onS
       </p>
 
       {error && (
-        <div className="mb-4 p-2 bg.red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-sans rounded border border-red-200 dark:border-red-900/50">
+        <div className="mb-4 p-2 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-sans rounded border border-red-200 dark:border-red-900/50">
           {error}
         </div>
       )}

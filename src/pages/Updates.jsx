@@ -46,10 +46,16 @@ export default function Updates() {
   return (
     <div className="notebook-container">
       <header className="mb-12">
-        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">Updates</h1>
-        <p className="text-sm font-sans text-[var(--text-secondary)]">
-          Lightweight micro-stream of notes, moments, and daily thoughts.
-        </p>
+        <TypewriterText
+          text="Updates"
+          as="h1"
+          className="text-3xl font-serif font-medium tracking-tight mb-2"
+        />
+        <TypewriterText
+          text="Lightweight micro-stream of notes, moments, and daily thoughts."
+          as="p"
+          className="text-sm font-sans text-[var(--text-secondary)]"
+        />
       </header>
 
       {loading ? (

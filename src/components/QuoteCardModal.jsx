@@ -7,6 +7,19 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
   const canvasRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [cardTheme, setCardTheme] = useState('warm'); // 'warm' | 'dark' | 'mono'
+  // Author name follows the site setting (same sources/fallback as Footer/Header)
+  const [authorName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('site_author_name');
+      if (stored && stored.trim()) return stored.trim();
+      const cached = localStorage.getItem('cached_about_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.author_name && parsed.author_name.trim()) return parsed.author_name.trim();
+      }
+    } catch {}
+    return 'q04ti';
+  });
 
   useEffect(() => {
     if (!isOpen || !quoteText || !canvasRef.current) return;
@@ -50,7 +63,7 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
     // Site Author Header Branding
     ctx.fillStyle = accentColor;
     ctx.font = '600 24px Inter, sans-serif';
-    ctx.fillText('q04ti — Personal Archive', 80, 100);
+    ctx.fillText(`${authorName} — Personal Archive`, 80, 100);
 
     // Large background decorative quote mark
     ctx.fillStyle = accentColor;
@@ -102,19 +115,19 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
     ctx.fillStyle = subTextColor;
     ctx.font = '400 22px Inter, sans-serif';
     ctx.fillText(`— excerpt from "${postTitle || 'Journal Entry'}"`, 80, canvas.height - 90);
-  }, [isOpen, quoteText, postTitle, cardTheme]);
+  }, [isOpen, quoteText, postTitle, cardTheme, authorName]);
 
   const handleDownload = () => {
     if (!canvasRef.current) return;
     const link = document.createElement('a');
-    link.download = `q04ti-quote-${Date.now()}.png`;
+    link.download = `${authorName}-quote-${Date.now()}.png`;
     link.href = canvasRef.current.toDataURL('image/png');
     link.click();
   };
 
   const handleCopyText = () => {
     if (!quoteText) return;
-    navigator.clipboard.writeText(`"${quoteText}" — via q04ti`);
+    navigator.clipboard.writeText(`"${quoteText}" — via ${authorName}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

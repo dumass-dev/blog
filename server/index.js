@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
@@ -91,6 +92,16 @@ app.use('/api/', apiLimiter);
 const writeLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests on this endpoint. Please slow down.' }
+});
+
+// Dedicated limiter for the view counter, with its own budget so normal
+// reading never starves the strict write pool (comments/reactions/passcode)
+const viewsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests on this endpoint. Please slow down.' }
@@ -235,23 +246,12 @@ async function requireAdminAuth(req, res, next) {
 }
 
 // Health & Root Status — Serving a sleek, editorial dark-mode status dashboard for browsers
-app.get(['/', '/api', '/api/'], async (req, res) => {
+app.get(['/api', '/api/'], async (req, res) => {
   const acceptsHtml = req.headers.accept && req.headers.accept.includes('text/html');
 
   if (!acceptsHtml) {
     return res.json({
-      status: 'online',
-      name: 'q04ti Blog API Server (Supabase & Backblaze B2 Powered)',
-      version: '2.0.0',
-      website: 'http://localhost:3000',
-      b2_configured: isB2Configured(),
-      endpoints: {
-        posts: '/api/posts',
-        media: '/api/media',
-        about: '/api/about',
-        stats: '/api/stats',
-        health: '/api/health'
-      }
+      status: 'online'
     });
   }
 
@@ -684,12 +684,45 @@ app.post('/api/realtime-broadcast', requireAdminAuth, async (req, res) => {
 });
 
 // GET /api/b2/refresh — Auto-refresh expired presigned Backblaze B2 S3 URLs
+// Host- and key-validated exactly like api/index.js: only URLs on the site's
+// own B2 endpoint/bucket hosts, containing a real storage key, are re-signed.
 app.get('/api/b2/refresh', async (req, res) => {
   try {
     const { url } = req.query;
-    if (!url) return res.status(400).json({ error: 'URL query parameter required' });
-    const freshUrl = await refreshB2Url(url);
-    res.json({ url: freshUrl });
+    if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL parameter required' });
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        const endpointHost = (process.env.BACKBLAZE_ENDPOINT || '').replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+        const bucket = (process.env.BACKBLAZE_BUCKET || '').toLowerCase();
+        const bucketHost = (bucket && endpointHost) ? `${bucket}.${endpointHost}` : '';
+
+        let isValidHost = false;
+        if (endpointHost && host === endpointHost) isValidHost = true;
+        if (bucketHost && host === bucketHost) isValidHost = true;
+        if (process.env.NODE_ENV === 'test' && (host === '127.0.0.1' || host === 'localhost')) isValidHost = true;
+
+        if (!isValidHost) {
+          return res.status(400).json({ error: 'Invalid or unpermitted media host domain.' });
+        }
+      } catch (_e) {
+        return res.status(400).json({ error: 'Malformed media URL.' });
+      }
+    }
+
+    const key = extractB2StorageKey(url);
+    if (!key) {
+      return res.status(400).json({ error: 'URL does not contain a valid B2 storage key.' });
+    }
+
+    try {
+      const freshUrl = await refreshB2Url(url);
+      return res.json({ url: freshUrl || url });
+    } catch (_e) {
+      return res.json({ url });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -809,7 +842,8 @@ app.post('/api/media/upload', requireAdminAuth, async (req, res) => {
       const file = req.file;
 
       if (isB2Configured()) {
-        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype);
+        const resolvedVault = req.body?.targetVault || (req.body?.category === 'journal' || req.body?.category === 'writing' ? 'journal' : 'visuals');
+        const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype, resolvedVault);
         const mediaRow = {
           filename: path.basename(b2Result.storageKey),
           original_name: file.originalname,
@@ -828,7 +862,8 @@ app.post('/api/media/upload', requireAdminAuth, async (req, res) => {
 
         return res.status(201).json({
           ...data,
-          signed_url: b2Result.signedUrl
+          signed_url: b2Result.signedUrl,
+          vault: resolvedVault
         });
       } else {
         return res.status(500).json({ error: 'Backblaze B2 credentials missing in server environment.' });
@@ -1000,11 +1035,15 @@ app.post('/api/media/confirm', requireAdminAuth, async (req, res) => {
 app.delete('/api/media/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { data: item } = await getSupabaseClient(req)
+    const { data: item, error: fetchErr } = await getSupabaseClient(req)
       .from('media')
       .select('*')
       .eq('id', id)
       .single();
+
+    if (fetchErr || !item) {
+      return res.status(404).json({ error: 'Media not found.' });
+    }
 
     if (item && item.url) {
       const key = extractB2StorageKey(item.url) || item.url;
@@ -1037,7 +1076,11 @@ async function checkIsAdmin(req) {
 
   try {
     const client = getSupabaseClient(req);
-    const { data } = await client.auth.getUser(token);
+    // Bounded wait: a stalled auth service must not hang read paths forever
+    const { data } = await Promise.race([
+      client.auth.getUser(token),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('auth-timeout')), 5000))
+    ]);
     if (data && data.user && (data.user.id || '').trim().toLowerCase() === cleanAdminId) {
       return true;
     }
@@ -1088,15 +1131,16 @@ export async function getEffectiveShowViews(supabase) {
 app.get('/api/posts', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    const { status, type, category, tag, limit } = req.query;
+    const { status, type, category, tag, limit, includeContent } = req.query;
     const isAdmin = await checkIsAdmin(req);
-    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
 
-    // HIGH-2: Non-admins always query through the safe view, never the raw entries table
+    const fields = includeContent === 'true'
+      ? '*'
+      : 'id, slug, title, date, category, tags, read_time, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
+
     const table = isAdmin ? 'entries' : 'public_published_entries';
-    let query = getSupabaseClient(req).from(table).select('*');
+    let query = getSupabaseClient(req).from(table).select(fields);
 
-    // Restrict status=all or status=draft to authenticated admin only
     if (status === 'all' || status === 'draft') {
       if (!isAdmin) {
         query = query.eq('status', 'published');
@@ -1104,7 +1148,6 @@ app.get('/api/posts', async (req, res) => {
         query = query.eq('status', 'draft');
       }
     } else {
-      // By default, public only sees published entries
       query = query.eq('status', 'published');
     }
 
@@ -1115,67 +1158,20 @@ app.get('/api/posts', async (req, res) => {
         query = query.eq('type', type);
       }
     }
-
-    if (category) {
-      query = query.ilike('category', `%${category}%`);
-    }
-
-    if (tag) {
-      query = query.ilike('tags', `%${tag}%`);
-    }
+    if (category) query = query.ilike('category', `%${category}%`);
+    if (tag) query = query.ilike('tags', `%${tag}%`);
 
     query = query.order('date', { ascending: false });
     if (typeof query.order === 'function') {
       query = query.order('created_at', { ascending: false });
     }
-
-    if (limit) {
-      query = query.limit(parseInt(limit, 10));
-    }
+    if (limit) query = query.limit(parseInt(limit, 10));
 
     let { data: posts, error } = await query;
+    if (error) throw error;
 
-    if (error || !posts || (type === 'photo' && posts.length === 0)) {
-      try {
-        const { data: fallbackPosts } = await getSupabaseClient(req)
-          .from('entries')
-          .select('*')
-          .eq('status', 'published')
-          .order('date', { ascending: false });
+    const showViews = await getEffectiveShowViews(getSupabaseClient(req));
 
-        if (fallbackPosts && fallbackPosts.length > 0) {
-          if (type === 'photo') {
-            posts = fallbackPosts.filter(item => 
-              item.type === 'photo' || 
-              (item.category && item.category.toLowerCase().includes('photos')) ||
-              (item.cover_image && item.cover_image.trim() !== '')
-            );
-          } else if (type === 'journal') {
-            posts = fallbackPosts.filter(item => 
-              (item.type === 'journal' || !item.type || item.type === '') && 
-              item.type !== 'photo' && 
-              item.type !== 'update' && 
-              item.type !== 'writing' && 
-              item.type !== 'essay' && 
-              (!item.category || !item.category.toLowerCase().includes('photos'))
-            );
-          } else if (type === 'update') {
-            posts = fallbackPosts.filter(item => item.type === 'update');
-          } else if (type === 'writing') {
-            posts = fallbackPosts.filter(item => 
-              item.type === 'writing' || item.type === 'essay' || 
-              (item.category && item.category.toLowerCase().includes('writing'))
-            );
-          } else if (type) {
-            posts = fallbackPosts.filter(item => item.type === type);
-          } else {
-            posts = fallbackPosts;
-          }
-        }
-      } catch (_fbErr) {}
-    }
-
-    // Process posts: Redact passcode-protected posts ONLY for non-admins & refresh B2 presigned URLs
     const processed = await Promise.all((posts || []).map(async post => {
       const isPhoto = Boolean(
         post.type === 'photo' ||
@@ -1183,6 +1179,7 @@ app.get('/api/posts', async (req, res) => {
       );
       const effectiveType = isPhoto ? 'photo' : post.type;
       const has_passcode = Boolean(post.has_passcode || post.is_protected || (post.passcode && post.passcode.trim() !== ''));
+      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
 
       let freshCover = post.cover_image;
       if (!freshCover || !freshCover.trim() || /q04ti-quote|quote-/i.test(freshCover)) {
@@ -1197,9 +1194,9 @@ app.get('/api/posts', async (req, res) => {
           freshCover = matches[0] || '';
         }
       }
-      freshCover = await refreshB2Url(freshCover);
-      const freshContent = await refreshB2Url(post.content);
-      const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
+      if (freshCover) {
+        freshCover = await refreshB2Url(freshCover);
+      }
 
       if (!isAdmin && has_passcode) {
         return {
@@ -1208,7 +1205,6 @@ app.get('/api/posts', async (req, res) => {
           type: effectiveType,
           has_passcode: true,
           passcode: undefined,
-          content: '🔒 This entry is passcode-protected. Enter passcode to unlock reading view.',
           excerpt: '🔒 Protected entry',
           cover_image: ''
         };
@@ -1218,18 +1214,17 @@ app.get('/api/posts', async (req, res) => {
         views: viewsToReturn,
         type: effectiveType,
         cover_image: freshCover || post.cover_image || '',
-        content: freshContent || post.content || '',
         has_passcode: has_passcode,
         passcode: isAdmin ? (post.passcode || '') : undefined
       };
     }));
 
     res.json(processed);
-  } catch (err) {
-    console.error('Error fetching posts from Supabase:', err.message);
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: _err.message });
   }
 });
+
 
 // GET /api/posts/on-this-day — Fetch historical memory entries
 app.get('/api/posts/on-this-day', async (req, res) => {
@@ -1421,7 +1416,18 @@ app.get('/api/github-contributions', async (req, res) => {
     const primaryUser = requestedUsers[0] || 'q04ti';
     const requestedYear = req.query.year ? String(req.query.year).trim() : null;
 
-    const cacheKey = `${requestedUsers.join(',')}_${requestedYear || 'all'}`;
+    // Server-only extra accounts whose contributions are merged into the
+    // graph (e.g. the site owner's private account). Configured exclusively
+    // via the GITHUB_CONTRIBUTIONS_EXTRA_USERS env var: these names are
+    // never read from the request and never echoed in the response, so
+    // visitors only ever see the publicly requested username.
+    const extraUsers = (process.env.GITHUB_CONTRIBUTIONS_EXTRA_USERS || '')
+      .split(',')
+      .map(u => u.trim())
+      .filter(u => /^[a-zA-Z0-9-]{1,39}$/.test(u));
+    const effectiveUsers = Array.from(new Set([...requestedUsers, ...extraUsers]));
+
+    const cacheKey = `${effectiveUsers.join(',')}_${requestedYear || 'all'}`;
     const cached = contributionsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
@@ -1513,7 +1519,7 @@ app.get('/api/github-contributions', async (req, res) => {
         };
 
         const collections = await Promise.all(
-          requestedUsers.map(u => fetchUserCollection(u))
+          effectiveUsers.map(u => fetchUserCollection(u))
         );
 
         const validCollections = collections.filter(c => c && c.contributionCalendar);
@@ -1554,12 +1560,17 @@ app.get('/api/github-contributions', async (req, res) => {
             ? Array.from(yearsSet).sort((a, b) => Number(b) - Number(a))
             : [String(new Date().getFullYear())];
 
+          // The calendar only contains private contributions when the token
+          // can see them; restrictedContributionsCount covers the ones it
+          // cannot (it is 0 when the calendar already includes them), so the
+          // displayed total adds both to reflect the true contribution count.
+          const displayTotal = totalContributions + totalRestricted;
           const totalObj = {};
           if (requestedYear && requestedYear !== 'all') {
-            totalObj[requestedYear] = totalContributions;
+            totalObj[requestedYear] = displayTotal;
           } else {
-            totalObj[String(new Date().getFullYear())] = totalContributions;
-            totalObj.lastYear = totalContributions;
+            totalObj[String(new Date().getFullYear())] = displayTotal;
+            totalObj.lastYear = displayTotal;
           }
 
           data = {
@@ -1581,44 +1592,48 @@ app.get('/api/github-contributions', async (req, res) => {
     if (!data) {
       try {
         const targetYears = ['2026', '2025', '2024'];
-        if (requestedYear && requestedYear !== 'all') {
-          const publicUrl = `https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${requestedYear}`;
-          const pubRes = await fetch(publicUrl);
-          if (pubRes.ok) {
-            const pubJson = await pubRes.json();
-            data = {
-              source: 'public',
-              username: primaryUser,
-              total: pubJson.total || { [requestedYear]: 0 },
-              years: targetYears,
-              contributions: pubJson.contributions || []
-            };
-          }
-        } else {
-          // Fetch 2026, 2025, 2024 in parallel and combine
-          const yearResponses = await Promise.all(
-            targetYears.map(y =>
-              fetch(`https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${y}`)
+        const yearsToFetch = (requestedYear && requestedYear !== 'all') ? [requestedYear] : targetYears;
+        const levelForCount = (count) => count >= 10 ? 4 : count >= 6 ? 3 : count >= 3 ? 2 : count > 0 ? 1 : 0;
+
+        // Fetch every effective account (the publicly requested one plus any
+        // server-only extras) for every wanted year, then merge day-by-day.
+        // Only the publicly requested username is ever put in the response.
+        const publicFetches = [];
+        for (const user of effectiveUsers) {
+          for (const y of yearsToFetch) {
+            publicFetches.push(
+              fetch(`https://github-contributions-api.jogruber.de/v4/${user}?y=${y}`)
                 .then(r => r.ok ? r.json() : null)
-                .catch(() => null)
-            )
-          );
+                .then(json => ({ year: y, json }))
+                .catch(() => ({ year: y, json: null }))
+            );
+          }
+        }
+        const publicResults = await Promise.all(publicFetches);
 
-          const combinedTotal = { '2026': 0, '2025': 0, '2024': 0 };
-          const combinedContributions = [];
+        const combinedTotal = {};
+        yearsToFetch.forEach(y => { combinedTotal[y] = 0; });
+        const publicDayMap = new Map();
+        let anyPublicData = false;
 
-          yearResponses.forEach((res, idx) => {
-            const y = targetYears[idx];
-            if (res) {
-              if (res.total && typeof res.total[y] === 'number') {
-                combinedTotal[y] = res.total[y];
-              }
-              if (Array.isArray(res.contributions)) {
-                combinedContributions.push(...res.contributions);
-              }
+        for (const { year, json } of publicResults) {
+          if (!json) continue;
+          anyPublicData = true;
+          if (json.total && typeof json.total[year] === 'number') {
+            combinedTotal[year] += json.total[year];
+          }
+          if (Array.isArray(json.contributions)) {
+            for (const c of json.contributions) {
+              if (!c || !c.date) continue;
+              publicDayMap.set(c.date, (publicDayMap.get(c.date) || 0) + (c.count || 0));
             }
-          });
+          }
+        }
 
+        if (anyPublicData) {
+          const combinedContributions = Array.from(publicDayMap.entries())
+            .map(([date, count]) => ({ date, count, level: levelForCount(count) }))
+            .sort((a, b) => (a.date < b.date ? -1 : 1));
           data = {
             source: 'public',
             username: primaryUser,
@@ -1755,6 +1770,7 @@ app.post('/api/about', handleSaveAbout);
 app.use('/api/posts/:id/comments', writeLimiter);
 app.use('/api/posts/:id/reactions', writeLimiter);
 app.use('/api/posts/:identifier/verify-passcode', writeLimiter);
+app.use('/api/posts/:identifier/views', viewsLimiter);
 
 // GET /api/posts/:identifier — Fetch single entry by ID or Slug
 app.get('/api/posts/:identifier', async (req, res) => {
@@ -1893,7 +1909,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       const { data } = await client.from('public_published_entries').select('id, slug, views').eq('id', identifier).maybeSingle();
       post = data;
       if (!post) {
-        const { data: direct } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        const { data: direct } = await client.from('entries').select('id, slug, views, status').eq('id', identifier).maybeSingle();
         post = direct;
       }
     } else {
@@ -1907,21 +1923,27 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       }
       // Try entries table directly
       if (!post) {
-        const { data: direct } = await client.from('entries').select('id, slug, views').eq('slug', identifier).maybeSingle();
+        const { data: direct } = await client.from('entries').select('id, slug, views, status').eq('slug', identifier).maybeSingle();
         post = direct;
       }
       if (!post) {
-        const { data: directIlike } = await client.from('entries').select('id, slug, views').ilike('slug', identifier).maybeSingle();
+        const { data: directIlike } = await client.from('entries').select('id, slug, views, status').ilike('slug', identifier).maybeSingle();
         post = directIlike;
       }
       // If still not found, check if identifier happens to be an ID
       if (!post) {
-        const { data: byId } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        const { data: byId } = await client.from('entries').select('id, slug, views, status').eq('id', identifier).maybeSingle();
         post = byId;
       }
     }
 
     if (!post) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // Rows found only via the raw entries table must still be published —
+    // otherwise this endpoint confirms that a draft slug exists.
+    if (post.status && post.status !== 'published') {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
@@ -2041,76 +2063,72 @@ app.post('/api/posts/:identifier/verify-passcode', async (req, res) => {
 // POST /api/posts — Create new entry (Requires Admin Auth)
 app.post('/api/posts', requireAdminAuth, async (req, res) => {
   try {
-    const {
-      title,
-      slug,
-      content,
-      type = 'journal',
-      status = 'published',
-      category,
-      tags,
-      cover_image,
-      excerpt,
-      date,
-      location,
-      weather,
-      mood,
-      passcode
-    } = req.body;
+    const payload = req.body;
+    const passcodeVal = (payload.passcode && payload.passcode.trim() !== '') ? payload.passcode.trim() : null;
 
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Content is required.' });
+    const isPhotoPost = payload.type === 'photo';
+    const title = payload.title || (isPhotoPost ? `Photo — ${new Date().toLocaleDateString()}` : 'Untitled Entry');
+    const slug = payload.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    let finalCover = payload.cover_image ? payload.cover_image.trim() : '';
+    if (finalCover && /q04ti-quote|quote-/i.test(finalCover)) {
+      finalCover = '';
     }
-
-    let finalTitle = title && title.trim() ? title.trim() : (type === 'photo' ? `Photo — ${new Date().toLocaleDateString()}` : 'Untitled Update');
-    let finalSlug = slug && slug.trim() ? slug.trim() : (type === 'photo' ? `photo-${Date.now()}` : slugify(finalTitle));
-
-    if (type === 'update' && (!title || !title.trim())) {
-      const now = new Date();
-      finalTitle = `Update — ${now.toLocaleDateString()}`;
-      finalSlug = `update-${Date.now()}`;
+    if (finalCover) {
+      const extracted = extractB2StorageKey(finalCover);
+      if (extracted) finalCover = extracted;
     }
-
-    const isPhotoType = (type === 'photo');
-    const dbType = isPhotoType ? 'journal' : (['journal', 'writing', 'update'].includes(type) ? type : 'journal');
-    const dbCategory = isPhotoType ? (category && category.trim() ? category.trim() : 'Photos') : (category ? category.trim() : 'General');
-
-    let finalCoverImage = cover_image ? cover_image.trim() : '';
-    if (finalCoverImage) {
-      const extracted = extractB2StorageKey(finalCoverImage);
-      if (extracted) finalCoverImage = extracted;
-    }
-    if (!finalCoverImage && content) {
-      const imgMatch = content.match(/!\[.*?\]\((.*?)\)/) || content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/i);
-      if (imgMatch) {
-        const rawMatch = imgMatch[1] || imgMatch[0];
-        finalCoverImage = extractB2StorageKey(rawMatch) || rawMatch;
+    if (!finalCover && payload.content) {
+      const matches = [...payload.content.matchAll(/!\[.*?\]\((.*?)\)/g)].map(m => m[1])
+        .concat([...payload.content.matchAll(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+[^\s)"]*/gi)].map(m => m[0]));
+      const realImg = matches.find(url => !/q04ti-quote|quote-/i.test(url)) || matches[0];
+      if (realImg) {
+        finalCover = extractB2StorageKey(realImg) || realImg;
       }
     }
 
     const entryData = {
-      title: finalTitle,
-      slug: finalSlug,
-      content: content.trim(),
-      type: dbType,
-      status: ['published', 'draft', 'unlisted'].includes(status) ? status : 'published',
-      category: dbCategory,
-      tags: tags ? tags.trim() : '',
-      cover_image: finalCoverImage,
-      excerpt: stripMarkdown(content || excerpt || '', 150),
-      date: date || new Date().toISOString(),
-      location: location ? location.trim() : null,
-      weather: weather ? weather.trim() : null,
-      mood: mood ? mood.trim() : null,
-      passcode: (passcode && passcode.trim() !== '') ? passcode.trim() : null,
-      show_in_feed: req.body.show_in_feed !== undefined ? Boolean(req.body.show_in_feed) : (type !== 'photo')
+      title,
+      slug,
+      content: payload.content || '',
+      type: isPhotoPost ? 'journal' : (payload.type || 'journal'),
+      status: payload.status || 'published',
+      category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
+      tags: payload.tags || '',
+      cover_image: finalCover,
+      excerpt: stripMarkdown(payload.content || payload.excerpt || '', 150),
+      date: payload.date || new Date().toISOString(),
+      location: payload.location || null,
+      weather: payload.weather || null,
+      mood: payload.mood || null,
+      passcode: passcodeVal,
+      show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : !isPhotoPost
     };
 
-    let { data, error } = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
+    let { data, error } = await getSupabaseClient(req)
+      .from('entries')
+      .insert(entryData)
+      .select('*')
+      .single();
 
     if (error && (error.message.includes('show_in_feed') || error.message.includes('schema cache'))) {
       delete entryData.show_in_feed;
-      const retry = await getSupabaseClient(req).from('entries').insert([entryData]).select('*').single();
+      const retryNoFeed = await getSupabaseClient(req)
+        .from('entries')
+        .insert(entryData)
+        .select('*')
+        .single();
+      data = retryNoFeed.data;
+      error = retryNoFeed.error;
+    }
+
+    if (error && (error.message.includes('entries_slug_key') || error.message.includes('duplicate key'))) {
+      entryData.slug = `${entryData.slug}-${Math.random().toString(36).slice(2, 6)}`;
+      const retry = await getSupabaseClient(req)
+        .from('entries')
+        .insert(entryData)
+        .select('*')
+        .single();
       data = retry.data;
       error = retry.error;
     }
@@ -2122,15 +2140,11 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       id: data.id,
       slug: data.slug,
       title: data.title,
-      type: isPhotoType ? 'photo' : data.type
+      type: isPhotoPost ? 'photo' : data.type
     });
 
-    res.status(201).json({
-      ...data,
-      type: isPhotoType ? 'photo' : data.type
-    });
+    res.status(201).json(data);
   } catch (err) {
-    console.error('Error creating post in Supabase:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2264,124 +2278,59 @@ app.delete('/api/posts/:id', requireAdminAuth, async (req, res) => {
   }
 });
 
-/* ==========================================================================
-   MEDIA UPLOAD & STORAGE (BACKBLAZE B2 + SUPABASE METADATA)
-   ========================================================================== */
-
-// POST /api/media/upload — Upload media file to Backblaze B2 & record metadata in Supabase (Requires Admin Auth)
-app.post('/api/media/upload', requireAdminAuth, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    const file = req.file;
-
-    if (isB2Configured()) {
-      const resolvedVault = req.body?.targetVault || (req.body?.category === 'journal' || req.body?.category === 'writing' ? 'journal' : 'visuals');
-      // 1. Upload file binary directly to Backblaze B2
-      const b2Result = await uploadToB2(file.buffer, file.originalname, file.mimetype, resolvedVault);
-
-      // 2. Insert metadata row into Supabase 'media' table
-      const mediaRow = {
-        filename: path.basename(b2Result.storageKey),
-        original_name: file.originalname,
-        mime_type: file.mimetype,
-        size: file.size,
-        url: b2Result.storageKey // Store the B2 key reference
-      };
-
-      const { data, error } = await getSupabaseClient(req).from('media').insert([mediaRow]).select('*').single();
-
-      if (error) throw error;
-
-      return res.status(201).json({
-        ...data,
-        signed_url: b2Result.signedUrl
-      });
-    } else {
-      return res.status(500).json({ error: 'Backblaze B2 credentials missing in server .env file.' });
-    }
-  } catch (err) {
-    console.error('Upload Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/media — List uploaded media with fresh pre-signed URLs from Backblaze B2 (Requires Admin Auth)
-app.get('/api/media', requireAdminAuth, async (req, res) => {
-  try {
-    const { data: mediaList, error } = await getSupabaseClient(req)
-      .from('media')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    // Attach temporary pre-signed B2 retrieval URLs for each private asset
-    const listWithSignedUrls = await Promise.all(
-      (mediaList || []).map(async item => {
-        const rawUrl = item.url || '';
-        const key = extractB2StorageKey(rawUrl) || rawUrl;
-        const freshUrl = await refreshB2Url(key);
-        return {
-          ...item,
-          url: freshUrl || rawUrl,
-          signed_url: freshUrl || rawUrl
-        };
-      })
-    );
-
-    res.json(listWithSignedUrls);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/media/:id — Delete media from Backblaze B2 and Supabase (Requires Admin Auth)
-app.delete('/api/media/:id', requireAdminAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Fetch media record to get B2 storage key
-    const { data: media, error: fetchErr } = await getSupabaseClient(req).from('media').select('*').eq('id', id).single();
-
-    if (fetchErr || !media) {
-      return res.status(404).json({ error: 'Media not found.' });
-    }
-
-    // Delete from Backblaze B2 if storage key
-    if (isB2Configured() && media.url) {
-      const key = extractB2StorageKey(media.url) || media.url;
-      await deleteFromB2(key);
-    }
-
-    // Delete row from Supabase
-    const { error: delErr } = await getSupabaseClient(req).from('media').delete().eq('id', id);
-    if (delErr) throw delErr;
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 /* ==========================================================================
    COMMENTS & REACTIONS (SUPABASE POWERED)
    ========================================================================== */
+
+// Resolve a post (UUID or slug) for the public comments/reactions endpoints,
+// mirroring the single-post GET's visibility rules (same as api/index.js):
+// - unknown identifier -> 404
+// - draft -> 404 (drafts are invisible publicly; no existence leak)
+// - passcode-protected -> an admin token, or the entry passcode verified
+//   through the same get_protected_entry RPC the unlock flow uses
+// Returns { postId } on success, or { status, error } for the response.
+async function resolveEngagementTarget(req, identifier, suppliedPasscode) {
+  const client = getSupabaseClient(req);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+  const { data: pub } = isUuid
+    ? await client.from('public_published_entries').select('id, has_passcode').eq('id', identifier).maybeSingle()
+    : await client.from('public_published_entries').select('id, has_passcode').eq('slug', identifier).maybeSingle();
+
+  if (!pub) {
+    return { status: 404, error: 'Entry not found.' };
+  }
+
+  if (!pub.has_passcode) {
+    return { postId: pub.id };
+  }
+
+  if (req.headers.authorization && await checkIsAdmin(req)) {
+    return { postId: pub.id };
+  }
+
+  const code = suppliedPasscode || req.headers['x-entry-passcode'] || req.query.passcode;
+  if (code && typeof code === 'string' && code.length <= 256) {
+    const { data } = await client.rpc('get_protected_entry', {
+      target_identifier: String(identifier),
+      code: code.trim()
+    });
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.unlocked) return { postId: pub.id };
+  }
+
+  return { status: 403, error: 'This entry is passcode-protected.' };
+}
 
 // GET /api/posts/:id/comments
 app.get('/api/posts/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get post UUID if slug was passed
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (posts && posts[0]) postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { data: comments, error } = await getSupabaseClient(req)
       .from('comments')
@@ -2401,10 +2350,14 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 app.post('/api/posts/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { author_name, content } = req.body;
+    const { author_name, content, passcode } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Comment text cannot be empty.' });
+    }
 
     // Strip HTML tags from plain-text fields — comments are plain text, never markup.
-    const rawName = author_name && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
+    const rawName = author_name && typeof author_name === 'string' && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
     const rawContent = stripHtmlTags(content).trim();
 
     if (!rawContent) {
@@ -2417,17 +2370,9 @@ app.post('/api/posts/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Author name must be 100 characters or fewer.' });
     }
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (!posts || !posts[0]) return res.status(404).json({ error: 'Entry not found.' });
-      postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id, passcode);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const name = rawName || 'Anonymous Reader';
 
@@ -2494,12 +2439,9 @@ app.get('/api/posts/:id/reactions', async (req, res) => {
   try {
     const { id } = req.params;
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      const { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (posts && posts[0]) postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { data: reactions, error } = await getSupabaseClient(req)
       .from('reactions')
@@ -2535,17 +2477,9 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       return res.status(400).json({ error: 'Invalid reaction type.' });
     }
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (!posts || !posts[0]) return res.status(404).json({ error: 'Post not found.' });
-      postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id, req.body.passcode);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { error } = await getSupabaseClient(req)
       .from('reactions')
@@ -2667,12 +2601,13 @@ app.get('/api/now-playing', async (req, res) => {
 app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
-    if (!process.env.ADMIN_USER_ID) return res.status(500).json({ error: 'Config missing' });
-    
+    const adminId = (process.env.ADMIN_USER_ID || process.env.VITE_ADMIN_USER_ID || '').trim().toLowerCase();
+    if (!adminId) return res.status(500).json({ error: 'Config missing' });
+
     const supabase = getSupabaseClient(req);
     const { data: userAuth, error: authError } = await supabase.auth.getUser(authHeader?.split(' ')[1] || '');
-    
-    if (authError || userAuth?.user?.id !== process.env.ADMIN_USER_ID) {
+
+    if (authError || (userAuth?.user?.id || '').trim().toLowerCase() !== adminId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -2717,6 +2652,185 @@ app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
 app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.send(getRobotsTxt());
+});
+
+let cachedDefaultTheme = null;
+let lastThemeFetch = 0;
+
+export function setCachedDefaultTheme(theme) {
+  if (theme === 'light' || theme === 'dark') {
+    cachedDefaultTheme = theme;
+    lastThemeFetch = Date.now();
+  }
+}
+
+// Serve application HTML with injected site default theme and view count visibility to guarantee zero flash
+async function serveInjectedHtml(req, res, extraHead = '') {
+  let html = '';
+  try {
+    html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
+  } catch (_e) {
+    try {
+      html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
+    } catch (_e2) {
+      try {
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers.host;
+        const htmlRes = await fetch(`${protocol}://${host}/_static_shell`);
+        if (htmlRes.ok) html = await htmlRes.text();
+      } catch (_e3) {}
+    }
+  }
+
+  if (!html) return res.status(500).send('Unable to load application shell.');
+
+  let defaultTheme = cachedDefaultTheme;
+  const now = Date.now();
+  const supabase = getSupabaseClient(req);
+
+  if (!defaultTheme || (now - lastThemeFetch > 3000)) {
+    try {
+      const queryPromise = (async () => {
+        const { data: syncRow } = await supabase
+          .from('realtime_sync')
+          .select('payload')
+          .eq('id', 'site_settings')
+          .maybeSingle();
+        if (syncRow?.payload?.default_theme === 'light' || syncRow?.payload?.default_theme === 'dark') {
+          return syncRow.payload.default_theme;
+        }
+        const { data: aboutRow } = await supabase
+          .from('about')
+          .select('default_theme')
+          .limit(1);
+        if (aboutRow && aboutRow[0] && (aboutRow[0].default_theme === 'light' || aboutRow[0].default_theme === 'dark')) {
+          return aboutRow[0].default_theme;
+        }
+        return null;
+      })();
+
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
+      let resolved = await Promise.race([queryPromise, timeoutPromise]);
+      if (resolved !== 'light' && resolved !== 'dark' && !defaultTheme) {
+        // Cold start with no cached theme: give the settings lookup one
+        // bounded extra window rather than injecting the wrong (light)
+        // theme, which visitors saw as a light-then-dark flash on load.
+        resolved = await Promise.race([
+          queryPromise,
+          new Promise(resolve => setTimeout(() => resolve(null), 2000))
+        ]);
+      }
+      if (resolved === 'light' || resolved === 'dark') {
+        defaultTheme = resolved;
+        cachedDefaultTheme = defaultTheme;
+        lastThemeFetch = now;
+      }
+    } catch {}
+  }
+
+  if (!defaultTheme) defaultTheme = 'light';
+
+  // Bound every settings lookup so a stalled database can never hang page HTML
+  const bounded = (promise, fallback, ms = 2000) => Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms))
+  ]);
+
+  const effectiveShowViews = await bounded(getEffectiveShowViews(supabase), true);
+
+  // Inject theme and view count attributes directly into <html> to guarantee ZERO flash
+  html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
+    const clean = attrs
+      .replace(/\s*data-theme-injected=["'][^"']*["']/gi, '')
+      .replace(/\s*data-show-views-injected=["'][^"']*["']/gi, '')
+      .replace(/\s*class=["'][^"']*["']/gi, '');
+    const showViewsAttr = ` data-show-views-injected="${effectiveShowViews ? 'true' : 'false'}"`;
+    if (defaultTheme === 'dark') {
+      return `<html${clean} class="dark" data-theme-injected="dark"${showViewsAttr}>`;
+    } else {
+      return `<html${clean} class="" data-theme-injected="light"${showViewsAttr}>`;
+    }
+  });
+
+  let authorName = 'q04ti';
+  try {
+    authorName = await bounded((async () => {
+      const { data: syncRow } = await supabase
+        .from('realtime_sync')
+        .select('payload')
+        .eq('id', 'site_settings')
+        .maybeSingle();
+      if (syncRow?.payload?.author_name && syncRow.payload.author_name.trim()) {
+        return syncRow.payload.author_name.trim();
+      }
+      return 'q04ti';
+    })(), 'q04ti');
+  } catch {}
+
+  if (authorName && authorName !== 'q04ti') {
+    html = html.replace(/<title>q04ti\s*—/i, `<title>${authorName} —`);
+  }
+
+  const syncScript = `<script>window.__SITE_SHOW_VIEWS__=${effectiveShowViews ? 'true' : 'false'};window.__SITE_AUTHOR_NAME__=${JSON.stringify(authorName)};</script>`;
+  if (extraHead) {
+    html = html.replace('</head>', `${syncScript}${extraHead}</head>`);
+  } else {
+    html = html.replace('</head>', `${syncScript}</head>`);
+  }
+
+  // Remember the injected default in a cookie so the pre-paint script can
+  // apply it instantly on later loads even when a shell is served without
+  // injection (the cookie persists for the session in private windows too).
+  res.setHeader('Set-Cookie', `site_default_theme=${defaultTheme}; Path=/; Max-Age=31536000; SameSite=Lax`);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+  return res.send(html);
+}
+
+// SSR for Open Graph (OG) tags on /entry/:slug (Link Previews for WhatsApp, Twitter, etc.)
+app.get('/entry/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { data: posts } = await getSupabaseClient(req)
+      .from('public_published_entries')
+      .select('id, title, excerpt, cover_image, has_passcode')
+      .eq('slug', slug);
+
+    const post = posts && posts[0];
+    let ogTags = '';
+    if (post && !post.has_passcode) {
+      const escapeHtml = (str) => String(str || '').replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]);
+      const title = escapeHtml(post.title || 'Untitled');
+      const excerpt = escapeHtml(post.excerpt || 'Personal diary entry');
+      let image = post.cover_image ? escapeHtml(post.cover_image) : '';
+      if (image && !image.startsWith('http')) {
+        if (image.includes('backblazeb2.com') || image.startsWith('images/')) {
+          const match = image.match(/(?:images|videos|audio|files)\/(?:[a-zA-Z0-9_\-./% ]+)\.[a-zA-Z0-9]+/i);
+          if (match) image = `/api/media/file/${match[0]}`;
+        }
+        image = `https://${req.headers.host}${image}`;
+      }
+      ogTags = `
+        <meta property="og:title" content="${title}" />
+        <meta property="og:description" content="${excerpt}" />
+        ${image ? `<meta property="og:image" content="${image}" />` : ''}
+        <meta property="og:type" content="article" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="${title}" />
+        <meta name="twitter:description" content="${excerpt}" />
+        ${image ? `<meta name="twitter:image" content="${image}" />` : ''}
+      `;
+    }
+    return serveInjectedHtml(req, res, ogTags);
+  } catch (err) {
+    console.error('OG Tag Error:', err);
+    return res.redirect(`/?entry=${req.params.slug}`);
+  }
+});
+
+// Catch-all SPA route handler for all non-API HTML routes with zero theme flash
+app.get(/^(?!\/api).*/, async (req, res) => {
+  return serveInjectedHtml(req, res);
 });
 
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {

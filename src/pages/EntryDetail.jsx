@@ -54,6 +54,7 @@ export default function EntryDetail() {
   const [loading, setLoading] = useState(initialState.loading);
   const [error, setError] = useState(initialState.error);
   const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
+  const [unlockPasscode, setUnlockPasscode] = useState('');
   const isUnlockedRef = useRef(initialState.isUnlocked);
   const [isDeleted, setIsDeleted] = useState(false);
 
@@ -514,7 +515,7 @@ export default function EntryDetail() {
 
           {/* View Count Display (Admin Toggle vs Public Visitor Static View) */}
           {/* View Count Display: Only rendered when showViewCount is true! When hidden, render nothing (no 'views hidden' text) */}
-          {showViewCount && (entry.views !== undefined && entry.views !== null) && (
+          {(showViewCount || isAdmin) && (entry.views !== undefined && entry.views !== null) && (
             <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
               <Eye className="w-3 h-3 opacity-60 shrink-0" />
               <span>{entry.views || 1} {(entry.views || 1) === 1 ? 'view' : 'views'}</span>
@@ -574,6 +575,7 @@ export default function EntryDetail() {
             if (unlockedData && unlockedData.content && !unlockedData.content.startsWith('🔒')) {
               isUnlockedRef.current = true;
               setIsUnlocked(true);
+              if (unlockedData.passcode) setUnlockPasscode(unlockedData.passcode);
               setData(prev => {
                 const updatedEntry = {
                   ...prev.entry,
@@ -612,10 +614,10 @@ export default function EntryDetail() {
           </div>
 
           {/* Emoji Reactions Bar (hidden for Photo posts) */}
-          {shouldShowCommentsAndReactions(entry) && <Reactions postId={entry.id} />}
+          {shouldShowCommentsAndReactions(entry) && <Reactions postId={entry.id} passcode={unlockPasscode} />}
 
           {/* Reader Comments (hidden for Photo posts) */}
-          {shouldShowCommentsAndReactions(entry) && <Comments postId={entry.id} />}
+          {shouldShowCommentsAndReactions(entry) && <Comments postId={entry.id} passcode={unlockPasscode} />}
         </>
       )}
 

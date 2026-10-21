@@ -37,10 +37,16 @@ export default function Writing() {
   return (
     <div className="notebook-container">
       <header className="mb-12">
-        <h1 className="text-3xl font-serif font-medium tracking-tight mb-2">Writing</h1>
-        <p className="text-sm font-sans text-[var(--text-secondary)]">
-          Essays, technical notes, software reflections, and long-form articles.
-        </p>
+        <TypewriterText
+          text="Writing"
+          as="h1"
+          className="text-3xl font-serif font-medium tracking-tight mb-2"
+        />
+        <TypewriterText
+          text="Essays, technical notes, software reflections, and long-form articles."
+          as="p"
+          className="text-sm font-sans text-[var(--text-secondary)]"
+        />
       </header>
 
       {loading ? (

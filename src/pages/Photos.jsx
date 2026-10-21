@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, MapPin, Calendar, Image as ImageIcon } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
+import TypewriterText from '../components/TypewriterText';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -80,12 +81,16 @@ export default function Photos() {
     <div className="notebook-container pb-20">
       {/* Header section */}
       <div className="border-b border-[var(--border-subtle)] pb-6 mb-8">
-        <h1 className="font-serif text-3xl sm:text-4xl tracking-tight text-[var(--text-primary)] font-normal">
-          Photos
-        </h1>
-        <p className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1">
-          Visual journal, moments & Backblaze film archives ({photos.length} captures)
-        </p>
+        <TypewriterText
+          text="Photos"
+          as="h1"
+          className="font-serif text-3xl sm:text-4xl tracking-tight text-[var(--text-primary)] font-normal"
+        />
+        <TypewriterText
+          text={`Visual journal, moments & Backblaze film archives (${photos.length} captures)`}
+          as="p"
+          className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1"
+        />
       </div>
 
       {/* Loading Skeleton */}

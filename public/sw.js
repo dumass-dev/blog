@@ -1,5 +1,5 @@
 /* Service Worker for Journal & Diary Admin PWA */
-const CACHE_NAME = 'journal-admin-v3';
+const CACHE_NAME = 'journal-admin-v4';
 
 const STATIC_ASSETS = [
   '/',

@@ -32,6 +32,47 @@ function stripHtmlTags(str) {
   return str.replace(/<(?:[a-zA-Z/!][^>]*)>/g, '');
 }
 
+// Resolve a post (UUID or slug) for the public comments/reactions endpoints,
+// mirroring the single-post GET's visibility rules:
+// - unknown identifier -> 404
+// - draft -> 404 (drafts are invisible publicly; no existence leak)
+// - passcode-protected -> an admin token, or the entry passcode verified
+//   through the same get_protected_entry RPC the unlock flow uses
+// Returns { postId } on success, or { status, error } for the response.
+async function resolveEngagementTarget(req, identifier, suppliedPasscode) {
+  const client = getSupabaseClient(req);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+  const { data: pub } = isUuid
+    ? await client.from('public_published_entries').select('id, has_passcode').eq('id', identifier).maybeSingle()
+    : await client.from('public_published_entries').select('id, has_passcode').eq('slug', identifier).maybeSingle();
+
+  if (!pub) {
+    return { status: 404, error: 'Entry not found.' };
+  }
+
+  if (!pub.has_passcode) {
+    return { postId: pub.id };
+  }
+
+  if (req.headers.authorization) {
+    const auth = await verifyAdminUser(req);
+    if (auth.authorized) return { postId: pub.id };
+  }
+
+  const code = suppliedPasscode || req.headers['x-entry-passcode'] || req.query.passcode;
+  if (code && typeof code === 'string' && code.length <= 256) {
+    const { data } = await client.rpc('get_protected_entry', {
+      target_identifier: String(identifier),
+      code: code.trim()
+    });
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.unlocked) return { postId: pub.id };
+  }
+
+  return { status: 403, error: 'This entry is passcode-protected.' };
+}
+
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
@@ -101,6 +142,16 @@ app.use('/api/', apiLimiter);
 const writeLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests on this endpoint. Please slow down.' }
+});
+
+// Dedicated limiter for the view counter, with its own budget so normal
+// reading never starves the strict write pool (comments/reactions/passcode)
+const viewsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests on this endpoint. Please slow down.' }
@@ -595,7 +646,18 @@ app.get('/api/github-contributions', async (req, res) => {
     const primaryUser = requestedUsers[0] || 'q04ti';
     const requestedYear = req.query.year ? String(req.query.year).trim() : null;
 
-    const cacheKey = `${requestedUsers.join(',')}_${requestedYear || 'all'}`;
+    // Server-only extra accounts whose contributions are merged into the
+    // graph (e.g. the site owner's private account). Configured exclusively
+    // via the GITHUB_CONTRIBUTIONS_EXTRA_USERS env var: these names are
+    // never read from the request and never echoed in the response, so
+    // visitors only ever see the publicly requested username.
+    const extraUsers = (process.env.GITHUB_CONTRIBUTIONS_EXTRA_USERS || '')
+      .split(',')
+      .map(u => u.trim())
+      .filter(u => /^[a-zA-Z0-9-]{1,39}$/.test(u));
+    const effectiveUsers = Array.from(new Set([...requestedUsers, ...extraUsers]));
+
+    const cacheKey = `${effectiveUsers.join(',')}_${requestedYear || 'all'}`;
     const cached = contributionsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600');
@@ -687,7 +749,7 @@ app.get('/api/github-contributions', async (req, res) => {
         };
 
         const collections = await Promise.all(
-          requestedUsers.map(u => fetchUserCollection(u))
+          effectiveUsers.map(u => fetchUserCollection(u))
         );
 
         const validCollections = collections.filter(c => c && c.contributionCalendar);
@@ -728,12 +790,17 @@ app.get('/api/github-contributions', async (req, res) => {
             ? Array.from(yearsSet).sort((a, b) => Number(b) - Number(a))
             : [String(new Date().getFullYear())];
 
+          // The calendar only contains private contributions when the token
+          // can see them; restrictedContributionsCount covers the ones it
+          // cannot (it is 0 when the calendar already includes them), so the
+          // displayed total adds both to reflect the true contribution count.
+          const displayTotal = totalContributions + totalRestricted;
           const totalObj = {};
           if (requestedYear && requestedYear !== 'all') {
-            totalObj[requestedYear] = totalContributions;
+            totalObj[requestedYear] = displayTotal;
           } else {
-            totalObj[String(new Date().getFullYear())] = totalContributions;
-            totalObj.lastYear = totalContributions;
+            totalObj[String(new Date().getFullYear())] = displayTotal;
+            totalObj.lastYear = displayTotal;
           }
 
           data = {
@@ -755,44 +822,48 @@ app.get('/api/github-contributions', async (req, res) => {
     if (!data) {
       try {
         const targetYears = ['2026', '2025', '2024'];
-        if (requestedYear && requestedYear !== 'all') {
-          const publicUrl = `https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${requestedYear}`;
-          const pubRes = await fetch(publicUrl);
-          if (pubRes.ok) {
-            const pubJson = await pubRes.json();
-            data = {
-              source: 'public',
-              username: primaryUser,
-              total: pubJson.total || { [requestedYear]: 0 },
-              years: targetYears,
-              contributions: pubJson.contributions || []
-            };
-          }
-        } else {
-          // Fetch 2026, 2025, 2024 in parallel and combine
-          const yearResponses = await Promise.all(
-            targetYears.map(y =>
-              fetch(`https://github-contributions-api.jogruber.de/v4/${primaryUser}?y=${y}`)
+        const yearsToFetch = (requestedYear && requestedYear !== 'all') ? [requestedYear] : targetYears;
+        const levelForCount = (count) => count >= 10 ? 4 : count >= 6 ? 3 : count >= 3 ? 2 : count > 0 ? 1 : 0;
+
+        // Fetch every effective account (the publicly requested one plus any
+        // server-only extras) for every wanted year, then merge day-by-day.
+        // Only the publicly requested username is ever put in the response.
+        const publicFetches = [];
+        for (const user of effectiveUsers) {
+          for (const y of yearsToFetch) {
+            publicFetches.push(
+              fetch(`https://github-contributions-api.jogruber.de/v4/${user}?y=${y}`)
                 .then(r => r.ok ? r.json() : null)
-                .catch(() => null)
-            )
-          );
+                .then(json => ({ year: y, json }))
+                .catch(() => ({ year: y, json: null }))
+            );
+          }
+        }
+        const publicResults = await Promise.all(publicFetches);
 
-          const combinedTotal = { '2026': 0, '2025': 0, '2024': 0 };
-          const combinedContributions = [];
+        const combinedTotal = {};
+        yearsToFetch.forEach(y => { combinedTotal[y] = 0; });
+        const publicDayMap = new Map();
+        let anyPublicData = false;
 
-          yearResponses.forEach((res, idx) => {
-            const y = targetYears[idx];
-            if (res) {
-              if (res.total && typeof res.total[y] === 'number') {
-                combinedTotal[y] = res.total[y];
-              }
-              if (Array.isArray(res.contributions)) {
-                combinedContributions.push(...res.contributions);
-              }
+        for (const { year, json } of publicResults) {
+          if (!json) continue;
+          anyPublicData = true;
+          if (json.total && typeof json.total[year] === 'number') {
+            combinedTotal[year] += json.total[year];
+          }
+          if (Array.isArray(json.contributions)) {
+            for (const c of json.contributions) {
+              if (!c || !c.date) continue;
+              publicDayMap.set(c.date, (publicDayMap.get(c.date) || 0) + (c.count || 0));
             }
-          });
+          }
+        }
 
+        if (anyPublicData) {
+          const combinedContributions = Array.from(publicDayMap.entries())
+            .map(([date, count]) => ({ date, count, level: levelForCount(count) }))
+            .sort((a, b) => (a.date < b.date ? -1 : 1));
           data = {
             source: 'public',
             username: primaryUser,
@@ -931,6 +1002,7 @@ app.post('/api/about', handleSaveAbout);
 app.use('/api/posts/:id/comments', writeLimiter);
 app.use('/api/posts/:id/reactions', writeLimiter);
 app.use('/api/posts/:identifier/verify-passcode', writeLimiter);
+app.use('/api/posts/:identifier/views', viewsLimiter);
 
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
@@ -1346,8 +1418,9 @@ app.put('/api/posts/:id', async (req, res) => {
       }
     }
 
+    // Whitelisted update — never mass-assign the raw payload: it can carry
+    // read-only columns (views, created_at, id) that must not be writable.
     const updateData = {
-      ...payload,
       type: isPhotoPost ? 'journal' : payload.type,
       category: isPhotoPost ? 'Photos' : payload.category,
       cover_image: finalCover !== undefined ? finalCover : payload.cover_image,
@@ -1355,6 +1428,10 @@ app.put('/api/posts/:id', async (req, res) => {
       excerpt: stripMarkdown(payload.content !== undefined ? payload.content : (payload.excerpt || ''), 150),
       updated_at: new Date().toISOString()
     };
+    for (const field of ['title', 'content', 'status', 'tags', 'date', 'location', 'weather', 'mood']) {
+      if (payload[field] !== undefined) updateData[field] = payload[field];
+    }
+    if (payload.show_in_feed !== undefined) updateData.show_in_feed = Boolean(payload.show_in_feed);
     if (payload.passcode !== undefined) {
       if (payload.passcode && payload.passcode.trim() !== '') {
         updateData.passcode = payload.passcode.trim();
@@ -1423,7 +1500,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       const { data } = await client.from('public_published_entries').select('id, slug, views').eq('id', identifier).maybeSingle();
       post = data;
       if (!post) {
-        const { data: direct } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        const { data: direct } = await client.from('entries').select('id, slug, views, status').eq('id', identifier).maybeSingle();
         post = direct;
       }
     } else {
@@ -1437,21 +1514,27 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
       }
       // Try entries table directly
       if (!post) {
-        const { data: direct } = await client.from('entries').select('id, slug, views').eq('slug', identifier).maybeSingle();
+        const { data: direct } = await client.from('entries').select('id, slug, views, status').eq('slug', identifier).maybeSingle();
         post = direct;
       }
       if (!post) {
-        const { data: directIlike } = await client.from('entries').select('id, slug, views').ilike('slug', identifier).maybeSingle();
+        const { data: directIlike } = await client.from('entries').select('id, slug, views, status').ilike('slug', identifier).maybeSingle();
         post = directIlike;
       }
       // If still not found, check if identifier happens to be an ID
       if (!post) {
-        const { data: byId } = await client.from('entries').select('id, slug, views').eq('id', identifier).maybeSingle();
+        const { data: byId } = await client.from('entries').select('id, slug, views, status').eq('id', identifier).maybeSingle();
         post = byId;
       }
     }
 
     if (!post) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // Rows found only via the raw entries table must still be published —
+    // otherwise this endpoint confirms that a draft slug exists.
+    if (post.status && post.status !== 'published') {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
@@ -1847,16 +1930,9 @@ app.get('/api/posts/:id/reactions', async (req, res) => {
   try {
     const { id } = req.params;
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (posts && posts[0]) postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { data: reactions, error } = await getSupabaseClient(req)
       .from('reactions')
@@ -1893,16 +1969,9 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       return res.status(400).json({ error: 'Invalid reaction type.' });
     }
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (posts && posts[0]) postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id, req.body.passcode);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { error } = await getSupabaseClient(req)
       .from('reactions')
@@ -1945,16 +2014,9 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
 app.get('/api/posts/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (posts && posts[0]) postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const { data: comments, error } = await getSupabaseClient(req)
       .from('comments')
@@ -1973,11 +2035,15 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 app.post('/api/posts/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { author_name, content } = req.body;
+    const { author_name, content, passcode } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Comment text cannot be empty.' });
+    }
 
     // Strip HTML tags from plain-text fields — comments are plain text, never markup.
     // React JSX already escapes on render, but we clean at the door so stored data is unambiguous.
-    const rawName = author_name && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
+    const rawName = author_name && typeof author_name === 'string' && author_name.trim() ? stripHtmlTags(author_name).trim() : '';
     const rawContent = stripHtmlTags(content).trim();
 
     if (!rawContent) {
@@ -1990,17 +2056,9 @@ app.post('/api/posts/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Author name must be 100 characters or fewer.' });
     }
 
-    let postId = id;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUuid) {
-      let { data: posts } = await getSupabaseClient(req).from('public_published_entries').select('id').eq('slug', id);
-      if (!posts || !posts[0]) {
-        const { data: rawPosts } = await getSupabaseClient(req).from('entries').select('id').eq('slug', id);
-        if (rawPosts && rawPosts[0]) posts = rawPosts;
-      }
-      if (!posts || !posts[0]) return res.status(404).json({ error: 'Entry not found.' });
-      postId = posts[0].id;
-    }
+    const target = await resolveEngagementTarget(req, id, passcode);
+    if (!target.postId) return res.status(target.status).json({ error: target.error });
+    const postId = target.postId;
 
     const name = rawName || 'Anonymous Reader';
 
@@ -2151,14 +2209,15 @@ app.get('/api/now-playing', async (req, res) => {
 app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
-    if (!process.env.ADMIN_USER_ID) return res.status(500).json({ error: 'Config missing' });
-    
+    const adminId = (process.env.ADMIN_USER_ID || process.env.VITE_ADMIN_USER_ID || '').trim().toLowerCase();
+    if (!adminId) return res.status(500).json({ error: 'Config missing' });
+
     // Quick admin token verification (matches post edit auth)
     // Here we'll just check if the bearer token is valid by querying Supabase
     const supabase = getSupabaseClient(req);
     const { data: userAuth, error: authError } = await supabase.auth.getUser(authHeader?.split(' ')[1] || '');
-    
-    if (authError || userAuth?.user?.id !== process.env.ADMIN_USER_ID) {
+
+    if (authError || (userAuth?.user?.id || '').trim().toLowerCase() !== adminId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -2274,7 +2333,16 @@ async function serveInjectedHtml(req, res, extraHead = '') {
       })();
 
       const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1000));
-      const resolved = await Promise.race([queryPromise, timeoutPromise]);
+      let resolved = await Promise.race([queryPromise, timeoutPromise]);
+      if (resolved !== 'light' && resolved !== 'dark' && !defaultTheme) {
+        // Cold start with no cached theme: give the settings lookup one
+        // bounded extra window rather than injecting the wrong (light)
+        // theme, which visitors saw as a light-then-dark flash on load.
+        resolved = await Promise.race([
+          queryPromise,
+          new Promise(resolve => setTimeout(() => resolve(null), 2000))
+        ]);
+      }
       if (resolved === 'light' || resolved === 'dark') {
         defaultTheme = resolved;
         cachedDefaultTheme = defaultTheme;
@@ -2285,7 +2353,13 @@ async function serveInjectedHtml(req, res, extraHead = '') {
 
   if (!defaultTheme) defaultTheme = 'light';
 
-  const effectiveShowViews = await getEffectiveShowViews(supabase);
+  // Bound every settings lookup so a stalled database can never hang page HTML
+  const bounded = (promise, fallback, ms = 2000) => Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms))
+  ]);
+
+  const effectiveShowViews = await bounded(getEffectiveShowViews(supabase), true);
 
   // Inject theme and view count attributes directly into <html> to guarantee ZERO flash
   html = html.replace(/<html([^>]*)>/i, (m, attrs) => {
@@ -2303,14 +2377,17 @@ async function serveInjectedHtml(req, res, extraHead = '') {
 
   let authorName = 'q04ti';
   try {
-    const { data: syncRow } = await supabase
-      .from('realtime_sync')
-      .select('payload')
-      .eq('id', 'site_settings')
-      .maybeSingle();
-    if (syncRow?.payload?.author_name && syncRow.payload.author_name.trim()) {
-      authorName = syncRow.payload.author_name.trim();
-    }
+    authorName = await bounded((async () => {
+      const { data: syncRow } = await supabase
+        .from('realtime_sync')
+        .select('payload')
+        .eq('id', 'site_settings')
+        .maybeSingle();
+      if (syncRow?.payload?.author_name && syncRow.payload.author_name.trim()) {
+        return syncRow.payload.author_name.trim();
+      }
+      return 'q04ti';
+    })(), 'q04ti');
   } catch {}
 
   if (authorName && authorName !== 'q04ti') {
@@ -2324,6 +2401,10 @@ async function serveInjectedHtml(req, res, extraHead = '') {
     html = html.replace('</head>', `${syncScript}</head>`);
   }
 
+  // Remember the injected default in a cookie so the pre-paint script can
+  // apply it instantly on later loads even when a shell is served without
+  // injection (the cookie persists for the session in private windows too).
+  res.setHeader('Set-Cookie', `site_default_theme=${defaultTheme}; Path=/; Max-Age=31536000; SameSite=Lax`);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   return res.send(html);

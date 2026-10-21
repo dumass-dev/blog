@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import GitHubContributions from '../components/GitHubContributions';
+import TypewriterText from '../components/TypewriterText';
 import { ExternalLink, Code2 } from 'lucide-react';
 
 export default function Activity() {
@@ -9,16 +10,23 @@ export default function Activity() {
     description: 'GitHub contribution graph, open-source activity, and software commits.'
   });
 
+  // Only the public GitHub account is ever linked or named on this site.
+  // Any extra contribution accounts are merged server-side (env config),
+  // so their names never appear in the browser.
+  const PUBLIC_GITHUB_URL = 'https://github.com/q04ti';
+  const findPublicGithubLink = (links) =>
+    (links || []).find(l => l && l.url && /github\.com\/q04ti(\/|$)/i.test(l.url));
+
   const [githubUrl, setGithubUrl] = useState(() => {
     try {
       const cached = localStorage.getItem('cached_about_data');
       if (cached) {
         const data = JSON.parse(cached);
-        const ghLink = (data?.links || []).find(l => (l.url && l.url.includes('github.com')) || (l.label && l.label.toLowerCase().includes('github')));
+        const ghLink = findPublicGithubLink(data?.links);
         if (ghLink && ghLink.url) return ghLink.url;
       }
     } catch {}
-    return 'https://github.com/shuaib-mk';
+    return PUBLIC_GITHUB_URL;
   });
 
   useEffect(() => {
@@ -26,7 +34,7 @@ export default function Activity() {
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data.links)) {
-          const ghLink = data.links.find(l => (l.url && l.url.includes('github.com')) || (l.label && l.label.toLowerCase().includes('github')));
+          const ghLink = findPublicGithubLink(data.links);
           if (ghLink && ghLink.url) {
             setGithubUrl(ghLink.url);
           }
@@ -35,11 +43,10 @@ export default function Activity() {
       .catch(() => {});
   }, []);
 
-  // The contribution graph must show the exact same merged accounts as the
-  // Chrono feed on Home (which passes "shuaib-mk,q04ti"). Extracting a single
-  // username from the About GitHub link only ever yields one account, which
-  // made this page's graph differ from the feed's.
-  const contributionsUsername = 'shuaib-mk,q04ti';
+  // The contribution graph must match the Chrono feed on Home exactly: both
+  // request only the public username, and the server merges in any extra
+  // accounts configured via its env (never exposed to the browser).
+  const contributionsUsername = 'q04ti';
 
   return (
     <div className="notebook-container py-4 sm:py-8 animate-content-fade">
@@ -48,17 +55,21 @@ export default function Activity() {
         <div className="text-xs font-sans font-medium text-[var(--text-muted)] tracking-wider uppercase mb-2">
           Open Source & Code Log
         </div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-normal text-[var(--text-primary)] tracking-tight mb-3">
-          Activity
-        </h1>
-        <p className="text-sm sm:text-base font-serif italic text-[var(--text-secondary)] max-w-xl">
-          Real-time record of GitHub commits, repositories, and ongoing coding work.
-        </p>
+        <TypewriterText
+          text="Activity"
+          as="h1"
+          className="text-3xl sm:text-4xl font-serif font-normal text-[var(--text-primary)] tracking-tight mb-3"
+        />
+        <TypewriterText
+          text="Real-time record of GitHub commits, repositories, and ongoing coding work."
+          as="p"
+          className="text-sm sm:text-base font-serif italic text-[var(--text-secondary)] max-w-xl"
+        />
       </div>
 
       {/* GitHub Contributions Component */}
       <section className="mb-10" aria-label="GitHub Contribution Heatmap">
-        <GitHubContributions username={contributionsUsername} showHeader={true} compact={false} />
+        <GitHubContributions username={contributionsUsername} showHeader={true} />
       </section>
 
       {/* Info Card / External Link */}
@@ -66,7 +77,7 @@ export default function Activity() {
         <div className="flex items-center gap-3">
           <Code2 className="w-4 h-4 text-[var(--accent-warm)]" />
           <span>
-            Explore public repositories and source code on GitHub.
+            <TypewriterText text="Explore public repositories and source code on GitHub." />
           </span>
         </div>
         <a

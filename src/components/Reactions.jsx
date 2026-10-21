@@ -3,7 +3,7 @@ import { Lightbulb, Heart, Meh, ThumbsDown } from 'lucide-react';
 import { supabase, subscribeToReactions } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 
-export default function Reactions({ postId }) {
+export default function Reactions({ postId, passcode }) {
   const [counts, setCounts] = useState({ thoughtful: 0, loved: 0, boring: 0, dislike: 0 });
   const [userReacted, setUserReacted] = useState({});
 
@@ -92,7 +92,7 @@ export default function Reactions({ postId }) {
       const res = await fetch(`/api/posts/${postId}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reaction_type: type })
+        body: JSON.stringify({ reaction_type: type, passcode: passcode || undefined })
       });
 
       if (res.ok) {

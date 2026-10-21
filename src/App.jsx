@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigationType } from 'react-router-dom'
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Public pages (eager loaded for instant feel)
 import Home from './pages/Home';
@@ -81,6 +82,7 @@ export default function App() {
 
         <main className={isAdminPath ? 'pt-8' : ''}>
           <Suspense fallback={<PageFallback />}>
+            <ErrorBoundary key={location.pathname}>
             <Routes>
               {/* Public Read-Only Routes */}
               <Route path="/" element={<Home />} />
@@ -147,6 +149,7 @@ export default function App() {
               {/* Fallback 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </ErrorBoundary>
           </Suspense>
         </main>
       </div>

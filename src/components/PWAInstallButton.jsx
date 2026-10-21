@@ -7,6 +7,19 @@ export default function PWAInstallButton({ className = '' }) {
   const { isStandalone, hasNativePrompt, promptInstall } = usePWAInstall();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [installing, setInstalling] = useState(false);
+  // Author name follows the site setting (same sources/fallback as Footer/Header)
+  const [authorName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('site_author_name');
+      if (stored && stored.trim()) return stored.trim();
+      const cached = localStorage.getItem('cached_about_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.author_name && parsed.author_name.trim()) return parsed.author_name.trim();
+      }
+    } catch {}
+    return 'q04ti';
+  });
 
   // If already running as installed native standalone app, show subtle status badge
   if (isStandalone) {
@@ -63,7 +76,7 @@ export default function PWAInstallButton({ className = '' }) {
             />
             <div>
               <div className="font-serif text-sm font-medium text-[var(--text-primary)]">Journal &amp; Diary Admin</div>
-              <div className="text-[11px] text-[var(--text-muted)]">Personal writing space for q04ti &bull; Standalone full-screen.</div>
+              <div className="text-[11px] text-[var(--text-muted)]">Personal writing space for {authorName} &bull; Standalone full-screen.</div>
             </div>
           </div>
 

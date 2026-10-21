@@ -18,8 +18,8 @@ import {
   ArrowLeft,
   Eye,
   Edit3,
-  Heading1,
   Heading2,
+  Heading3,
   Bold,
   Italic,
   Quote,
@@ -228,6 +228,14 @@ export default function Editor() {
       toastError('Could not start microphone: ' + err.message);
     }
   };
+
+  // Stop dictation if the editor unmounts mid-recording
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.stop(); } catch { /* not started */ }
+      recognitionRef.current = null;
+    };
+  }, []);
 
   // Fetch existing entry if editing
   useEffect(() => {
@@ -1036,7 +1044,7 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleHeading({ level: 1 }).run();
+                    visualEditorRef.current.commands?.toggleHeading({ level: 2 }).run();
                   } else {
                     insertFormatting('## ');
                   }
@@ -1044,14 +1052,14 @@ export default function Editor() {
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 2"
               >
-                <Heading1 className="w-4 h-4" />
+                <Heading2 className="w-4 h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleHeading({ level: 2 }).run();
+                    visualEditorRef.current.commands?.toggleHeading({ level: 3 }).run();
                   } else {
                     insertFormatting('### ');
                   }
@@ -1059,7 +1067,7 @@ export default function Editor() {
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 3"
               >
-                <Heading2 className="w-4 h-4" />
+                <Heading3 className="w-4 h-4" />
               </button>
 
               <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />

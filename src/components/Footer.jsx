@@ -15,6 +15,24 @@ export default function Footer() {
   });
 
   useEffect(() => {
+    // Fetch the current author name on mount (like Header) so a first visit
+    // never shows a stale cached/default name.
+    const fetchAuthor = () => {
+      fetch('/api/about')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.author_name && data.author_name.trim()) {
+            setAuthorName(data.author_name.trim());
+            try {
+              localStorage.setItem('site_author_name', data.author_name.trim());
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchAuthor();
+
     const handleUpdate = (e) => {
       const author = e.detail?.data?.author_name || e.detail?.payload?.author_name || e.detail?.author_name;
       if (author && author.trim()) {

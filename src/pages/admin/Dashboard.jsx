@@ -689,7 +689,7 @@ export default function Dashboard() {
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
               {comments
-                .filter(c => !search.trim() || c.author_name.toLowerCase().includes(search.toLowerCase()) || c.content.toLowerCase().includes(search.toLowerCase()))
+                .filter(c => !search.trim() || (c.author_name || '').toLowerCase().includes(search.toLowerCase()) || (c.content || '').toLowerCase().includes(search.toLowerCase()))
                 .map(item => (
                   <div key={item.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-sans w-full min-w-0">
                     <div className="space-y-1.5 w-full min-w-0 max-w-2xl">

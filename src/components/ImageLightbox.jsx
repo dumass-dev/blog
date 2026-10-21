@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, ZoomIn, ZoomOut, Camera } from 'lucide-react';
 import Modal from './Modal';
 import ProgressiveImage from './ProgressiveImage';
 
 export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
   const [zoom, setZoom] = useState(1);
+
+  // Every newly opened photo starts at natural size, not at the previous photo's zoom
+  useEffect(() => {
+    if (isOpen) setZoom(1);
+  }, [isOpen, src]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox" maxWidthClass="max-w-4xl w-full">

@@ -34,7 +34,12 @@ export async function verifyAdminUser(req) {
 
   try {
     const supabase = getSupabaseServerClient(req);
-    const { data, error } = await supabase.auth.getUser(token);
+    // Fail closed with a bounded wait: a stalled auth service must not hang
+    // admin endpoints forever (mirrors the standalone server's 5s race).
+    const { data, error } = await Promise.race([
+      supabase.auth.getUser(token),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('auth-timeout')), 5000))
+    ]);
 
     if (error || !data || !data.user) {
       return { authorized: false, status: 401, error: 'Invalid or expired token.' };
@@ -47,6 +52,9 @@ export async function verifyAdminUser(req) {
 
     return { authorized: true, user: data.user };
   } catch (err) {
-    return { authorized: false, status: 500, error: err.message };
+    if (err && err.message === 'auth-timeout') {
+      return { authorized: false, status: 503, error: 'Authentication service timed out.' };
+    }
+    return { authorized: false, status: 500, error: 'Authentication check failed.' };
   }
 }
