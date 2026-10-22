@@ -734,9 +734,20 @@ html {
   overflow: hidden;
 }
 
+/* Default breathing room above a photo: text blocks get their visible gap
+   from line-height leading on BOTH sides of the boundary, a photo has no
+   leading — with margin-top 0 it sat at half the normal paragraph gap.
+   0.35rem is the top margin editorial wraps already carried. Applies to
+   photo blocks only; all other spacing stays margin-0 (line-height model).
+   The :first-child guard below keeps a leading photo flush at the top. */
 .prose-editorial .media-image-block,
 .prose-editorial div[data-node-type="mediaImage"] {
   margin: 0;
+  margin-top: 0.35rem;
+}
+
+.prose-editorial > img {
+  margin-top: 0.35rem;
 }
 
 /* Eliminate excessive blank gaps caused by redundant <br> tags immediately before/after images */
@@ -764,6 +775,7 @@ html {
 /* Sized Image Wrappers & Figures */
 .prose-editorial .image-wrapper {
   margin: 0;
+  margin-top: 0.35rem;
   width: 100%;
 }
 
@@ -778,7 +790,22 @@ html {
 
 .prose-editorial .media-figure {
   margin: 0;
+  margin-top: 0.35rem;
   text-align: center;
+}
+
+/* …but a photo nested inside a wrap, grid or quote keeps margin-top 0:
+   the container's own spacing provides the gap there. */
+.prose-editorial .editorial-wrap .media-figure,
+.prose-editorial .editorial-wrap .media-image-block,
+.prose-editorial .editorial-wrap [data-node-type="mediaImage"],
+.prose-editorial .media-grid .media-figure,
+.prose-editorial .media-grid .media-image-block,
+.prose-editorial .media-grid [data-node-type="mediaImage"],
+.prose-editorial blockquote .media-figure,
+.prose-editorial blockquote .media-image-block,
+.prose-editorial blockquote [data-node-type="mediaImage"] {
+  margin-top: 0;
 }
 
 /* Selected photo visual outline in editor - ONLY for the actual <img> element */
@@ -869,7 +896,7 @@ html {
   float: left !important;
   margin-left: 0 !important;
   margin-right: 1.5rem !important;
-  margin-top: 0 !important;
+  margin-top: 0.35rem !important;
   margin-bottom: 0.75rem !important;
   max-width: 48%;
   clear: none !important;
@@ -883,7 +910,7 @@ html {
   float: right !important;
   margin-left: 1.5rem !important;
   margin-right: 0 !important;
-  margin-top: 0 !important;
+  margin-top: 0.35rem !important;
   margin-bottom: 0.75rem !important;
   max-width: 48%;
   clear: none !important;
@@ -897,10 +924,19 @@ html {
   clear: both;
   margin-left: auto !important;
   margin-right: auto !important;
-  margin-top: 0 !important;
+  margin-top: 0.35rem !important;
   margin-bottom: 0 !important;
   text-align: center;
   display: block;
+}
+
+/* A photo that opens an entry keeps no top gap (same guard as .content-spacer). */
+.prose-editorial > img:first-child,
+.prose-editorial > .media-image-block:first-child,
+.prose-editorial > .media-figure:first-child,
+.prose-editorial > .image-wrapper:first-child,
+.prose-editorial > [data-node-type="mediaImage"]:first-child {
+  margin-top: 0 !important;
 }
 
 /* Editorial Magazine-Style Text Wrapping */
@@ -989,7 +1025,7 @@ html {
     min-width: 140px !important;
     margin-left: 0 !important;
     margin-right: 0.85rem !important;
-    margin-top: 0 !important;
+    margin-top: 0.35rem !important;
     margin-bottom: 0.5rem !important;
     clear: none !important;
     display: block !important;
@@ -1006,7 +1042,7 @@ html {
     min-width: 140px !important;
     margin-right: 0 !important;
     margin-left: 0.85rem !important;
-    margin-top: 0 !important;
+    margin-top: 0.35rem !important;
     margin-bottom: 0.5rem !important;
     clear: none !important;
     display: block !important;
@@ -1022,7 +1058,7 @@ html {
     width: 100% !important;
     margin-left: auto !important;
     margin-right: auto !important;
-    margin-top: 0 !important;
+    margin-top: 0.35rem !important;
     margin-bottom: 0 !important;
     clear: both !important;
     display: block !important;
@@ -1063,7 +1099,7 @@ html {
     min-width: 0 !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    margin-top: 0 !important;
+    margin-top: 0.35rem !important;
     margin-bottom: 0 !important;
     display: block !important;
   }
