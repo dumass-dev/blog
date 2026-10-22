@@ -107,9 +107,47 @@ export const normalizeTextContent = (html) => {
     .trim();
 };
 
+// Inline HTML tags the Visual schema cannot represent. The markdown parser
+// silently flattens these to plain text (the words survive, the formatting
+// does not), and the text/media comparison below cannot see formatting-only
+// loss — so an entry using them would degrade invisibly on any Visual edit
+// + save. Detect them deterministically (fence- and code-span-aware) and
+// let the gate keep such entries in Markdown mode. Tags with markdown
+// equivalents (<strong>, <em>, <code>, <a>, <s>…) are NOT listed: the
+// parser converts those to real marks and they round-trip faithfully.
+// Block-level raw HTML is likewise fine (carried by the RawBlock node).
+const UNREPRESENTABLE_INLINE_HTML = /<\/?(?:u|mark|span|abbr|small|cite|q|time|data|var|samp|ins|font|bdi|bdo|dfn)\b[^>]*>/i;
+
+export const findUnrepresentableInlineHtml = (md) => {
+  if (!md) return null;
+  let inFence = false;
+  for (const line of String(md).replace(/\r\n/g, '\n').split('\n')) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    // Strip inline code spans: tags inside backticks are literal text.
+    const prose = line.replace(/`[^`\n]*`/g, '');
+    const match = prose.match(UNREPRESENTABLE_INLINE_HTML);
+    if (match) return match[0];
+  }
+  return null;
+};
+
 export const checkFidelity = (sourceMarkdown) => {
   if (!sourceMarkdown || typeof sourceMarkdown !== 'string') {
     return { ok: true, roundtripped: sourceMarkdown || '' };
+  }
+
+  const rawTag = findUnrepresentableInlineHtml(sourceMarkdown);
+  if (rawTag) {
+    const tagName = (rawTag.match(/^<\/?([a-z]+)/i) || [])[1] || 'html';
+    return {
+      ok: false,
+      reason: `Text content altered: raw HTML <${tagName.toLowerCase()}> formatting that the Visual editor cannot keep`,
+      roundtripped: sourceMarkdown
+    };
   }
 
   try {

@@ -4,6 +4,25 @@ import { escapeNonStandardTags } from './markdown.js';
 const NBSP_ONLY_LINE = /^(?:&nbsp;\s*)+$/i;
 const BR_ONLY_LINE = /^(?:<br\s*\/?>\s*)+$/i;
 const LIST_OR_TABLE_LINE = /^\s{0,3}(?:[-*+]|\d{1,9}[.)])\s|^\s*\|/;
+const INDENTED_LINE = /^[ \t]/;
+
+// A blank-line gap is INTERNAL to a list/table — extra blanks there must
+// collapse to a normal break, because a spacer element (or, in the editor,
+// a placeholder paragraph) between two items/rows would split the
+// structure — only when it sits between two structure lines, or between a
+// structure line and an indented continuation line (a list item's wrapped
+// content). A gap at a structure's BOUNDARY — one side a structure line,
+// the other a plain block at column 0 — is an ordinary block gap: its
+// extra blanks are deliberate spacers and must survive, exactly like a gap
+// between two paragraphs.
+const isInternalStructureGap = (prevLine, nextLine) => {
+  const prevStructural = prevLine != null && LIST_OR_TABLE_LINE.test(prevLine);
+  const nextStructural = nextLine != null && LIST_OR_TABLE_LINE.test(nextLine);
+  if (prevStructural && nextStructural) return true;
+  if (prevStructural && nextLine != null && INDENTED_LINE.test(nextLine)) return true;
+  if (nextStructural && prevLine != null && INDENTED_LINE.test(prevLine)) return true;
+  return false;
+};
 export const CONTENT_SPACER_DIV = '<div class="content-spacer" aria-hidden="true"></div>';
 
 // Spacing model (the ONLY model, everywhere):
@@ -121,13 +140,13 @@ const rebuildBlankGaps = (md, buildGap) => {
 
 // Render-time expansion: each extra blank line (beyond the standard single
 // blank line between blocks) becomes one .content-spacer block whose height
-// is exactly one line tall (1lh). Inside/between list items and table
-// rows, extra blanks collapse to a normal break instead (a spacer element
-// would break the list/table structure).
+// is exactly one line tall (1lh). Inside a list/table (internal gaps only —
+// see isInternalStructureGap), extra blanks collapse to a normal break
+// instead, because a spacer element would break the structure.
 export const expandBlankLineSpacers = (md) => rebuildBlankGaps(md, ({ blanks, prevLine, nextLine }) => {
   const extra = blanks - 1;
   if (extra <= 0) return [''];
-  if ((prevLine && LIST_OR_TABLE_LINE.test(prevLine)) || (nextLine && LIST_OR_TABLE_LINE.test(nextLine))) return [''];
+  if (isInternalStructureGap(prevLine, nextLine)) return [''];
   const gap = [''];
   for (let i = 0; i < extra; i++) gap.push(CONTENT_SPACER_DIV, '');
   return gap;
@@ -143,7 +162,7 @@ export const expandBlankLineSpacers = (md) => rebuildBlankGaps(md, ({ blanks, pr
 export const markdownForVisualParse = (md) => rebuildBlankGaps(md, ({ blanks, prevLine, nextLine }) => {
   const extra = blanks - 1;
   if (extra <= 0) return [''];
-  if ((prevLine && LIST_OR_TABLE_LINE.test(prevLine)) || (nextLine && LIST_OR_TABLE_LINE.test(nextLine))) return [''];
+  if (isInternalStructureGap(prevLine, nextLine)) return [''];
   const gap = [''];
   for (let i = 0; i < extra; i++) gap.push('&nbsp;', '');
   return gap;
@@ -166,7 +185,14 @@ export const serializeVisualMarkdown = (md) => {
     if (segIdx % 2 === 1) return segment; // fenced code block: verbatim
     const items = segment.split('\n\n');
     let out = '';
-    items.forEach((item, itemIdx) => {
+    items.forEach((rawItem, itemIdx) => {
+      // Some block renderers (e.g. tables) pad their markdown with a stray
+      // newline, so the "\n\n" split can leave a leading/trailing "\n" glued
+      // to an item. That newline is separator artifact, not content — left
+      // in, it double-counts the block gap (a spacer that grows by one
+      // blank line on every round-trip). Strip edge newlines only; a
+      // block's internal lines are untouched.
+      const item = rawItem.replace(/^\n+/, '').replace(/\n+$/, '');
       const trimmed = item.trim();
       const isEmptyPara = trimmed === '' || NBSP_ONLY_LINE.test(trimmed);
       const touchesFence = (itemIdx === 0 && segIdx > 0) || (itemIdx === items.length - 1 && segIdx < lastSegIdx);

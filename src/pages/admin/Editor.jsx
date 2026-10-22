@@ -808,14 +808,21 @@ export default function Editor() {
               type="button"
               onClick={() => {
                 const currentScrollY = window.scrollY;
-                if (mode === 'markdown') {
+                if (mode === 'markdown' || mode === 'preview') {
+                  // Fidelity gate: if the Visual editor cannot represent
+                  // this content losslessly, do NOT switch — the document
+                  // it would load silently drops/degrades the unfaithful
+                  // parts, and any later edit + save would bake that loss
+                  // in. Stay in the current mode, where the warning banner
+                  // (with its deliberate "Switch to Visual" override) is
+                  // visible, instead of switching and hiding the warning.
                   const gate = checkFidelity(formData.content);
                   if (!gate.ok) {
                     setGateWarning(gate.reason);
-                  } else {
-                    setGateWarning(null);
+                    return;
                   }
-                  if (visualEditorRef.current?.setContent) {
+                  setGateWarning(null);
+                  if (mode === 'markdown' && visualEditorRef.current?.setContent) {
                     visualEditorRef.current.setContent(formData.content || '');
                   }
                   // The Visual document is now synced FROM the markdown
@@ -897,6 +904,17 @@ export default function Editor() {
               type="button"
               onClick={() => {
                 const currentScrollY = window.scrollY;
+                if (mode === 'markdown' || mode === 'preview') {
+                  // Same fidelity gate as the Visual tab: Split also loads
+                  // the content into the Visual document, so unfaithful
+                  // content must stay out of it (see the banner override).
+                  const gate = checkFidelity(formData.content);
+                  if (!gate.ok) {
+                    setGateWarning(gate.reason);
+                    return;
+                  }
+                  setGateWarning(null);
+                }
                 if (mode === 'visual' && visualEditedRef.current && visualEditorRef.current?.getMarkdown) {
                   const md = visualEditorRef.current.getMarkdown();
                   setFormData(prev => ({ ...prev, content: md }));
@@ -1021,7 +1039,7 @@ export default function Editor() {
             </div>
 
             {/* Gate Fallback Notice */}
-            {gateWarning && mode === 'markdown' && (
+            {gateWarning && (mode === 'markdown' || mode === 'preview') && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--code-bg)] border border-[var(--border-subtle)] text-xs font-sans text-[var(--accent-warm)]">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />

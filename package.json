@@ -19,6 +19,7 @@
     "@supabase/supabase-js": "^2.116.0",
     "@tiptap/core": "3.32.0",
     "@tiptap/extension-placeholder": "3.32.0",
+    "@tiptap/extension-table": "^3.32.0",
     "@tiptap/markdown": "3.32.0",
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",
