@@ -73,10 +73,46 @@ function cachedEntryForRow(row) {
 
 function entryFieldEquals(a, b) {
   if (a === b) return true;
-  if (a && b && typeof a === 'object' && typeof b === 'object') {
-    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+  // The realtime CDC stream and the REST API serialize the same column
+  // differently — bigint arrives as a string ("42"), json may arrive as a
+  // string, timestamps vary in precision. Compare by VALUE after light
+  // normalization, never by raw representation.
+  const aNum = typeof a === 'number' || (typeof a === 'string' && a.trim() !== '' && !Number.isNaN(Number(a)));
+  const bNum = typeof b === 'number' || (typeof b === 'string' && b.trim() !== '' && !Number.isNaN(Number(b)));
+  if (aNum && bNum) return Number(a) === Number(b);
+  if (typeof a === 'boolean' || typeof b === 'boolean') return String(a) === String(b);
+  const aObj = Boolean(a) && typeof a === 'object';
+  const bObj = Boolean(b) && typeof b === 'object';
+  if (aObj || bObj) {
+    try {
+      const pa = aObj ? a : JSON.parse(a);
+      const pb = bObj ? b : JSON.parse(b);
+      return JSON.stringify(pa) === JSON.stringify(pb);
+    } catch { return false; }
+  }
+  if (typeof a === 'string' && typeof b === 'string') {
+    // One side may be the JSON encoding of the other ('"design"' vs
+    // 'design', '"[1,2]"' vs [1,2]) depending on which pipeline produced it.
+    for (const [x, y] of [[a, b], [b, a]]) {
+      if (x.length > 1 && (x[0] === '"' || x[0] === '[' || x[0] === '{')) {
+        try { if (entryFieldEquals(JSON.parse(x), y)) return true; } catch { /* not JSON */ }
+      }
+    }
+    if (a.length >= 10 && b.length >= 10) {
+      const ta = Date.parse(a);
+      const tb = Date.parse(b);
+      if (!Number.isNaN(ta) && !Number.isNaN(tb)) return ta === tb;
+    }
   }
   return false;
+}
+
+// The new view count from a change payload, as a number. CDC delivers
+// bigint columns as strings, so a typeof check would reject every payload.
+export function entryRowViews(row) {
+  if (!row || typeof row !== 'object') return null;
+  const v = Number(row.views);
+  return Number.isFinite(v) ? v : null;
 }
 
 // True when an entries-table UPDATE changed nothing but the view count,
@@ -86,7 +122,7 @@ function entryFieldEquals(a, b) {
 export function isViewsOnlyEntryChange(payload) {
   if (!payload || payload.eventType !== 'UPDATE') return false;
   const row = payload.new;
-  if (!row || typeof row !== 'object' || typeof row.views !== 'number') return false;
+  if (!row || typeof row !== 'object' || entryRowViews(row) === null) return false;
   const cached = cachedEntryForRow(row);
   if (!cached) return false;
   for (const key of VIEW_ONLY_STABLE_KEYS) {
@@ -113,10 +149,11 @@ export function isViewsOnlyEntryChange(payload) {
 export function handleEntriesTableChange(payload) {
   if (isViewsOnlyEntryChange(payload)) {
     const row = payload.new;
-    updateCachedEntryViews(row.id, row.slug, row.views);
+    const views = entryRowViews(row);
+    updateCachedEntryViews(row.id, row.slug, views);
     if (typeof window !== 'undefined') {
       try {
-        window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: row.id, slug: row.slug, views: row.views } }));
+        window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: row.id, slug: row.slug, views } }));
       } catch {}
     }
     return;
