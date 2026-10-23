@@ -140,8 +140,25 @@ export function getCachedFeed(typeKey = 'all') {
 
 export function cacheEntry(entry) {
   if (!entry) return;
-  if (entry.id) entriesCache.set(entry.id, entry);
-  if (entry.slug) entriesCache.set(entry.slug, entry);
+  // Never let a content-less copy (a feed list item, e.g. from a silent
+  // background refetch) downgrade a cached full copy that carries the body —
+  // that is what made reopening a just-read entry wait on the network again.
+  // Only the body is preserved; every other field takes the fresher value.
+  // A copy whose content is present (fresh, or the redacted placeholder of a
+  // locked entry) always replaces wholesale, exactly as before.
+  const withPreservedContent = (incoming, key) => {
+    const existing = key ? entriesCache.get(key) : null;
+    if (
+      existing &&
+      typeof existing.content === 'string' && existing.content !== '' &&
+      (typeof incoming.content !== 'string' || incoming.content === '')
+    ) {
+      return { ...incoming, content: existing.content };
+    }
+    return incoming;
+  };
+  if (entry.id) entriesCache.set(entry.id, withPreservedContent(entry, entry.id));
+  if (entry.slug) entriesCache.set(entry.slug, withPreservedContent(entry, entry.slug));
 }
 
 export function updateCachedEntryViews(id, slug, views) {

@@ -34,6 +34,58 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Remembered natural sizes of entry images, keyed by URL path (the signed
+// query string changes on every load; the path identifies the image).
+// Stored content carries no dimensions, so the first-ever load of an image
+// falls back to the stylesheet's generic placeholder ratio — but once an
+// image has loaded anywhere on this browser, its real shape is remembered
+// and the placeholder reserves exactly that shape on every later visit:
+// no wrong-shaped box, no layout jump when the image arrives.
+const IMG_DIMS_KEY = 'img_dims_v1';
+let imgDimsCache = null;
+
+function loadImgDims() {
+  if (imgDimsCache) return imgDimsCache;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(IMG_DIMS_KEY) || '{}');
+    imgDimsCache = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch {
+    imgDimsCache = {};
+  }
+  return imgDimsCache;
+}
+
+function imgDimsKey(src) {
+  try {
+    return new URL(src, window.location.href).pathname;
+  } catch {
+    return src;
+  }
+}
+
+function rememberImgDims(img) {
+  if (!img.naturalWidth || !img.naturalHeight) return;
+  const dims = loadImgDims();
+  const key = imgDimsKey(img.currentSrc || img.src);
+  const prev = dims[key];
+  if (prev && prev[0] === img.naturalWidth && prev[1] === img.naturalHeight) return;
+  dims[key] = [img.naturalWidth, img.naturalHeight];
+  const keys = Object.keys(dims);
+  if (keys.length > 300) keys.slice(0, keys.length - 300).forEach(k => { delete dims[k]; });
+  try {
+    localStorage.setItem(IMG_DIMS_KEY, JSON.stringify(dims));
+  } catch {}
+}
+
+function applyKnownImgDims(root) {
+  const dims = loadImgDims();
+  root.querySelectorAll('img').forEach((img) => {
+    if (img.style.aspectRatio) return;
+    const d = dims[imgDimsKey(img.currentSrc || img.src)];
+    if (d) img.style.aspectRatio = `${d[0]} / ${d[1]}`;
+  });
+}
+
 export default function RichViewer({ content = '' }) {
   const containerRef = useRef(null);
 
@@ -56,21 +108,36 @@ export default function RichViewer({ content = '' }) {
     const root = containerRef.current;
     if (!root) return undefined;
     const mark = (img) => {
-      if (img.naturalWidth > 0) img.classList.add('img-loaded');
-      else img.classList.add('img-failed');
+      if (img.naturalWidth > 0) {
+        img.classList.add('img-loaded');
+        rememberImgDims(img);
+      } else {
+        img.classList.add('img-failed');
+      }
     };
     const sweep = () => {
+      applyKnownImgDims(root);
       root.querySelectorAll('img').forEach((img) => { if (img.complete) mark(img); });
     };
-    const onLoad = (e) => { if (e.target && e.target.tagName === 'IMG') e.target.classList.add('img-loaded'); };
+    const onLoad = (e) => {
+      if (e.target && e.target.tagName === 'IMG') {
+        e.target.classList.add('img-loaded');
+        rememberImgDims(e.target);
+      }
+    };
     const onError = (e) => { if (e.target && e.target.tagName === 'IMG') e.target.classList.add('img-failed'); };
     root.addEventListener('load', onLoad, true);
     root.addEventListener('error', onError, true);
+    // The typewriter reveal can rebuild parts of the DOM after mount;
+    // re-apply remembered shapes to any image element that appears.
+    const observer = new MutationObserver(sweep);
+    observer.observe(root, { childList: true, subtree: true });
     sweep();
     const settle = setTimeout(sweep, 700);
     return () => {
       root.removeEventListener('load', onLoad, true);
       root.removeEventListener('error', onError, true);
+      observer.disconnect();
       clearTimeout(settle);
     };
   }, [sanitizedHtml]);
