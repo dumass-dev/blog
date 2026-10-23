@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useFeedData } from '../hooks/useFeedData';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
 import TypewriterText from '../components/TypewriterText';
@@ -33,6 +34,8 @@ export default function Writing() {
     type: 'writing',
     pageSize: 8
   });
+
+  useEntryPrefetch(entries);
 
   return (
     <div className="notebook-container">

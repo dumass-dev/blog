@@ -12,6 +12,7 @@ import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
 import { useViewCount } from '../context/ViewCountContext';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import { resolveMediaUrl } from '../utils/media';
@@ -41,6 +42,9 @@ export default function EntryDetail() {
 
   const [data, setData] = useState(initialState.data);
   const { showViewCount } = useViewCount();
+
+  // Installs tap/hover prefetching for the prev/next entry links.
+  useEntryPrefetch(null);
 
   useDocumentMeta({
     title: data?.entry?.title || 'Entry',

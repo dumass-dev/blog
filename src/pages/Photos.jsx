@@ -5,6 +5,7 @@ import ProtectedEntryModal from '../components/ProtectedEntryModal';
 import TypewriterText from '../components/TypewriterText';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import { resolveMediaUrl } from '../utils/media';
@@ -19,6 +20,8 @@ export default function Photos() {
     type: 'photo',
     pageSize: 12
   });
+
+  useEntryPrefetch(photos);
 
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useFeedData } from '../hooks/useFeedData';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import FeedSkeleton from '../components/FeedSkeleton';
 import TypewriterText from '../components/TypewriterText';
 import { stripMarkdown } from '../utils/excerpt';
@@ -42,6 +43,8 @@ export default function Updates() {
     type: 'update',
     pageSize: 10
   });
+
+  useEntryPrefetch(entries);
 
   return (
     <div className="notebook-container">

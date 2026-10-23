@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { fetchPublishedEntries, getCachedFeed } from '../supabase';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import { stripMarkdown } from '../utils/excerpt';
 import FeedSkeleton from '../components/FeedSkeleton';
 import TypewriterText from '../components/TypewriterText';
@@ -47,6 +48,7 @@ export default function Archive() {
 
   const cached = getCachedFeed('all');
   const [allPosts, setAllPosts] = useState(() => (Array.isArray(cached) ? cached : []));
+  useEntryPrefetch(allPosts);
   const [archiveTree, setArchiveTree] = useState(() => buildTree(cached));
   const [searchResults, setSearchResults] = useState(() => (Array.isArray(cached) ? cached : []));
   const [searchQuery, setSearchQuery] = useState(initialQuery);

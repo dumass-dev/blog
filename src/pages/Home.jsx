@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Cloud, Smile } from 'lucide-react';
 import { useFeedData } from '../hooks/useFeedData';
+import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
@@ -52,6 +53,8 @@ export default function Home() {
     forHomeFeed: true,
     pageSize: 10
   });
+
+  useEntryPrefetch(entries);
 
   return (
     <div className="notebook-container">
