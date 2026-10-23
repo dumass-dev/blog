@@ -40,6 +40,72 @@ export function invalidateFeedCache() {
   }
 }
 
+// Columns a pure view-count bump may move. updated_at is ignored because
+// row-touch triggers can move it on any write; a real edit always changes at
+// least one compared content field, so ignoring it cannot mask an edit.
+const VIEW_ONLY_IGNORED_KEYS = new Set(['views', 'updated_at']);
+
+function cachedEntryForRow(row) {
+  if (!row) return null;
+  if (row.id && entriesCache.has(row.id)) return entriesCache.get(row.id);
+  if (row.slug && entriesCache.has(row.slug)) return entriesCache.get(row.slug);
+  for (const feedList of feedsCache.values()) {
+    if (!Array.isArray(feedList)) continue;
+    const hit = feedList.find(item => item && ((row.id && item.id === row.id) || (row.slug && item.slug === row.slug)));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function entryFieldEquals(a, b) {
+  if (a === b) return true;
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+  }
+  return false;
+}
+
+// True when an entries-table UPDATE changed nothing but the view count,
+// judged against the copy this client already holds. Opening an entry writes
+// its row (the view increment), so without this check every single read
+// wipes every cache and the next page load pays a full refetch.
+export function isViewsOnlyEntryChange(payload) {
+  if (!payload || payload.eventType !== 'UPDATE') return false;
+  const row = payload.new;
+  if (!row || typeof row !== 'object' || typeof row.views !== 'number') return false;
+  const cached = cachedEntryForRow(row);
+  if (!cached) return false;
+  for (const key of Object.keys(row)) {
+    if (VIEW_ONLY_IGNORED_KEYS.has(key)) continue;
+    if (!(key in cached)) continue;
+    if (!entryFieldEquals(row[key], cached[key])) return false;
+  }
+  return true;
+}
+
+// Single entry point for entries-table realtime changes (used by the
+// postgres_changes subscription below; exported for verification). A
+// views-only change patches the cached counts exactly like the server's
+// entry_view_updated broadcast does; anything else invalidates as before.
+export function handleEntriesTableChange(payload) {
+  if (isViewsOnlyEntryChange(payload)) {
+    const row = payload.new;
+    updateCachedEntryViews(row.id, row.slug, row.views);
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: row.id, slug: row.slug, views: row.views } }));
+      } catch {}
+    }
+    return;
+  }
+  invalidateFeedCache();
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('feed-data-invalidated', { detail: payload }));
+    } catch {}
+  }
+}
+
 export function getCachedFeed(typeKey = 'all') {
   if (feedsCache.has(typeKey)) return feedsCache.get(typeKey);
   try {
@@ -334,10 +400,7 @@ export function initSupabaseRealtime() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'entries' },
         (payload) => {
-          invalidateFeedCache();
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('feed-data-invalidated', { detail: payload }));
-          }
+          handleEntriesTableChange(payload);
         }
       )
       .on(
