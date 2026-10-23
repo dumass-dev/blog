@@ -40,123 +40,40 @@ export function invalidateFeedCache() {
   }
 }
 
-// Fields that carry the SAME representation in a raw entries-table row
-// (what the realtime watcher receives) and in the API responses the caches
-// are built from. Deliberately excluded: cover_image and content — the API
-// rewrites those with freshly signed download URLs, so the stored raw form
-// never matches the cached form even when nothing was edited — and views /
-// updated_at, which a view bump itself moves. Body edits made in the admin
-// panel still invalidate via the API's own entry_updated broadcast, so not
-// comparing body text here loses nothing.
-const VIEW_ONLY_STABLE_KEYS = ['title', 'slug', 'status', 'type', 'category', 'tags', 'excerpt', 'mood', 'location', 'weather', 'read_time', 'is_pinned', 'show_in_feed'];
-
-function dateFieldEquals(a, b) {
-  // Compare the calendar day only: the two sides may format the same
-  // timestamp differently (date vs full ISO string).
-  if (typeof a === 'string' && typeof b === 'string' && a.length >= 10 && b.length >= 10) {
-    return a.slice(0, 10) === b.slice(0, 10);
-  }
-  return entryFieldEquals(a, b);
-}
-
-function cachedEntryForRow(row) {
-  if (!row) return null;
-  if (row.id && entriesCache.has(row.id)) return entriesCache.get(row.id);
-  if (row.slug && entriesCache.has(row.slug)) return entriesCache.get(row.slug);
-  for (const feedList of feedsCache.values()) {
-    if (!Array.isArray(feedList)) continue;
-    const hit = feedList.find(item => item && ((row.id && item.id === row.id) || (row.slug && item.slug === row.slug)));
-    if (hit) return hit;
-  }
-  return null;
-}
-
-function entryFieldEquals(a, b) {
-  if (a === b) return true;
-  // The realtime CDC stream and the REST API serialize the same column
-  // differently — bigint arrives as a string ("42"), json may arrive as a
-  // string, timestamps vary in precision. Compare by VALUE after light
-  // normalization, never by raw representation.
-  const aNum = typeof a === 'number' || (typeof a === 'string' && a.trim() !== '' && !Number.isNaN(Number(a)));
-  const bNum = typeof b === 'number' || (typeof b === 'string' && b.trim() !== '' && !Number.isNaN(Number(b)));
-  if (aNum && bNum) return Number(a) === Number(b);
-  if (typeof a === 'boolean' || typeof b === 'boolean') return String(a) === String(b);
-  const aObj = Boolean(a) && typeof a === 'object';
-  const bObj = Boolean(b) && typeof b === 'object';
-  if (aObj || bObj) {
-    try {
-      const pa = aObj ? a : JSON.parse(a);
-      const pb = bObj ? b : JSON.parse(b);
-      return JSON.stringify(pa) === JSON.stringify(pb);
-    } catch { return false; }
-  }
-  if (typeof a === 'string' && typeof b === 'string') {
-    // One side may be the JSON encoding of the other ('"design"' vs
-    // 'design', '"[1,2]"' vs [1,2]) depending on which pipeline produced it.
-    for (const [x, y] of [[a, b], [b, a]]) {
-      if (x.length > 1 && (x[0] === '"' || x[0] === '[' || x[0] === '{')) {
-        try { if (entryFieldEquals(JSON.parse(x), y)) return true; } catch { /* not JSON */ }
-      }
-    }
-    if (a.length >= 10 && b.length >= 10) {
-      const ta = Date.parse(a);
-      const tb = Date.parse(b);
-      if (!Number.isNaN(ta) && !Number.isNaN(tb)) return ta === tb;
-    }
-  }
-  return false;
-}
-
-// The new view count from a change payload, as a number. CDC delivers
-// bigint columns as strings, so a typeof check would reject every payload.
+// The realtime watcher receives raw table rows, while the caches hold API
+// responses — the same entry in two different representations (signed vs
+// raw image URLs, bigint counts delivered as strings, JSON fields
+// re-encoded). Diffing the two forms field-by-field kept missing some
+// representation difference and wiping every cache on plain view bumps.
+// So UPDATEs no longer diff at all: an entries UPDATE patches the cached
+// view count and nothing else. Real content changes still invalidate in
+// full — edits made through the site arrive via the API's own
+// entry_updated / entry_created / entry_deleted broadcasts (see
+// utils/realtime.js), and INSERT / DELETE changes from any writer still
+// invalidate here.
 export function entryRowViews(row) {
+  // The new view count from a change payload, as a number. The CDC stream
+  // delivers bigint columns as strings, so coerce instead of type-checking.
   if (!row || typeof row !== 'object') return null;
   const v = Number(row.views);
   return Number.isFinite(v) ? v : null;
 }
 
-// True when an entries-table UPDATE changed nothing but the view count,
-// judged against the copy this client already holds. Opening an entry writes
-// its row (the view increment), so without this check every single read
-// wipes every cache and the next page load pays a full refetch.
-export function isViewsOnlyEntryChange(payload) {
-  if (!payload || payload.eventType !== 'UPDATE') return false;
-  const row = payload.new;
-  if (!row || typeof row !== 'object' || entryRowViews(row) === null) return false;
-  const cached = cachedEntryForRow(row);
-  if (!cached) return false;
-  for (const key of VIEW_ONLY_STABLE_KEYS) {
-    if (!(key in row) || !(key in cached)) continue;
-    if (row[key] === undefined || cached[key] === undefined) continue;
-    if (!entryFieldEquals(row[key], cached[key])) return false;
-  }
-  if ('date' in row && 'date' in cached && row.date !== undefined && cached.date !== undefined) {
-    if (!dateFieldEquals(row.date, cached.date)) return false;
-  }
-  // Passcode presence is represented differently on each side (raw column
-  // vs the API's derived flag) — compare the derived fact, not raw values.
-  if ('passcode' in row && 'has_passcode' in cached) {
-    const rowHasPasscode = Boolean(row.passcode && String(row.passcode).trim() !== '');
-    if (rowHasPasscode !== Boolean(cached.has_passcode)) return false;
-  }
-  return true;
-}
-
 // Single entry point for entries-table realtime changes (used by the
-// postgres_changes subscription below; exported for verification). A
-// views-only change patches the cached counts exactly like the server's
-// entry_view_updated broadcast does; anything else invalidates as before.
+// postgres_changes subscription below; exported for verification).
 export function handleEntriesTableChange(payload) {
-  if (isViewsOnlyEntryChange(payload)) {
+  if (payload && payload.eventType === 'UPDATE') {
     const row = payload.new;
     const views = entryRowViews(row);
-    updateCachedEntryViews(row.id, row.slug, views);
-    if (typeof window !== 'undefined') {
-      try {
-        window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: row.id, slug: row.slug, views } }));
-      } catch {}
+    if (views !== null && row && (row.id || row.slug)) {
+      updateCachedEntryViews(row.id, row.slug, views);
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(new CustomEvent('entry-views-updated', { detail: { id: row.id, slug: row.slug, views } }));
+        } catch {}
+      }
+      return;
     }
-    return;
   }
   invalidateFeedCache();
   if (typeof window !== 'undefined') {
