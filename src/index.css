@@ -699,6 +699,58 @@ html {
   margin: 0;
 }
 
+/* Entry images (published + Preview — never the Visual editor) reserve
+   their space while loading, and keep it if they fail: an <img> without
+   dimensions is 0px tall until data arrives, so figures collapsed to
+   just their caption and the page jumped when the image landed. The
+   default 16/9 box (the ratio FeedSkeleton already uses) holds the
+   space; the `auto` keyword hands control to the image's real ratio
+   once it loads. While loading, the box runs the SAME shimmer as
+   .skeleton-shimmer everywhere else on the site — same --code-bg base,
+   same gradient band, same 1.6s ease-in-out sweep — recreated as an
+   animated background because an <img> cannot host the ::after layer
+   the component version uses. RichViewer tags the img .img-loaded /
+   .img-failed when it settles, which clears the shimmer; a failed
+   image keeps its reserved box with its alt text. */
+.prose-editorial:not(.ProseMirror) img {
+  aspect-ratio: auto 16 / 9;
+  background-color: var(--code-bg);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: prose-img-shimmer 1.6s infinite ease-in-out;
+}
+
+:root:not(.dark) .prose-editorial:not(.ProseMirror) img {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.03) 35%,
+    rgba(0, 0, 0, 0.09) 50%,
+    rgba(0, 0, 0, 0.03) 65%,
+    transparent 100%
+  );
+}
+
+.prose-editorial:not(.ProseMirror) img.img-loaded,
+.prose-editorial:not(.ProseMirror) img.img-failed {
+  background-color: transparent;
+  background-image: none;
+  animation: none;
+}
+
+@keyframes prose-img-shimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
 /* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class).
    An empty paragraph here is one deliberate spacer: margin 0 and height of
    exactly one line (1lh), same as .content-spacer. */

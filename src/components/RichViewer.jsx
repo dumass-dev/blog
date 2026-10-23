@@ -37,11 +37,6 @@ if (typeof window !== 'undefined') {
 export default function RichViewer({ content = '' }) {
   const containerRef = useRef(null);
 
-  useEffect(() => {
-    // Clean listener hook cleanup
-    return () => {};
-  }, []);
-
   const rawHtml = markdownToHtmlUnsanitized(content);
 
   const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
@@ -50,6 +45,35 @@ export default function RichViewer({ content = '' }) {
   });
 
   useTypewriterEffect(containerRef, sanitizedHtml, { maxDuration: 500 });
+
+  // Tag entry images once they settle so the stylesheet can clear the
+  // loading shimmer (see the prose img rules in index.css): .img-loaded on
+  // success, .img-failed on error. Delegated on the container so it
+  // survives the innerHTML render; the sweeps cover images that already
+  // finished (from cache, or during the typewriter reveal) before the
+  // listeners could see their events.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return undefined;
+    const mark = (img) => {
+      if (img.naturalWidth > 0) img.classList.add('img-loaded');
+      else img.classList.add('img-failed');
+    };
+    const sweep = () => {
+      root.querySelectorAll('img').forEach((img) => { if (img.complete) mark(img); });
+    };
+    const onLoad = (e) => { if (e.target && e.target.tagName === 'IMG') e.target.classList.add('img-loaded'); };
+    const onError = (e) => { if (e.target && e.target.tagName === 'IMG') e.target.classList.add('img-failed'); };
+    root.addEventListener('load', onLoad, true);
+    root.addEventListener('error', onError, true);
+    sweep();
+    const settle = setTimeout(sweep, 700);
+    return () => {
+      root.removeEventListener('load', onLoad, true);
+      root.removeEventListener('error', onError, true);
+      clearTimeout(settle);
+    };
+  }, [sanitizedHtml]);
 
   if (!content) return null;
 
