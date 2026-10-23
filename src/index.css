@@ -702,7 +702,11 @@ html {
 /* Empty paragraph spacing — published viewer (RichViewer: div.prose-editorial, no ProseMirror class).
    An empty paragraph here is one deliberate spacer: margin 0 and height of
    exactly one line (1lh), same as .content-spacer. */
-.prose-editorial:not(.ProseMirror) p:has(> br:only-child),
+/* Only :empty — never p:has(> br:only-child): :only-child ignores text
+   nodes, so that selector also matched real paragraphs whose only element
+   is a hard-break <br> (two lines in one paragraph), collapsing them to
+   1lh and painting their second line over the next block. A paragraph
+   holding only a <br> is naturally 1lh tall and needs no rule. */
 .prose-editorial:not(.ProseMirror) p:empty {
   margin: 0;
   height: 1lh;
@@ -725,7 +729,6 @@ html {
    height + matching line-height cap keeps the ProseMirror trailing <br>
    from making the paragraph taller than one line. */
 .ProseMirror.prose-editorial p:empty,
-.ProseMirror.prose-editorial p:has(> br:only-child),
 .ProseMirror.prose-editorial p:has(> br.ProseMirror-trailingBreak:only-child) {
   margin: 0 !important;
   min-height: 0 !important;
