@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
-import ReadingProgressBar from '../components/ReadingProgressBar';
 import ImageLightbox from '../components/ImageLightbox';
 import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
@@ -438,9 +437,6 @@ export default function EntryDetail() {
 
   return (
     <article className="notebook-container relative animate-content-fade">
-      {/* Top Reading Progress Bar */}
-      <ReadingProgressBar />
-
       {/* Photo Lightbox */}
       <ImageLightbox
         isOpen={lightbox.isOpen}

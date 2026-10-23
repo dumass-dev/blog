@@ -107,11 +107,22 @@ export default function RichViewer({ content = '' }) {
   useEffect(() => {
     const root = containerRef.current;
     if (!root) return undefined;
+    // A media-file image can fail because the browser cached the
+    // /api/media redirect past its signed URL's lifetime. Retry once with
+    // a cache-busting query (forces a fresh redirect + fresh signature)
+    // before giving up and tagging the image failed.
+    const retryOnce = (img) => {
+      const src = img.getAttribute('src') || '';
+      if (img.dataset.mediaRetried || !src.includes('/api/media/file/')) return false;
+      img.dataset.mediaRetried = '1';
+      img.src = src + (src.includes('?') ? '&' : '?') + 'retry=1';
+      return true;
+    };
     const mark = (img) => {
       if (img.naturalWidth > 0) {
         img.classList.add('img-loaded');
         rememberImgDims(img);
-      } else {
+      } else if (!retryOnce(img)) {
         img.classList.add('img-failed');
       }
     };
@@ -121,11 +132,15 @@ export default function RichViewer({ content = '' }) {
     };
     const onLoad = (e) => {
       if (e.target && e.target.tagName === 'IMG') {
+        e.target.classList.remove('img-failed');
         e.target.classList.add('img-loaded');
         rememberImgDims(e.target);
       }
     };
-    const onError = (e) => { if (e.target && e.target.tagName === 'IMG') e.target.classList.add('img-failed'); };
+    const onError = (e) => {
+      const img = e.target;
+      if (img && img.tagName === 'IMG' && !retryOnce(img)) img.classList.add('img-failed');
+    };
     root.addEventListener('load', onLoad, true);
     root.addEventListener('error', onError, true);
     // The typewriter reveal can rebuild parts of the DOM after mount;
