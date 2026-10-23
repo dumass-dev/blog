@@ -760,7 +760,10 @@ app.get(/^\/api\/media\/file\/(.+)$/, async (req, res) => {
     if (!signedUrl) {
       return res.status(404).json({ error: 'Media not found or storage unavailable.' });
     }
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800');
+    // Cache the redirect for 1h only — well inside the signed URL's 24h
+    // life, so a cached redirect can never keep handing a browser an
+    // expired signature (which renders as a broken-image box).
+    res.setHeader('Cache-Control', 'public, max-age=3600');
     res.redirect(302, signedUrl);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1231,6 +1234,13 @@ app.get('/api/posts', async (req, res) => {
       };
     }));
 
+    if (!isAdmin) {
+      // Public list responses are identical for every signed-out visitor —
+      // let the edge serve them (60s fresh, then stale-while-revalidate)
+      // instead of re-running this query on every single page load.
+      // Admin responses are never cached: they can include drafts.
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+    }
     res.json(processed);
   } catch (_err) {
     res.status(500).json({ error: _err.message });
@@ -1923,6 +1933,12 @@ app.get('/api/posts/:identifier', async (req, res) => {
 
     const freshContent = await refreshB2Url(post.content);
 
+    if (!isAdmin) {
+      // Same edge caching as the list: this response is identical for every
+      // signed-out visitor (passcode entries return the redacted branch
+      // above and keep no-store; unlocking happens via the verify endpoint).
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+    }
     res.json({
       ...post,
       views: viewsToReturn,
