@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import TypewriterToggle from './TypewriterToggle';
 import { Menu, X } from 'lucide-react';
+import { fetchSiteSettings } from '../utils/siteSettings';
 
 export default function Header() {
   const [siteMeta, setSiteMeta] = useState(() => {
@@ -63,9 +64,8 @@ export default function Header() {
   }, [menuOpen]);
 
   useEffect(() => {
-    const fetchAuthor = () => {
-      fetch('/api/about')
-        .then(res => res.json())
+    const fetchAuthor = (force = false) => {
+      fetchSiteSettings({ force })
         .then(data => {
           if (data && data.author_name && data.author_name.trim()) {
             setSiteMeta({ author_name: data.author_name.trim() });
@@ -87,7 +87,7 @@ export default function Header() {
           localStorage.setItem('site_author_name', author.trim());
         } catch {}
       } else {
-        fetchAuthor();
+        fetchAuthor(true);
       }
     };
 

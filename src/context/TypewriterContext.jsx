@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
+import { fetchSiteSettings } from '../utils/siteSettings';
 
 const TypewriterContext = createContext({
   typewriterEnabled: false,
@@ -70,10 +71,9 @@ export function TypewriterProvider({ children }) {
     }
   };
 
-  // 1. Initial load from API & direct Supabase
+  // 1. Initial load from the shared settings store & direct Supabase
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
+    fetchSiteSettings()
       .then(data => {
         if (data && typeof data.default_typewriter_enabled === 'boolean') {
           applySiteDefault(data.default_typewriter_enabled);

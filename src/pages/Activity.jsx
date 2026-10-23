@@ -3,6 +3,7 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 import GitHubContributions from '../components/GitHubContributions';
 import TypewriterText from '../components/TypewriterText';
 import { ExternalLink, Code2 } from 'lucide-react';
+import { fetchSiteSettings } from '../utils/siteSettings';
 
 export default function Activity() {
   useDocumentMeta({
@@ -30,8 +31,7 @@ export default function Activity() {
   });
 
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
+    fetchSiteSettings()
       .then(data => {
         if (data && Array.isArray(data.links)) {
           const ghLink = findPublicGithubLink(data.links);

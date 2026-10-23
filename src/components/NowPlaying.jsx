@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeApiFetch } from '../supabase';
+import { fetchSiteSettings } from '../utils/siteSettings';
 import { Music } from 'lucide-react';
 
 export default function NowPlaying({ forceShow = false, expandable = false, defaultExpanded = true }) {
@@ -21,8 +22,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
   const containerRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
+    fetchSiteSettings()
       .then(info => {
         if (info && info.author_name && info.author_name.trim()) setAuthorName(info.author_name.trim());
       })

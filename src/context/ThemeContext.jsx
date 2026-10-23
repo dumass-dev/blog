@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabase';
+import { fetchSiteSettings } from '../utils/siteSettings';
 
 const ThemeContext = createContext({
   theme: 'light',
@@ -93,10 +94,9 @@ export function ThemeProvider({ children }) {
     }
   };
 
-  // 1. Initial load from API & direct Supabase
+  // 1. Initial load from the shared settings store & direct Supabase
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
+    fetchSiteSettings()
       .then(data => {
         if (data && (data.default_theme === 'light' || data.default_theme === 'dark')) {
           applySiteDefault(data.default_theme);

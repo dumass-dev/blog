@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { publishRealtimeUpdate } from '../utils/realtime';
+import { fetchSiteSettings } from '../utils/siteSettings';
 import { supabase } from '../supabase';
 
 const ViewCountContext = createContext({
@@ -29,10 +30,9 @@ export function ViewCountProvider({ children }) {
     return true;
   });
 
-  // Fetch initial site view count visibility from /api/about
+  // Fetch initial site view count visibility from the shared settings store
   useEffect(() => {
-    fetch('/api/about')
-      .then(res => res.json())
+    fetchSiteSettings()
       .then(data => {
         if (data && typeof data.show_view_count === 'boolean') {
           setShowViewCount(data.show_view_count);

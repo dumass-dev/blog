@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { fetchSiteSettings } from '../utils/siteSettings';
 
 export default function Footer() {
   const [authorName, setAuthorName] = useState(() => {
@@ -18,8 +19,7 @@ export default function Footer() {
     // Fetch the current author name on mount (like Header) so a first visit
     // never shows a stale cached/default name.
     const fetchAuthor = () => {
-      fetch('/api/about')
-        .then(res => res.json())
+      fetchSiteSettings()
         .then(data => {
           if (data && data.author_name && data.author_name.trim()) {
             setAuthorName(data.author_name.trim());
