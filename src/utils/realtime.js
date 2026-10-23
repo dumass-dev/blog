@@ -314,21 +314,30 @@ function setupSupabaseRealtime() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, (payload) => {
-        if (payload.new && typeof payload.new.views === 'number') {
+        const newViews = payload.new ? Number(payload.new.views) : NaN;
+        if (payload.new && Number.isFinite(newViews)) {
           dispatchRealtimeMutation({
             type: 'entry_view_updated',
             id: payload.new.id,
             slug: payload.new.slug,
-            views: payload.new.views
+            views: newViews
           });
         }
-        dispatchRealtimeMutation({
-          type: 'entry',
-          op: payload.eventType,
-          id: payload.new?.id || payload.old?.id,
-          slug: payload.new?.slug || payload.old?.slug,
-          data: payload.new
-        });
+        // Only structural changes invalidate the caches. An UPDATE may be
+        // nothing more than a view bump — those are handled by the
+        // entry_view_updated dispatch above, and treating every UPDATE as
+        // a content change wiped every cache on every single read. Content
+        // edits made through the site still invalidate via the API's own
+        // entry_updated broadcasts.
+        if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+          dispatchRealtimeMutation({
+            type: 'entry',
+            op: payload.eventType,
+            id: payload.new?.id || payload.old?.id,
+            slug: payload.new?.slug || payload.old?.slug,
+            data: payload.new
+          });
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'about' }, (payload) => {
         dispatchRealtimeMutation({
