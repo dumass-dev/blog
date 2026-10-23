@@ -40,10 +40,24 @@ export function invalidateFeedCache() {
   }
 }
 
-// Columns a pure view-count bump may move. updated_at is ignored because
-// row-touch triggers can move it on any write; a real edit always changes at
-// least one compared content field, so ignoring it cannot mask an edit.
-const VIEW_ONLY_IGNORED_KEYS = new Set(['views', 'updated_at']);
+// Fields that carry the SAME representation in a raw entries-table row
+// (what the realtime watcher receives) and in the API responses the caches
+// are built from. Deliberately excluded: cover_image and content — the API
+// rewrites those with freshly signed download URLs, so the stored raw form
+// never matches the cached form even when nothing was edited — and views /
+// updated_at, which a view bump itself moves. Body edits made in the admin
+// panel still invalidate via the API's own entry_updated broadcast, so not
+// comparing body text here loses nothing.
+const VIEW_ONLY_STABLE_KEYS = ['title', 'slug', 'status', 'type', 'category', 'tags', 'excerpt', 'mood', 'location', 'weather', 'read_time', 'is_pinned', 'show_in_feed'];
+
+function dateFieldEquals(a, b) {
+  // Compare the calendar day only: the two sides may format the same
+  // timestamp differently (date vs full ISO string).
+  if (typeof a === 'string' && typeof b === 'string' && a.length >= 10 && b.length >= 10) {
+    return a.slice(0, 10) === b.slice(0, 10);
+  }
+  return entryFieldEquals(a, b);
+}
 
 function cachedEntryForRow(row) {
   if (!row) return null;
@@ -75,10 +89,19 @@ export function isViewsOnlyEntryChange(payload) {
   if (!row || typeof row !== 'object' || typeof row.views !== 'number') return false;
   const cached = cachedEntryForRow(row);
   if (!cached) return false;
-  for (const key of Object.keys(row)) {
-    if (VIEW_ONLY_IGNORED_KEYS.has(key)) continue;
-    if (!(key in cached)) continue;
+  for (const key of VIEW_ONLY_STABLE_KEYS) {
+    if (!(key in row) || !(key in cached)) continue;
+    if (row[key] === undefined || cached[key] === undefined) continue;
     if (!entryFieldEquals(row[key], cached[key])) return false;
+  }
+  if ('date' in row && 'date' in cached && row.date !== undefined && cached.date !== undefined) {
+    if (!dateFieldEquals(row.date, cached.date)) return false;
+  }
+  // Passcode presence is represented differently on each side (raw column
+  // vs the API's derived flag) — compare the derived fact, not raw values.
+  if ('passcode' in row && 'has_passcode' in cached) {
+    const rowHasPasscode = Boolean(row.passcode && String(row.passcode).trim() !== '');
+    if (rowHasPasscode !== Boolean(cached.has_passcode)) return false;
   }
   return true;
 }
