@@ -7,7 +7,7 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews } from '../supabase';
+import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews, getApiCacheBust } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
@@ -82,7 +82,8 @@ export default function EntryDetail() {
 
     // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
     try {
-      const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}`);
+      const bust = getApiCacheBust();
+      const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}${bust ? `?rtb=${bust}` : ''}`);
       if (resData) {
         if (resData.prev) prev = resData.prev;
         if (resData.next) next = resData.next;

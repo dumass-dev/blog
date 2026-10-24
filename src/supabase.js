@@ -25,7 +25,19 @@ export function getCachedEntry(slugOrId) {
   return entriesCache.get(slugOrId) || null;
 }
 
+// Edge-cache generation token. The public post endpoints are cached at
+// the edge for ~60s, so a plain refetch right after an edit can return
+// the pre-edit copy even though the realtime event arrived fine. Every
+// genuine invalidation (a realtime mutation — an edit, publish or
+// delete — landing on this client) starts a new generation: fetches
+// carrying the token use a fresh URL the edge has never cached, so
+// post-edit reads are always current, while ordinary browsing keeps
+// using the fast cached URLs.
+let apiCacheBust = 0;
+export function getApiCacheBust() { return apiCacheBust; }
+
 export function invalidateFeedCache() {
+  apiCacheBust = Date.now();
   feedsCache.clear();
   entriesCache.clear();
   try {
@@ -222,6 +234,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (category) params.append('category', category);
     if (tag) params.append('tag', tag);
     if (limit) params.append('limit', String(limit));
+    if (apiCacheBust) params.append('rtb', String(apiCacheBust));
 
     const queryStr = params.toString();
     const apiUrl = `/api/posts${queryStr ? `?${queryStr}` : ''}`;
