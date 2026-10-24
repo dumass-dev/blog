@@ -1054,6 +1054,28 @@ app.use('/api/posts/:id/reactions', writeLimiter);
 app.use('/api/posts/:identifier/verify-passcode', writeLimiter);
 app.use('/api/posts/:identifier/views', viewsLimiter);
 
+// Versioned cache headers for public post responses. When the caller asks
+// for a specific version (?v=<updated_at>) and it matches the current
+// one, the body is content-immutable — but it embeds B2 signed URLs that
+// expire after 24h, so versioned caching is capped at 1h, NOT forever:
+// a longer cap would serve expired signatures. Any mismatch (stale,
+// unknown, or absent version) keeps the short 60s edge window, so a
+// stale version can never poison the edge with old content.
+function versionMatches(v, current) {
+  if (v == null || current == null) return false;
+  const a = Date.parse(v);
+  const b = Date.parse(current);
+  if (Number.isFinite(a) && Number.isFinite(b)) return a === b;
+  return String(v) === String(current);
+}
+function versionedCacheHeader(req, res, currentVersion) {
+  if (versionMatches(req.query && req.query.v, currentVersion)) {
+    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+  } else {
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+  }
+}
+
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
   try {
@@ -1148,11 +1170,18 @@ app.get('/api/posts', async (req, res) => {
     }));
 
     if (!isAdmin) {
-      // Public list responses are identical for every signed-out visitor —
-      // let the edge serve them (60s fresh, then stale-while-revalidate)
-      // instead of re-running this query on every single page load.
+      // Public list responses are identical for every signed-out visitor.
+      // Versioned: when the caller asks for the newest version it knows
+      // (?v=<max updated_at>) and it matches this response, the body is
+      // content-immutable — cache it 1h (not longer: bodies embed B2
+      // signed URLs that expire after 24h). Any mismatch keeps the short
+      // 60s window, so a stale version can never serve old content long.
       // Admin responses are never cached: they can include drafts.
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      let maxUpdatedAt = null;
+      for (const item of processed) {
+        if (item && item.updated_at && (!maxUpdatedAt || Date.parse(item.updated_at) > Date.parse(maxUpdatedAt))) maxUpdatedAt = item.updated_at;
+      }
+      versionedCacheHeader(req, res, maxUpdatedAt);
     }
     res.json(processed);
   } catch (_err) {
@@ -1234,6 +1263,7 @@ app.post('/api/posts', async (req, res) => {
       id: data.id,
       slug: data.slug,
       title: data.title,
+      updated_at: data.updated_at,
       type: isPhotoPost ? 'photo' : data.type
     });
 
@@ -1390,7 +1420,9 @@ app.get('/api/posts/:slug', async (req, res) => {
       // Same edge caching as the list: this response is identical for every
       // signed-out visitor (passcode entries return the redacted branch
       // above and keep no-store; unlocking happens via the verify endpoint).
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      // Versioned (?v=<updated_at>): a matching version caches 1h, a
+      // mismatch keeps the short 60s window — see versionedCacheHeader.
+      versionedCacheHeader(req, res, post.updated_at);
     }
     return res.json({
       entry: {
@@ -1539,6 +1571,7 @@ app.put('/api/posts/:id', async (req, res) => {
       slug: data.slug,
       title: data.title,
       status: data.status,
+      updated_at: data.updated_at,
       type: isPhotoPost ? 'photo' : data.type
     });
 
