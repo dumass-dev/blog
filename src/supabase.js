@@ -25,19 +25,38 @@ export function getCachedEntry(slugOrId) {
   return entriesCache.get(slugOrId) || null;
 }
 
-// Edge-cache generation token. The public post endpoints are cached at
-// the edge for ~60s, so a plain refetch right after an edit can return
-// the pre-edit copy even though the realtime event arrived fine. Every
-// genuine invalidation (a realtime mutation — an edit, publish or
-// delete — landing on this client) starts a new generation: fetches
-// carrying the token use a fresh URL the edge has never cached, so
-// post-edit reads are always current, while ordinary browsing keeps
-// using the fast cached URLs.
-let apiCacheBust = 0;
-export function getApiCacheBust() { return apiCacheBust; }
+// Versioned-entry state. Replaces the old sticky ?rtb= generation token,
+// which made EVERY fetch in a session bypass the edge cache after a
+// single edit (that was the "site loads slow again" regression).
+// A version is an entry's updated_at. A versioned URL's content never
+// changes, so the edge may serve it long — but bodies embed B2 signed
+// URLs that expire after 24h, so the server caps versioned caching at 1h
+// (see versionedCacheHeader in api/index.js / server/index.js). Versions
+// learned from realtime events survive cache clears on purpose:
+// invalidateFeedCache wipes the entry/feed caches but NOT this map, so
+// the next fetch after an edit asks for the NEW version instead of
+// falling back to a plain short-cache URL.
+const entryVersions = new Map(); // key: slug or id -> updated_at (ISO string)
+let listVersion = null; // newest updated_at known across entries
+function versionTime(v) { const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
+export function noteEntryVersion(slug, updatedAt, id) {
+  if (!updatedAt) return;
+  if (slug) entryVersions.set(slug, updatedAt);
+  if (id) entryVersions.set(id, updatedAt);
+  if (!listVersion || versionTime(updatedAt) > versionTime(listVersion)) listVersion = updatedAt;
+}
+export function noteListVersions(items) {
+  if (!Array.isArray(items)) return;
+  items.forEach(item => { if (item) noteEntryVersion(item.slug, item.updated_at, item.id); });
+}
+export function getEntryVersion(slug) { return entryVersions.get(slug) || null; }
+export function getListVersion() { return listVersion; }
+export function forgetEntryVersion(slug, id) {
+  if (slug) entryVersions.delete(slug);
+  if (id) entryVersions.delete(id);
+}
 
 export function invalidateFeedCache() {
-  apiCacheBust = Date.now();
   feedsCache.clear();
   entriesCache.clear();
   try {
@@ -234,7 +253,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (category) params.append('category', category);
     if (tag) params.append('tag', tag);
     if (limit) params.append('limit', String(limit));
-    if (apiCacheBust) params.append('rtb', String(apiCacheBust));
+    if (listVersion) params.append('v', listVersion);
 
     const queryStr = params.toString();
     const apiUrl = `/api/posts${queryStr ? `?${queryStr}` : ''}`;
@@ -267,6 +286,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
 
       // Cache entries and feed list for instant UI rendering
       list.forEach(item => cacheEntry(item));
+      noteListVersions(list);
       const cacheKey = forHomeFeed ? 'home' : (type || 'all');
       feedsCache.set(cacheKey, list);
       try {
@@ -378,6 +398,7 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     
     // Cache entries and feed list for instant UI rendering
     list.forEach(item => cacheEntry(item));
+    noteListVersions(list);
     const cacheKey = forHomeFeed ? 'home' : (type || 'all');
     feedsCache.set(cacheKey, list);
     try {

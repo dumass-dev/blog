@@ -7,7 +7,7 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews, getApiCacheBust } from '../supabase';
+import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews, getEntryVersion, noteEntryVersion } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
@@ -80,16 +80,23 @@ export default function EntryDetail() {
       }
     }
 
-    // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs
+    // 1. Try server API endpoint FIRST to get fresh 24h Backblaze B2 signed URLs.
+    // Versioned fetch: ask for the entry at its known updated_at. The
+    // server serves a matching version from the long-lived edge copy;
+    // a stale or unknown version falls back to the short-cache body,
+    // so the reader always gets current content without the old sticky
+    // cache-bust that bypassed the edge on every fetch after one edit.
     try {
-      const bust = getApiCacheBust();
-      const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}${bust ? `?rtb=${bust}` : ''}`);
+      const preCached = getCachedEntry(slug);
+      const v = getEntryVersion(slug) || (preCached && preCached.updated_at) || null;
+      const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}${v ? `?v=${encodeURIComponent(v)}` : ''}`);
       if (resData) {
         if (resData.prev) prev = resData.prev;
         if (resData.next) next = resData.next;
         if (resData.entry || resData.title) {
           postData = resData.entry || resData;
           cacheEntry(postData);
+          if (postData.updated_at) noteEntryVersion(postData.slug || slug, postData.updated_at, postData.id);
         }
       }
     } catch (_err) {}

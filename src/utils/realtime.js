@@ -1,5 +1,5 @@
 /* global CustomEvent, EventSource, BroadcastChannel */
-import { supabase, invalidateFeedCache, updateCachedEntryViews } from '../supabase.js';
+import { supabase, invalidateFeedCache, updateCachedEntryViews, noteEntryVersion, forgetEntryVersion } from '../supabase.js';
 
 let isInitialized = false;
 let sseConnection = null;
@@ -85,6 +85,19 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     eventType === 'resync' ||
     eventType === 'feed'
   ) {
+    // Learn the new version BEFORE clearing caches: entryVersions survive
+    // invalidateFeedCache, so the next fetch asks for the new versioned
+    // URL (edge-cached) instead of a plain short-cache URL. Events without
+    // a version (e.g. the sync-check fallback) just invalidate; the next
+    // fetch then learns the version from the fresh response.
+    const updatedAt = inner.updated_at || payload.updated_at || null;
+    const entrySlug = inner.slug || payload.slug || null;
+    const entryId = inner.id || payload.id || null;
+    if (eventType === 'entry_deleted') {
+      if (entrySlug || entryId) forgetEntryVersion(entrySlug, entryId);
+    } else if (updatedAt && (entrySlug || entryId)) {
+      noteEntryVersion(entrySlug, updatedAt, entryId);
+    }
     invalidateFeedCache();
 
     if (typeof window !== 'undefined') {

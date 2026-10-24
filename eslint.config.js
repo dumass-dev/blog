@@ -27,6 +27,7 @@ const browserGlobals = {
   requestAnimationFrame: 'readonly',
   cancelAnimationFrame: 'readonly',
   AbortController: 'readonly',
+  MutationObserver: 'readonly',
   HTMLElement: 'readonly',
   File: 'readonly',
   FileReader: 'readonly',

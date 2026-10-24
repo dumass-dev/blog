@@ -1,4 +1,4 @@
-import { safeApiFetch, cacheEntry, getCachedEntry } from '../supabase.js';
+import { safeApiFetch, cacheEntry, getCachedEntry, getEntryVersion, noteEntryVersion } from '../supabase.js';
 
 // Quietly fetch entries (and, on clear intent, their images) before the
 // reader taps, so opening an entry paints from cache instead of waiting
@@ -24,9 +24,11 @@ function entryImageUrls(content) {
 async function ensureEntry(slug) {
   const cached = getCachedEntry(slug);
   if (cached && cached.content) return cached;
-  const data = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}`);
+  const v = getEntryVersion(slug) || (cached && cached.updated_at) || null;
+  const data = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}${v ? `?v=${encodeURIComponent(v)}` : ''}`);
   if (data && data.entry) {
     cacheEntry(data.entry);
+    if (data.entry.updated_at) noteEntryVersion(data.entry.slug || slug, data.entry.updated_at, data.entry.id);
     return data.entry;
   }
   return null;
