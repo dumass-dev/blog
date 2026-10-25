@@ -1146,10 +1146,12 @@ export async function getEffectiveShowViews(supabase) {
 // Versioned cache headers for public post responses. When the caller asks
 // for a specific version (?v=<updated_at>) and it matches the current
 // one, the body is content-immutable — but it embeds B2 signed URLs that
-// expire after 24h, so versioned caching is capped at 1h, NOT forever:
-// a longer cap would serve expired signatures. Any mismatch (stale,
-// unknown, or absent version) keeps the short 60s edge window, so a
-// stale version can never poison the edge with old content.
+// expire after 24h, so versioned caching is capped at 10 minutes, NOT
+// forever: a longer cap would serve expired signatures, and would also
+// bound any version-keyed staleness (a write that changes content
+// without bumping updated_at) to 10 minutes instead of an hour. Any
+// mismatch (stale, unknown, or absent version) keeps the short 60s edge
+// window, so a stale version can never poison the edge with old content.
 function versionMatches(v, current) {
   if (v == null || current == null) return false;
   const a = Date.parse(v);
@@ -1159,7 +1161,7 @@ function versionMatches(v, current) {
 }
 function versionedCacheHeader(req, res, currentVersion) {
   if (versionMatches(req.query && req.query.v, currentVersion)) {
-    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=600');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
   }
@@ -1260,8 +1262,8 @@ app.get('/api/posts', async (req, res) => {
       // Public list responses are identical for every signed-out visitor.
       // Versioned: when the caller asks for the newest version it knows
       // (?v=<max updated_at>) and it matches this response, the body is
-      // content-immutable — cache it 1h (not longer: bodies embed B2
-      // signed URLs that expire after 24h). Any mismatch keeps the short
+      // content-immutable — cache it 10 minutes (not longer: bodies embed
+      // B2 signed URLs that expire after 24h). Any mismatch keeps the short
       // 60s window, so a stale version can never serve old content long.
       // Admin responses are never cached: they can include drafts.
       let maxUpdatedAt = null;
@@ -1966,7 +1968,7 @@ app.get('/api/posts/:identifier', async (req, res) => {
       // Same edge caching as the list: this response is identical for every
       // signed-out visitor (passcode entries return the redacted branch
       // above and keep no-store; unlocking happens via the verify endpoint).
-      // Versioned (?v=<updated_at>): a matching version caches 1h, a
+      // Versioned (?v=<updated_at>): a matching version caches 10 min, a
       // mismatch keeps the short 60s window — see versionedCacheHeader.
       versionedCacheHeader(req, res, post.updated_at);
     }
