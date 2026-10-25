@@ -60,7 +60,13 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
   if (!payload || typeof payload !== 'object') return;
 
   const inner = (payload.payload && typeof payload.payload === 'object') ? payload.payload : payload;
-  const eventType = payload.type || payload.event || inner.event || inner.type || 'entry';
+  // `event` wins over `type`: server broadcasts carry the event name in
+  // `event` and may also carry a content type in `type` (an entry's
+  // 'journal'/'photo'). Reading `type` first made every server-sent edit
+  // arrive as 'journal' and match no branch, so it was silently dropped.
+  // Client-originated events have no `event` field and still fall back
+  // to `type`.
+  const eventType = payload.event || payload.type || inner.event || inner.type || 'entry';
   const targetId = inner.id || payload.id || inner.data?.id || payload.data?.id || inner.commentId || payload.commentId || inner.postId || payload.postId || '';
   const op = inner.op || payload.op || inner.eventType || payload.eventType || '';
   // broadcastId distinguishes separate updates that share type/op/target —
@@ -277,8 +283,14 @@ function setupSSEConnection() {
       es.addEventListener('init', (e) => {
         try {
           const d = JSON.parse(e.data);
-          if (d.version) lastKnownVersion = d.version;
+          // Only adopt the server's version on the FIRST connect. A
+          // reconnect to a cold-started instance reports Date.now() as its
+          // version, which is later than any real edit — adopting it would
+          // mark those edits "seen" and blind the sync-check fallback for
+          // them. Keep the existing watermark and reconcile below instead.
+          if (d.version && lastKnownVersion === null) lastKnownVersion = d.version;
           notifyStatus(true);
+          checkSyncVersion();
         } catch {}
       });
 
@@ -323,10 +335,14 @@ function setupSupabaseRealtime() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'realtime_sync' }, (payload) => {
         if (payload && payload.new) {
           const innerPayload = (payload.new.payload && typeof payload.new.payload === 'object') ? payload.new.payload : {};
+          // The row's event/version go AFTER the spread: the stored payload
+          // used to carry the entry's content type as `type`, which
+          // overwrote the correct event type here and dropped the event.
           dispatchRealtimeMutation({
+            ...innerPayload,
+            event: payload.new.event || 'resync',
             type: payload.new.event || 'resync',
-            version: payload.new.version,
-            ...innerPayload
+            version: payload.new.version
           });
         }
       })
@@ -414,6 +430,20 @@ function setupBroadcastChannel() {
 }
 
 /**
+ * Rejoin the Supabase channel if it died while the tab was backgrounded.
+ * The error-path retry only fires when the tab is visible at that moment,
+ * so a phone tab that errored in the background can stay dead with no
+ * further retry scheduled. Called on foreground/focus/online.
+ */
+function resubscribeSupabaseIfNeeded() {
+  try {
+    if (supabaseRealtimeChannel && (supabaseRealtimeChannel.state === 'closed' || supabaseRealtimeChannel.state === 'errored')) {
+      supabaseRealtimeChannel.subscribe();
+    }
+  } catch {}
+}
+
+/**
  * Fast sync-check to ensure no missed updates across mobile devices & serverless instances
  */
 async function checkSyncVersion() {
@@ -459,15 +489,18 @@ export function initRealtimeSync() {
   try {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
+        resubscribeSupabaseIfNeeded();
         checkSyncVersion();
       }
     });
 
     window.addEventListener('focus', () => {
+      resubscribeSupabaseIfNeeded();
       checkSyncVersion();
     });
 
     window.addEventListener('online', () => {
+      resubscribeSupabaseIfNeeded();
       checkSyncVersion();
     });
 
