@@ -30,12 +30,16 @@ export function getCachedEntry(slugOrId) {
 // single edit (that was the "site loads slow again" regression).
 // A version is an entry's updated_at. A versioned URL's content never
 // changes, so the edge may serve it long — but bodies embed B2 signed
-// URLs that expire after 24h, so the server caps versioned caching at 1h
-// (see versionedCacheHeader in api/index.js / server/index.js). Versions
-// learned from realtime events survive cache clears on purpose:
+// URLs that expire after 24h, so the server caps versioned caching at
+// 10 minutes (see versionedCacheHeader in api/index.js / server/index.js).
+// Versions learned from realtime events survive cache clears on purpose:
 // invalidateFeedCache wipes the entry/feed caches but NOT this map, so
 // the next fetch after an edit asks for the NEW version instead of
-// falling back to a plain short-cache URL.
+// falling back to a plain short-cache URL. But that only holds when the
+// invalidation actually carried a new version: an invalidation WITHOUT
+// one (the sync-check fallback, a resync, a CDC change) RESETS the known
+// versions (see invalidateFeedCache), so the next fetch goes out plain
+// and cannot keep asking for a stale versioned URL for an hour.
 const entryVersions = new Map(); // key: slug or id -> updated_at (ISO string)
 let listVersion = null; // newest updated_at known across entries
 function versionTime(v) { const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
@@ -55,8 +59,18 @@ export function forgetEntryVersion(slug, id) {
   if (slug) entryVersions.delete(slug);
   if (id) entryVersions.delete(id);
 }
+export function forgetAllEntryVersions() {
+  entryVersions.clear();
+  listVersion = null;
+}
 
-export function invalidateFeedCache() {
+export function invalidateFeedCache({ keepVersions = false } = {}) {
+  // Default: forget known versions. A versioned fetch is only safe when
+  // the client KNOWS the version is current; after an invalidation that
+  // carried no new version, the known ones may be stale, and re-requesting
+  // them would serve the old cached body for up to the versioned TTL.
+  // Callers that just learned a new version pass { keepVersions: true }.
+  if (!keepVersions) forgetAllEntryVersions();
   feedsCache.clear();
   entriesCache.clear();
   try {

@@ -85,20 +85,24 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     eventType === 'resync' ||
     eventType === 'feed'
   ) {
-    // Learn the new version BEFORE clearing caches: entryVersions survive
-    // invalidateFeedCache, so the next fetch asks for the new versioned
-    // URL (edge-cached) instead of a plain short-cache URL. Events without
-    // a version (e.g. the sync-check fallback) just invalidate; the next
-    // fetch then learns the version from the fresh response.
+    // Learn the new version BEFORE clearing caches: with { keepVersions },
+    // the next fetch asks for the new versioned URL (edge-cached) instead
+    // of a plain short-cache URL. Events WITHOUT a version (e.g. the
+    // sync-check fallback) invalidate with the default version reset, so
+    // the next fetch goes out plain and cannot keep asking for a stale
+    // versioned URL for the whole versioned TTL.
     const updatedAt = inner.updated_at || payload.updated_at || null;
     const entrySlug = inner.slug || payload.slug || null;
     const entryId = inner.id || payload.id || null;
     if (eventType === 'entry_deleted') {
       if (entrySlug || entryId) forgetEntryVersion(entrySlug, entryId);
+      invalidateFeedCache();
     } else if (updatedAt && (entrySlug || entryId)) {
       noteEntryVersion(entrySlug, updatedAt, entryId);
+      invalidateFeedCache({ keepVersions: true });
+    } else {
+      invalidateFeedCache();
     }
-    invalidateFeedCache();
 
     if (typeof window !== 'undefined') {
       try {
