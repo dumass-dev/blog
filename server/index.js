@@ -138,9 +138,14 @@ let realtimeVersion = Date.now();
 
 export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) {
   realtimeVersion = Date.now();
+  // `event` goes AFTER ...data on purpose: data must never be able to
+  // clobber the event name. An entry's content type used to travel as
+  // `type` inside data, and the client dispatcher read payload.type as
+  // the event type — so every server-sent edit arrived as 'journal' and
+  // was silently dropped (see src/utils/realtime.js).
   const payload = {
-    event,
     ...data,
+    event,
     version: realtimeVersion,
     timestamp: new Date().toISOString()
   };
@@ -2234,7 +2239,10 @@ app.post('/api/posts', requireAdminAuth, async (req, res) => {
       slug: data.slug,
       title: data.title,
       updated_at: data.updated_at,
-      type: isPhotoPost ? 'photo' : data.type
+      // NOTE: this must NOT be named `type` — the client dispatcher reads
+      // payload.type as the event type, so a content type here ('journal')
+      // would make the event unreadable. See broadcastRealtimeEvent.
+      entryType: isPhotoPost ? 'photo' : data.type
     });
 
     res.status(201).json(data);
@@ -2333,7 +2341,10 @@ app.put('/api/posts/:id', requireAdminAuth, async (req, res) => {
       title: data.title,
       status: data.status,
       updated_at: data.updated_at,
-      type: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
+      // NOTE: this must NOT be named `type` — the client dispatcher reads
+      // payload.type as the event type, so a content type here ('journal')
+      // would make the event unreadable. See broadcastRealtimeEvent.
+      entryType: (isPhotoUpdate || (data.category && data.category.toLowerCase() === 'photos')) ? 'photo' : data.type
     });
 
     res.json({
