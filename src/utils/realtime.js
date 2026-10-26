@@ -453,6 +453,14 @@ async function checkSyncVersion() {
         dispatchRealtimeMutation({
           type: eventType,
           version: data.version,
+          // Entry version: the dispatcher notes it and invalidates with
+          // { keepVersions: true }, so the refetch asks for the new
+          // versioned URL instead of a plain short-cache one. Without
+          // these fields every sync-check event fell back to a plain
+          // refetch that could sit behind the edge cache for 60s.
+          ...(data.updated_at ? { updated_at: data.updated_at } : {}),
+          ...(data.slug ? { slug: data.slug } : {}),
+          ...(data.id ? { id: data.id } : {}),
           payload: data.payload
         });
       }

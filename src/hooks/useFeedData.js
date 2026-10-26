@@ -58,10 +58,17 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
   });
   const [refreshing, setRefreshing] = useState(false);
   const isFetchingRef = useRef(false);
+  // An invalidation that arrives while a fetch is in flight must not be
+  // dropped: remember it and re-run once the in-flight fetch completes,
+  // so the list ends up fresh instead of one edit behind.
+  const pendingRefetchRef = useRef(false);
 
   const loadFeed = useCallback(async () => {
     // Prevent concurrent parallel fetches
-    if (isFetchingRef.current) return;
+    if (isFetchingRef.current) {
+      pendingRefetchRef.current = true;
+      return;
+    }
     isFetchingRef.current = true;
     setRefreshing(true);
     try {
@@ -91,6 +98,10 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
       setLoading(false);
       setRefreshing(false);
       isFetchingRef.current = false;
+      if (pendingRefetchRef.current) {
+        pendingRefetchRef.current = false;
+        loadFeed();
+      }
     }
   }, [type, category, tag, limit, forHomeFeed]);
 

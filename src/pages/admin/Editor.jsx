@@ -656,7 +656,10 @@ export default function Editor() {
           location: payload.location || null,
           weather: payload.weather || null,
           mood: payload.mood || null,
-          show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : !isPhotoPost
+          show_in_feed: payload.show_in_feed !== undefined ? Boolean(payload.show_in_feed) : !isPhotoPost,
+          // The fallback write must move the row's version, or no freshness
+          // mechanism (versioned refetch, sync-check) can ever see the edit.
+          updated_at: new Date().toISOString()
         };
         if (payload.passcode !== undefined) {
           supaPayload.passcode = payload.passcode;
@@ -724,6 +727,11 @@ export default function Editor() {
       op: id ? 'UPDATE' : 'INSERT',
       id: savedData.id,
       slug: savedData.slug,
+      // Top-level version: receivers note it and refetch the new versioned
+      // URL instead of a plain short-cache URL. Covers both paths — the
+      // fallback select returns the row with the new updated_at, and the
+      // normal API save returns the updated row too.
+      updated_at: savedData.updated_at,
       status: savedData.status || formData.status,
       title: savedData.title || formData.title,
       data: savedData
