@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -14,8 +14,14 @@ export default function GitHubContributions({
   const [tooltip, setTooltip] = useState(null);
   const scrollContainerRef = useRef(null);
 
+  const mountedRef = useRef(true);
+
   useEffect(() => {
-    let isMounted = true;
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -25,7 +31,7 @@ export default function GitHubContributions({
         return res.json();
       })
       .then(resData => {
-        if (!isMounted) return;
+        if (!mountedRef.current) return;
         setData(resData);
         if (resData.years && resData.years.length > 0) {
           const currentYear = String(new Date().getFullYear());
@@ -38,15 +44,13 @@ export default function GitHubContributions({
         setLoading(false);
       })
       .catch(err => {
-        if (!isMounted) return;
+        if (!mountedRef.current) return;
         setError(err.message || 'Failed to load GitHub activity');
         setLoading(false);
       });
-
-    return () => {
-      isMounted = false;
-    };
   }, [username]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Guaranteed list of years (current year and the two before it, plus any extra from backend)
   const years = useMemo(() => {
@@ -188,7 +192,17 @@ export default function GitHubContributions({
   }
 
   if (error) {
-    return null;
+    return (
+      <div className="w-full py-4 text-center">
+        <p className="text-xs font-sans text-[var(--text-muted)]">Couldn&apos;t load GitHub activity.</p>
+        <button
+          onClick={loadData}
+          className="quiet-button text-xs font-sans uppercase tracking-wider py-1.5 px-4 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer mt-2"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (

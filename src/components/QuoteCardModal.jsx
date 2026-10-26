@@ -145,6 +145,7 @@ export default function QuoteCardModal({ quoteText, postTitle, isOpen, onClose }
             onClick={onClose}
             className="p-1 hover:text-[var(--text-primary)] text-[var(--text-muted)] transition-colors"
             title="Close"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>

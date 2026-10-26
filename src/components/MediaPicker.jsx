@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Upload, X, Image as ImageIcon, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, AlignLeft, AlignCenter, AlignRight, FileVideo } from 'lucide-react';
 import { supabase, safeApiFetch } from '../supabase';
 
 import Modal from './Modal';
@@ -15,6 +15,22 @@ function getNumericPercent(val) {
   if (val === 'full') return 100;
   const match = String(val).match(/^(\d{1,3})%?$/);
   return match ? Math.min(100, Math.max(15, parseInt(match[1], 10))) : 50;
+}
+
+// Video thumbnail with an error state: a dead signed URL renders a clear
+// "Video unavailable" tile instead of a black box. preload="metadata" lets
+// the browser show the first frame as a poster when the URL is alive.
+function VideoPreview({ src, className }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className={`${className} flex flex-col items-center justify-center gap-1 bg-black/10 text-[var(--text-muted)]`}>
+        <FileVideo className="w-5 h-5 opacity-60" />
+        <span className="text-[10px] font-sans">Video unavailable</span>
+      </div>
+    );
+  }
+  return <video src={src} className={className} preload="metadata" onError={() => setFailed(true)} />;
 }
 
 export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
@@ -289,8 +305,9 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
           {/* Width adjustment */}
           <div className="flex flex-col gap-1.5 pt-0.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--text-secondary)] font-medium">Image Width:</span>
+              <label htmlFor="media-picker-width" className="text-[var(--text-secondary)] font-medium">Image Width:</label>
               <input
+                id="media-picker-width"
                 type="text"
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value.trim())}
@@ -329,6 +346,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                 step="1"
                 value={getNumericPercent(selectedSize)}
                 onChange={(e) => setSelectedSize(`${e.target.value}%`)}
+                aria-label="Image width"
                 className="w-full accent-[var(--accent-warm)] cursor-pointer h-1.5 bg-[var(--border-subtle)] rounded-lg"
               />
               <span className="text-[10px] font-mono text-[var(--text-muted)] shrink-0">100%</span>
@@ -367,7 +385,7 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
                 className="group relative border border-[var(--border-subtle)] rounded overflow-hidden cursor-pointer hover:border-[var(--accent-warm)] transition-colors aspect-square bg-black/5"
               >
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
-                  <video src={item.signed_url || item.url || item.proxy_url} className="w-full h-full object-cover" />
+                  <VideoPreview src={item.signed_url || item.url || item.proxy_url} className="w-full h-full object-cover" />
                 ) : (
                   <ProgressiveImage
                     src={item.signed_url || item.url || item.proxy_url}

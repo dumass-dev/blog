@@ -35,6 +35,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
               onClick={() => setZoom(prev => Math.min(prev + 0.25, 2.5))}
               className="p-1.5 rounded hover:bg-black/10 transition-colors"
               title="Zoom In"
+              aria-label="Zoom In"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
@@ -42,6 +43,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
               onClick={() => setZoom(prev => Math.max(prev - 0.25, 0.75))}
               className="p-1.5 rounded hover:bg-black/10 transition-colors"
               title="Zoom Out"
+              aria-label="Zoom Out"
             >
               <ZoomOut className="w-4 h-4" />
             </button>

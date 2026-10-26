@@ -19,6 +19,12 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     return 'q04ti';
   });
   const [imgError, setImgError] = useState(false);
+  // Last time a poll actually returned a track, and last time a poll ran
+  // at all. The card deliberately keeps the last known track when polls
+  // fail — but after several missed polls the "currently listening to"
+  // claim goes stale, so the header wording says so.
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [lastPollAt, setLastPollAt] = useState(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -51,6 +57,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         if (json) {
           setData(json);
           setImgError(false);
+          setLastUpdatedAt(Date.now());
         }
         // A failed/slow poll (safeApiFetch returns null on timeouts and
         // server errors) must not blank the card: keep the last known track
@@ -58,6 +65,8 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         // card "hide by itself" whenever the backend hiccuped.
       } catch (_err) {
         // silently fail
+      } finally {
+        setLastPollAt(Date.now());
       }
 
     };
@@ -101,6 +110,13 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     coverUrl: null
   };
 
+  // Stale once three 15s polls in a row brought nothing new: the track
+  // on screen is a kept last-known one, not a live "currently listening".
+  const isStale = Boolean(
+    data && data.title && !displayData.isPaused &&
+    lastUpdatedAt && lastPollAt && (lastPollAt - lastUpdatedAt > 45000)
+  );
+
   // If we are in the pill view (burger menu) and music is paused/offline, hide it completely!
   if (!expandable && displayData.isPaused) {
     return null;
@@ -113,7 +129,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
           <div 
             className="now-playing-compact"
             onClick={() => setIsExpanded(true)}
-            title={displayData.isPaused ? `Last listened to ${displayData.title}` : `Listening to ${displayData.title}`}
+            title={displayData.isPaused || isStale ? `Last listened to ${displayData.title}` : `Listening to ${displayData.title}`}
           >
             {displayData.coverUrl && !imgError ? (
               <img 
@@ -129,7 +145,7 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
         ) : (
           <div className="now-playing-card">
             <div className="now-playing-card-header">
-              {authorName} {displayData.isPaused ? 'last listened to' : 'is currently listening to'}
+              {authorName} {displayData.isPaused ? 'last listened to' : isStale ? 'was listening to' : 'is currently listening to'}
             </div>
             <div className="now-playing-card-body">
               <div className="now-playing-card-cover">

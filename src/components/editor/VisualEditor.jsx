@@ -8,6 +8,7 @@ import { customEditorialExtensions } from './extensions/index.js';
 import { serializeVisualMarkdown, markdownForVisualParse } from '../../utils/entryMarkdown.js';
 import { SlashCommands } from './slashCommands.js';
 import { NodeSelection } from '@tiptap/pm/state';
+import { useConfirm } from '../ConfirmModal';
 import {
   Bold,
   Italic,
@@ -79,6 +80,7 @@ const VisualEditor = forwardRef(function VisualEditor(
   const [captionInput, setCaptionInput] = useState('');
   const [showVideoPrompt, setShowVideoPrompt] = useState(false);
   const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [confirm, confirmDialog] = useConfirm();
 
   // Configure TipTap Editor
   const editor = useEditor({
@@ -888,9 +890,14 @@ const VisualEditor = forwardRef(function VisualEditor(
     }
   };
 
-  const deleteSelectedImage = () => {
+  const deleteSelectedImage = async () => {
     if (!editor || !selectedImageNode) return;
-    if (!window.confirm('Remove this photo from the post?')) return;
+    const ok = await confirm({
+      title: 'Remove Photo',
+      message: 'Remove this photo from the post?',
+      confirmLabel: 'Remove'
+    });
+    if (!ok) return;
     editor
       .chain()
       .focus()
@@ -968,6 +975,7 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   return (
     <div ref={containerRef} className="relative visual-editor-root">
+      {confirmDialog}
       {/* TipTap Document Viewport */}
       <div className="border border-[var(--border-subtle)] rounded-lg bg-[var(--card-bg)] shadow-xs transition-colors focus-within:border-[var(--accent-warm)]">
         <EditorContent editor={editor} />
@@ -995,6 +1003,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 }
               }}
               placeholder="Paste or type URL (https://...)"
+              aria-label="Link URL"
               autoFocus
               className="quiet-input text-xs py-1 px-2 flex-1 font-sans bg-transparent min-w-0"
             />
@@ -1003,6 +1012,7 @@ const VisualEditor = forwardRef(function VisualEditor(
               onClick={handleApplyLink}
               className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--accent-warm)] shrink-0"
               title="Apply Link"
+              aria-label="Apply Link"
             >
               <Check className="w-4 h-4" />
             </button>
@@ -1011,6 +1021,7 @@ const VisualEditor = forwardRef(function VisualEditor(
               onClick={handleCancelLink}
               className="p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-muted)] shrink-0"
               title="Cancel"
+              aria-label="Cancel"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1024,6 +1035,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('bold') ? 'text-[var(--accent-warm)] font-bold' : 'text-[var(--text-primary)]'
               }`}
               title="Bold"
+              aria-label="Bold"
             >
               <Bold className="w-4 h-4" />
             </button>
@@ -1035,6 +1047,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('italic') ? 'text-[var(--accent-warm)] italic' : 'text-[var(--text-primary)]'
               }`}
               title="Italic"
+              aria-label="Italic"
             >
               <Italic className="w-4 h-4" />
             </button>
@@ -1046,6 +1059,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('strike') ? 'text-[var(--accent-warm)] line-through' : 'text-[var(--text-primary)]'
               }`}
               title="Strikethrough"
+              aria-label="Strikethrough"
             >
               <Strikethrough className="w-4 h-4" />
             </button>
@@ -1057,6 +1071,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('code') ? 'text-[var(--accent-warm)] font-mono' : 'text-[var(--text-primary)]'
               }`}
               title="Inline Code"
+              aria-label="Inline Code"
             >
               <Code className="w-4 h-4" />
             </button>
@@ -1070,6 +1085,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('heading', { level: 2 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
               }`}
               title="Heading 2"
+              aria-label="Heading 2"
             >
               <Heading2 className="w-4 h-4" />
             </button>
@@ -1081,6 +1097,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('heading', { level: 3 }) ? 'text-[var(--accent-warm)] font-semibold' : 'text-[var(--text-primary)]'
               }`}
               title="Heading 3"
+              aria-label="Heading 3"
             >
               <Heading3 className="w-4 h-4" />
             </button>
@@ -1092,6 +1109,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('blockquote') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
               }`}
               title="Blockquote"
+              aria-label="Blockquote"
             >
               <Quote className="w-4 h-4" />
             </button>
@@ -1112,6 +1130,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 editor.isActive('link') ? 'text-[var(--accent-warm)]' : 'text-[var(--text-primary)]'
               }`}
               title="Link"
+              aria-label="Link"
             >
               <LinkIcon className="w-4 h-4" />
             </button>
@@ -1166,6 +1185,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 }}
                 className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-1 text-[11px] font-sans text-[var(--text-primary)] cursor-pointer"
                 title="Move Photo Up"
+                aria-label="Move Photo Up"
               >
                 <ArrowUp className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Up</span>
@@ -1178,6 +1198,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 }}
                 className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-1 text-[11px] font-sans text-[var(--text-primary)] cursor-pointer"
                 title="Move Photo Down"
+                aria-label="Move Photo Down"
               >
                 <ArrowDown className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Down</span>
@@ -1190,6 +1211,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 }}
                 className="p-1 px-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-[var(--accent-warm)] flex items-center gap-1 text-[11px] font-sans font-medium cursor-pointer"
                 title="Replace with another photo from library"
+                aria-label="Replace with another photo from library"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Change</span>
@@ -1202,6 +1224,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 }}
                 className="p-1 px-1.5 rounded text-red-500 hover:bg-red-500/10 flex items-center gap-1 text-[11px] font-sans cursor-pointer"
                 title="Delete Photo"
+                aria-label="Delete Photo"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Remove</span>
@@ -1261,6 +1284,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                     : 'hover:bg-black/10 dark:hover:bg-white/10 text-[var(--text-secondary)]'
                 }`}
                 title={`Align ${label}`}
+                aria-label={`Align ${label}`}
               >
                 <Icon className="w-3.5 h-3.5" />
               </button>
@@ -1286,10 +1310,12 @@ const VisualEditor = forwardRef(function VisualEditor(
                     }
                   }}
                   placeholder="Type caption..."
+                  aria-label="Photo caption"
                   autoFocus
                   className="quiet-input text-xs py-1 px-2 flex-1 font-sans"
                 />
                 <button
+                  aria-label="Save caption"
                   type="button"
                   onClick={() => {
                     setImageAttribute('caption', captionInput);
@@ -1403,6 +1429,7 @@ const VisualEditor = forwardRef(function VisualEditor(
                 if (e.key === 'Escape') setShowVideoPrompt(false);
               }}
               placeholder="https://..."
+              aria-label="Video URL"
               autoFocus
               className="quiet-input text-xs w-full py-2 px-3 font-sans mb-4"
             />

@@ -14,7 +14,11 @@ export default function TypewriterText({
   const { typewriterEnabled } = useTypewriter();
   const content = text !== undefined && text !== null ? String(text) : (typeof children === 'string' ? children : '');
 
-  const [visibleCount, setVisibleCount] = useState(0);
+  // First paint shows the full text: the reveal effect (below) resets to 0
+  // and types out only after mount, so a heading never reads truncated
+  // mid-animation ("Chronolo") on its first paint. The animation itself is
+  // unchanged — it still runs from 0 to full on every content change.
+  const [visibleCount, setVisibleCount] = useState(content.length);
   const [isComplete, setIsComplete] = useState(false);
   const animFrameRef = useRef(null);
   const onCompleteRef = useRef(onComplete);

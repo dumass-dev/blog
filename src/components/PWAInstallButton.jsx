@@ -72,6 +72,7 @@ export default function PWAInstallButton({ className = '' }) {
             <img
               src="/icon-192.png"
               alt="Journal App Icon"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
               className="w-12 h-12 rounded-2xl border border-[var(--border-subtle)] shadow-sm shrink-0 object-cover"
             />
             <div>
