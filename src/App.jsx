@@ -75,6 +75,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between">
+      {/* One boundary around the whole shell (header, routes, footer) so a
+          throw in any of them shows the fallback instead of a blank page.
+          Keyed by pathname so navigating anywhere clears the error state. */}
+      <ErrorBoundary key={location.pathname}>
       <ScrollToTop />
       <div>
         {/* Render minimalist public header on public pages */}
@@ -82,7 +86,6 @@ export default function App() {
 
         <main className={isAdminPath ? 'pt-8' : ''}>
           <Suspense fallback={<PageFallback />}>
-            <ErrorBoundary key={location.pathname}>
             <Routes>
               {/* Public Read-Only Routes */}
               <Route path="/" element={<Home />} />
@@ -149,7 +152,6 @@ export default function App() {
               {/* Fallback 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-            </ErrorBoundary>
           </Suspense>
         </main>
       </div>
@@ -157,6 +159,7 @@ export default function App() {
       {/* Render quiet footer */}
       {!isAdminPath && <Footer />}
 
+      </ErrorBoundary>
     </div>
   );
 }

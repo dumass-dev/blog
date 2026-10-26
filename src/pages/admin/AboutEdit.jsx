@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useViewCount } from '../../context/ViewCountContext';
 import { useToast } from '../../context/ToastContext';
 import ThemeToggle from '../../components/ThemeToggle';
+import { useConfirm } from '../../components/ConfirmModal';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import { supabase } from '../../supabase';
 import { Save, ArrowLeft, Plus, Trash2, Moon, Sun, Eye, EyeOff } from 'lucide-react';
@@ -13,6 +14,7 @@ import { Save, ArrowLeft, Plus, Trash2, Moon, Sun, Eye, EyeOff } from 'lucide-re
 export default function AboutEdit() {
   const { token } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
+  const [confirm, confirmDialog] = useConfirm();
   const { updateSiteDefault } = useTypewriter();
   const { updateSiteDefaultTheme } = useTheme();
   const { updateSiteDefault: updateSiteDefaultViews } = useViewCount();
@@ -85,10 +87,15 @@ export default function AboutEdit() {
     }));
   };
 
-  const removeProject = (idx) => {
+  const removeProject = async (idx) => {
     const proj = formData.projects[idx];
     const name = proj?.title?.trim() || 'this project';
-    if (!window.confirm(`Are you sure you want to remove "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Remove Project',
+      message: `Are you sure you want to remove "${name}"?`,
+      confirmLabel: 'Remove'
+    });
+    if (!ok) return;
     setFormData(prev => ({
       ...prev,
       projects: prev.projects.filter((_, i) => i !== idx)
@@ -108,10 +115,15 @@ export default function AboutEdit() {
     }));
   };
 
-  const removeLink = (idx) => {
+  const removeLink = async (idx) => {
     const link = formData.links[idx];
     const name = link?.label?.trim() || 'this link';
-    if (!window.confirm(`Are you sure you want to remove "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Remove Link',
+      message: `Are you sure you want to remove "${name}"?`,
+      confirmLabel: 'Remove'
+    });
+    if (!ok) return;
     setFormData(prev => ({
       ...prev,
       links: prev.links.filter((_, i) => i !== idx)
@@ -213,6 +225,7 @@ export default function AboutEdit() {
 
   return (
     <div className="notebook-container pb-24">
+      {confirmDialog}
       <div className="flex justify-between items-center py-4 border-b border-[var(--border-subtle)] mb-8">
         <div className="flex items-center space-x-3">
           <Link
@@ -244,10 +257,11 @@ export default function AboutEdit() {
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Author Name */}
         <div>
-          <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          <label htmlFor="about-author-name" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
             Author / Site Owner Name
           </label>
           <input
+            id="about-author-name"
             type="text"
             name="author_name"
             value={formData.author_name}
@@ -259,10 +273,11 @@ export default function AboutEdit() {
 
         {/* Tagline */}
         <div>
-          <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          <label htmlFor="about-tagline" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
             Header Subtitle Tagline
           </label>
           <input
+            id="about-tagline"
             type="text"
             name="tagline"
             value={formData.tagline}
@@ -365,10 +380,11 @@ export default function AboutEdit() {
 
         {/* Bio */}
         <div>
-          <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+          <label htmlFor="about-bio" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
             Bio Text (Markdown & Rich Text supported)
           </label>
           <textarea
+            id="about-bio"
             name="bio"
             rows={8}
             value={formData.bio}
@@ -402,16 +418,18 @@ export default function AboutEdit() {
                   onClick={() => removeProject(idx)}
                   className="absolute top-3 right-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
                   title="Remove project"
+                  aria-label="Remove project"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
 
                 <div className="responsive-form-grid">
                   <div>
-                    <label className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
+                    <label htmlFor={`project-title-${idx}`} className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
                       Project Title
                     </label>
                     <input
+                      id={`project-title-${idx}`}
                       type="text"
                       value={proj.title}
                       onChange={(e) => handleProjectChange(idx, 'title', e.target.value)}
@@ -420,10 +438,11 @@ export default function AboutEdit() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
+                    <label htmlFor={`project-link-${idx}`} className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
                       Project Link / URL
                     </label>
                     <input
+                      id={`project-link-${idx}`}
                       type="text"
                       value={proj.link}
                       onChange={(e) => handleProjectChange(idx, 'link', e.target.value)}
@@ -434,10 +453,11 @@ export default function AboutEdit() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
+                  <label htmlFor={`project-description-${idx}`} className="block text-[11px] font-sans text-[var(--text-muted)] uppercase mb-1">
                     Description
                   </label>
                   <input
+                    id={`project-description-${idx}`}
                     type="text"
                     value={proj.description}
                     onChange={(e) => handleProjectChange(idx, 'description', e.target.value)}
@@ -474,6 +494,7 @@ export default function AboutEdit() {
                   value={link.label}
                   onChange={(e) => handleLinkChange(idx, 'label', e.target.value)}
                   placeholder="Label (e.g. GitHub)"
+                  aria-label="Link label"
                   className="quiet-input text-xs w-full sm:w-1/3"
                 />
                 <input
@@ -481,12 +502,15 @@ export default function AboutEdit() {
                   value={link.url}
                   onChange={(e) => handleLinkChange(idx, 'url', e.target.value)}
                   placeholder="URL (e.g. https://github.com/...)"
+                  aria-label="Link URL"
                   className="quiet-input text-xs font-mono w-full sm:w-2/3"
                 />
                 <button
                   type="button"
                   onClick={() => removeLink(idx)}
                   className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
+                  title="Remove link"
+                  aria-label="Remove link"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

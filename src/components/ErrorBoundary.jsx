@@ -1,9 +1,10 @@
 import React from 'react';
 
 // Catches render/runtime crashes in the page tree so one broken view shows a
-// recoverable message instead of blanking the whole app. Header and footer
-// live outside this boundary and keep working. Keyed by pathname in App, so
-// navigating anywhere clears the error state automatically.
+// recoverable message instead of blanking the whole app. Wraps the whole
+// shell (header, routes, footer) in App, so a throw in any of them shows the
+// fallback. Keyed by pathname in App, so navigating anywhere clears the
+// error state automatically.
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

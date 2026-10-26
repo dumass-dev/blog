@@ -7,6 +7,7 @@ import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
 import ProgressiveImage from '../../components/ProgressiveImage';
 import StorageUsageCard from '../../components/StorageUsageCard';
+import { useConfirm } from '../../components/ConfirmModal';
 import { Upload, ArrowLeft, Copy, Trash2, Check, FileVideo, FileImage, RotateCw } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -25,13 +26,31 @@ function getPersistedMediaCache() {
   return [];
 }
 
+// Video thumbnail with an error state: a dead signed URL renders a clear
+// "Video unavailable" tile instead of a black box. preload="metadata" lets
+// the browser show the first frame as a poster when the URL is alive.
+function VideoPreview({ src, className }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className={`${className} flex flex-col items-center justify-center gap-1 bg-black/10 text-[var(--text-muted)]`}>
+        <FileVideo className="w-6 h-6 opacity-60" />
+        <span className="text-[11px] font-sans">Video unavailable</span>
+      </div>
+    );
+  }
+  return <video src={src} className={className} controls preload="metadata" onError={() => setFailed(true)} />;
+}
+
 export default function Media() {
   const { token } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
+  const [confirm, confirmDialog] = useConfirm();
   const cachedInitial = getPersistedMediaCache();
   const [mediaList, setMediaList] = useState(cachedInitial);
   const [storageData, setStorageData] = useState(null);
   const [loading, setLoading] = useState(() => !cachedInitial.length);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -45,6 +64,7 @@ export default function Media() {
     else if (!mediaListRef.current.length) setLoading(true);
 
     let list = [];
+    let listSourceOk = false;
 
     // Try API server first
     const data = await safeApiFetch('/api/media', {
@@ -53,6 +73,7 @@ export default function Media() {
 
     if (Array.isArray(data)) {
       list = data;
+      listSourceOk = true;
     } else {
       // Direct Supabase fallback
       try {
@@ -63,10 +84,24 @@ export default function Media() {
 
         if (!supaErr && Array.isArray(supaMedia)) {
           list = supaMedia;
+          listSourceOk = true;
         }
       } catch (_e) {}
     }
 
+    // Total failure: keep the last-good list and its persisted cache instead
+    // of overwriting both with an empty list.
+    if (!listSourceOk) {
+      setLoadError(true);
+      setLoading(false);
+      setRefreshing(false);
+      if (isManual) {
+        toastError('Could not load media — showing the last saved list.');
+      }
+      return;
+    }
+
+    setLoadError(false);
     setMediaList(list);
     try {
       localStorage.setItem('cached_admin_media_list', JSON.stringify(list));
@@ -112,7 +147,7 @@ export default function Media() {
 
     setLoading(false);
     setRefreshing(false);
-  }, [token]);
+  }, [token, toastError]);
 
   useEffect(() => {
     fetchMedia();
@@ -157,7 +192,12 @@ export default function Media() {
 
   const handleDelete = async (id) => {
     if (deletingId) return;
-    if (!window.confirm('Delete this media file permanently?')) return;
+    const ok = await confirm({
+      title: 'Delete Media',
+      message: 'Delete this media file permanently?',
+      confirmLabel: 'Delete'
+    });
+    if (!ok) return;
 
     setDeletingId(id);
     try {
@@ -231,12 +271,18 @@ export default function Media() {
       />
 
       {/* Media Grid */}
+      {confirmDialog}
+      {!loading && loadError && (
+        <div className="mb-4 p-3 bg-[var(--code-bg)] text-[var(--text-primary)] text-xs font-sans border border-[var(--border-subtle)] rounded">
+          Couldn&apos;t load the latest media — showing the last saved list. Try Refresh.
+        </div>
+      )}
       {loading ? (
         <FeedSkeleton type="media" count={6} />
       ) : mediaList.length === 0 ? (
         <div className="py-16 text-center border border-dashed border-[var(--border-subtle)] rounded p-12">
           <p className="text-sm font-serif text-[var(--text-secondary)] mb-4">
-            Your media library is currently empty.
+            {loadError ? 'Could not load your media library. Try Refresh.' : 'Your media library is currently empty.'}
           </p>
           <label className="relative overflow-hidden quiet-button text-xs inline-flex items-center gap-1.5 cursor-pointer">
             <Upload className="w-3.5 h-3.5" />
@@ -259,7 +305,7 @@ export default function Media() {
               {/* Preview */}
               <div className="aspect-video bg-black/10 relative flex items-center justify-center overflow-hidden">
                 {item.mime_type && item.mime_type.startsWith('video/') ? (
-                  <video src={item.signed_url || item.url} className="w-full h-full object-cover" controls />
+                  <VideoPreview src={item.signed_url || item.url} className="w-full h-full object-cover" />
                 ) : (
                   <ProgressiveImage
                     src={item.signed_url || item.url}
@@ -318,6 +364,7 @@ export default function Media() {
                     disabled={deletingId === item.id}
                     className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1 disabled:opacity-40"
                     title="Delete media"
+                    aria-label="Delete media"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase, safeApiFetch, invalidateFeedCache } from '../../supabase';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import Modal from '../../components/Modal';
+import { useConfirm } from '../../components/ConfirmModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import FeedSkeleton from '../../components/FeedSkeleton';
 import PWAInstallButton from '../../components/PWAInstallButton';
@@ -53,7 +54,8 @@ function setPersistedCache(data) {
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [confirm, confirmDialog] = useConfirm();
 
   const [cachedData] = useState(() => getPersistedCache());
 
@@ -62,6 +64,7 @@ export default function Dashboard() {
   const [entries, setEntries] = useState(() => cachedData.entries || []);
   const [comments, setComments] = useState(() => cachedData.comments || []);
   const [loading, setLoading] = useState(() => !cachedData.entries);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -131,10 +134,14 @@ export default function Dashboard() {
 
     // 1. Process Posts
     let postsList = (postsRes.status === 'fulfilled' && Array.isArray(postsRes.value)) ? postsRes.value : [];
+    let postsSourceOk = postsRes.status === 'fulfilled' && Array.isArray(postsRes.value);
     if (postsList.length === 0) {
       try {
-        const { data: supaPosts } = await supabase.from('entries').select('*').order('date', { ascending: false });
-        postsList = supaPosts || [];
+        const { data: supaPosts, error: supaErr } = await supabase.from('entries').select('*').order('date', { ascending: false });
+        if (!supaErr && Array.isArray(supaPosts)) {
+          postsList = supaPosts;
+          postsSourceOk = true;
+        }
       } catch {}
     }
 
@@ -148,8 +155,6 @@ export default function Dashboard() {
         type: isPhoto ? 'photo' : item.type
       };
     });
-
-    setEntries(processedPosts);
 
     // 2. Process Stats
     let currentStats = (statsRes.status === 'fulfilled' && statsRes.value && typeof statsRes.value === 'object' && !Array.isArray(statsRes.value))
@@ -172,20 +177,13 @@ export default function Dashboard() {
         topPosts: []
       };
     }
-    setStats(currentStats);
 
     // 3. Process Reader Comments
-    let fetchedComments = commentsRef.current;
-    if (commentsRes.status === 'fulfilled' && commentsRes.value?.data) {
-      fetchedComments = commentsRes.value.data;
-      setComments(fetchedComments);
-    }
+    const commentsOk = commentsRes.status === 'fulfilled' && Array.isArray(commentsRes.value?.data);
+    const fetchedComments = commentsOk ? commentsRes.value.data : commentsRef.current;
 
     // 4. Process Now Playing Settings
-    if (npRes.status === 'fulfilled' && npRes.value && npRes.value.showOnHome !== undefined) {
-      setShowOnHome(npRes.value.showOnHome);
-      setNpLoaded(true);
-    }
+    const npOk = npRes.status === 'fulfilled' && npRes.value && npRes.value.showOnHome !== undefined;
 
     // 5. Process Storage Allocation Stats
     let resolvedStorage = (storageRes.status === 'fulfilled' && storageRes.value?.b2)
@@ -194,57 +192,99 @@ export default function Dashboard() {
 
     if (!resolvedStorage) {
       try {
-        const { data: mediaRows } = await supabase.from('media').select('size, url');
-        const mRows = mediaRows || [];
-        const totalMediaBytes = mRows.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
-        const B2_TOTAL = 30 * 1024 * 1024 * 1024;
-        const VAULT_CAP = 10 * 1024 * 1024 * 1024;
-        const SUPA_TOTAL = 500 * 1024 * 1024;
+        const { data: mediaRows, error: mediaErr } = await supabase.from('media').select('size, url');
+        if (!mediaErr && Array.isArray(mediaRows)) {
+          const mRows = mediaRows;
+          const totalMediaBytes = mRows.reduce((sum, r) => sum + (Number(r.size) || 0), 0);
+          const B2_TOTAL = 30 * 1024 * 1024 * 1024;
+          const VAULT_CAP = 10 * 1024 * 1024 * 1024;
+          const SUPA_TOTAL = 500 * 1024 * 1024;
 
-        let entriesTextBytes = 0;
-        for (const e of postsList) {
-          entriesTextBytes += (e.title || '').length + (e.content || '').length + (e.excerpt || '').length;
-        }
-        const commentsTextBytes = (fetchedComments || []).reduce((sum, c) => sum + (c.content || '').length + (c.author_name || '').length, 0);
-        const dbBytes = entriesTextBytes + commentsTextBytes + (mRows.length * 160) + (postsList.length * 240);
-
-        resolvedStorage = {
-          b2: {
-            totalAllocatedBytes: B2_TOTAL,
-            usedBytes: totalMediaBytes,
-            percentUsed: Number(((totalMediaBytes / B2_TOTAL) * 100).toFixed(2)),
-            fileCount: mRows.length,
-            vaults: [
-              { id: 'media1', name: 'Pool 1 (q04ti-media-1)', bucket: 'q04ti-media-1', allocatedBytes: VAULT_CAP, usedBytes: Math.min(totalMediaBytes, VAULT_CAP) },
-              { id: 'media2', name: 'Pool 2 (q04ti-media-2)', bucket: 'q04ti-media-2', allocatedBytes: VAULT_CAP, usedBytes: Math.min(Math.max(0, totalMediaBytes - VAULT_CAP), VAULT_CAP) },
-              { id: 'journal', name: 'Vault 3 (q04ti-blog)', bucket: 'q04ti-blog', allocatedBytes: VAULT_CAP, usedBytes: Math.max(0, totalMediaBytes - (VAULT_CAP * 2)) }
-            ]
-          },
-          supabase: {
-            totalAllocatedBytes: SUPA_TOTAL,
-            usedBytes: dbBytes,
-            percentUsed: Number(((dbBytes / SUPA_TOTAL) * 100).toFixed(2)),
-            breakdown: {
-              entriesCount: postsList.length,
-              entriesBytes: entriesTextBytes,
-              commentsCount: (fetchedComments || []).length,
-              commentsBytes: commentsTextBytes,
-              mediaRowsCount: mRows.length
-            }
+          let entriesTextBytes = 0;
+          for (const e of postsList) {
+            entriesTextBytes += (e.title || '').length + (e.content || '').length + (e.excerpt || '').length;
           }
-        };
+          const commentsTextBytes = (fetchedComments || []).reduce((sum, c) => sum + (c.content || '').length + (c.author_name || '').length, 0);
+          const dbBytes = entriesTextBytes + commentsTextBytes + (mRows.length * 160) + (postsList.length * 240);
+
+          resolvedStorage = {
+            b2: {
+              totalAllocatedBytes: B2_TOTAL,
+              usedBytes: totalMediaBytes,
+              percentUsed: Number(((totalMediaBytes / B2_TOTAL) * 100).toFixed(2)),
+              fileCount: mRows.length,
+              vaults: [
+                { id: 'media1', name: 'Pool 1 (q04ti-media-1)', bucket: 'q04ti-media-1', allocatedBytes: VAULT_CAP, usedBytes: Math.min(totalMediaBytes, VAULT_CAP) },
+                { id: 'media2', name: 'Pool 2 (q04ti-media-2)', bucket: 'q04ti-media-2', allocatedBytes: VAULT_CAP, usedBytes: Math.min(Math.max(0, totalMediaBytes - VAULT_CAP), VAULT_CAP) },
+                { id: 'journal', name: 'Vault 3 (q04ti-blog)', bucket: 'q04ti-blog', allocatedBytes: VAULT_CAP, usedBytes: Math.max(0, totalMediaBytes - (VAULT_CAP * 2)) }
+              ]
+            },
+            supabase: {
+              totalAllocatedBytes: SUPA_TOTAL,
+              usedBytes: dbBytes,
+              percentUsed: Number(((dbBytes / SUPA_TOTAL) * 100).toFixed(2)),
+              breakdown: {
+                entriesCount: postsList.length,
+                entriesBytes: entriesTextBytes,
+                commentsCount: (fetchedComments || []).length,
+                commentsBytes: commentsTextBytes,
+                mediaRowsCount: mRows.length
+              }
+            }
+          };
+        }
       } catch {}
+    }
+
+    // Apply: on total failure (every source down) the last-good state and
+    // persisted cache are left untouched, so a failed refresh never wipes
+    // the dashboard to an empty list. A manual refresh that fails outright
+    // gets an error toast instead of the success toast.
+    const statsOk = statsRes.status === 'fulfilled' && statsRes.value && typeof statsRes.value === 'object' && !Array.isArray(statsRes.value);
+    const storageOk = storageRes.status === 'fulfilled' && Boolean(storageRes.value?.b2);
+    const anySourceOk = postsSourceOk || statsOk || commentsOk || npOk || storageOk || Boolean(resolvedStorage);
+
+    if (!anySourceOk) {
+      setLoadError(true);
+      setLoading(false);
+      setRefreshing(false);
+      if (isManual) {
+        toastError('Could not refresh — showing the last saved data.');
+      }
+      return;
+    }
+
+    setLoadError(false);
+
+    if (postsSourceOk) {
+      setEntries(processedPosts);
+    }
+
+    if (statsOk || postsSourceOk) {
+      setStats(currentStats);
+    }
+
+    if (commentsOk) {
+      setComments(fetchedComments);
+    }
+
+    if (npOk) {
+      setShowOnHome(npRes.value.showOnHome);
+      setNpLoaded(true);
     }
 
     if (resolvedStorage) {
       setStorageData(resolvedStorage);
     }
 
+    // Persist per source: a failed source keeps its last-good cached value
+    // instead of being overwritten with an empty/zeroed one.
+    const prevCache = getPersistedCache();
     setPersistedCache({
-      entries: postsList,
-      stats: currentStats,
-      comments: fetchedComments,
-      storage: resolvedStorage
+      entries: postsSourceOk ? postsList : (prevCache.entries ?? entriesRef.current),
+      stats: (statsOk || postsSourceOk) ? currentStats : (prevCache.stats ?? null),
+      comments: commentsOk ? fetchedComments : (prevCache.comments ?? commentsRef.current),
+      storage: resolvedStorage || prevCache.storage || null
     });
 
     setLoading(false);
@@ -253,7 +293,7 @@ export default function Dashboard() {
     if (isManual) {
       toastSuccess('Refreshed just now');
     }
-  }, [token, toastSuccess]);
+  }, [token, toastSuccess, toastError]);
 
   useEffect(() => {
     loadData();
@@ -327,12 +367,17 @@ export default function Dashboard() {
         return updated;
       });
     } else {
-      alert('Failed to delete entry.');
+      toastError('Failed to delete entry.');
     }
   };
 
   const handleDeleteComment = async (commentId) => {
-    if (!window.confirm('Permanently delete this reader comment?')) return;
+    const ok = await confirm({
+      title: 'Delete Comment',
+      message: 'Permanently delete this reader comment?',
+      confirmLabel: 'Delete'
+    });
+    if (!ok) return;
     setDeletingCommentId(commentId);
     let deleted = false;
 
@@ -363,7 +408,7 @@ export default function Dashboard() {
         return updated;
       });
     } else {
-      alert('Failed deleting comment.');
+      toastError('Failed deleting comment.');
     }
     setDeletingCommentId(null);
   };
@@ -638,7 +683,9 @@ export default function Dashboard() {
               className="w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none"
               style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
             />
+            <label htmlFor="dashboard-search" className="sr-only">Search entries or comments</label>
             <input
+              id="dashboard-search"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -651,7 +698,9 @@ export default function Dashboard() {
           {/* Sort Dropdown (Right) */}
           {filter !== 'comments' && (
             <div className="relative w-36 sm:w-40 shrink-0">
+              <label htmlFor="dashboard-sort" className="sr-only">Sort entries</label>
               <select
+                id="dashboard-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 style={{
@@ -679,6 +728,11 @@ export default function Dashboard() {
 
       {/* Entries & Comments Container */}
       <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--card-bg)]">
+        {!loading && loadError && (
+          <div className="p-3 border-b border-[var(--border-subtle)] bg-[var(--code-bg)] text-xs font-sans text-[var(--text-primary)]">
+            Couldn&apos;t load the latest data — showing the last saved entries. Try Refresh.
+          </div>
+        )}
         {loading ? (
           <div className="p-4">
             <FeedSkeleton type="table" count={5} />
@@ -730,7 +784,7 @@ export default function Dashboard() {
           )
         ) : filteredAndSortedEntries.length === 0 ? (
           <div className="p-8 text-center text-xs font-sans text-[var(--text-muted)]">
-            No entries found.
+            {loadError ? 'Could not load entries — showing the last saved data. Try Refresh.' : 'No entries found.'}
           </div>
         ) : (
           <>
@@ -801,6 +855,7 @@ export default function Dashboard() {
                         rel="noopener noreferrer"
                         className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center"
                         title="View Public Entry"
+                        aria-label="View Public Entry"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
@@ -810,6 +865,7 @@ export default function Dashboard() {
                         onClick={() => handleCopyLink(item)}
                         className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center cursor-pointer"
                         title="Copy Shareable Link"
+                        aria-label="Copy Shareable Link"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -819,6 +875,7 @@ export default function Dashboard() {
                         onClick={() => setDeleteTarget(item)}
                         className="quiet-button-secondary py-1 px-2 text-xs flex items-center justify-center text-red-500 hover:text-red-600 cursor-pointer"
                         title="Delete Entry"
+                        aria-label="Delete Entry"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -907,6 +964,7 @@ export default function Dashboard() {
                             rel="noopener noreferrer"
                             className="quiet-button py-1 px-2 text-xs inline-flex items-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                             title="View Entry"
+                            aria-label="View Entry"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>
@@ -916,6 +974,7 @@ export default function Dashboard() {
                             onClick={() => handleCopyLink(item)}
                             className="quiet-button py-1 px-2 text-xs inline-flex items-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
                             title={copiedId === item.id ? "Link copied to clipboard!" : "Copy Shareable Link"}
+                            aria-label={copiedId === item.id ? "Link copied to clipboard!" : "Copy Shareable Link"}
                           >
                             {copiedId === item.id ? (
                               <span className="text-[10px] text-green-500 font-medium">Copied!</span>
@@ -929,6 +988,7 @@ export default function Dashboard() {
                             onClick={() => setDeleteTarget(item)}
                             className="quiet-button py-1 px-2 text-xs inline-flex items-center text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors"
                             title="Delete Entry"
+                            aria-label="Delete Entry"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -948,7 +1008,9 @@ export default function Dashboard() {
                     Showing <span className="font-mono font-medium text-[var(--text-primary)]">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalEntriesCount)}</span> of <span className="font-mono font-medium text-[var(--text-primary)]">{totalEntriesCount}</span> entries
                   </span>
                   <span className="text-[var(--text-muted)]">·</span>
+                  <label htmlFor="dashboard-page-size" className="sr-only">Entries per page</label>
                   <select
+                    id="dashboard-page-size"
                     value={pageSize}
                     onChange={(e) => setPageSize(Number(e.target.value))}
                     className="quiet-input text-[11px] py-0.5 px-1.5 font-mono cursor-pointer bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded"
@@ -995,6 +1057,7 @@ export default function Dashboard() {
       </div>
 
       {/* Delete Confirmation Modal using Portal */}
+      {confirmDialog}
       <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirm Deletion">
         <div className="flex flex-col space-y-4">
           <h3 className="text-lg font-serif font-medium text-[var(--text-primary)]">Confirm Deletion</h3>

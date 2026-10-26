@@ -6,6 +6,8 @@ import { supabase, invalidateFeedCache } from '../../supabase';
 import { publishRealtimeUpdate } from '../../utils/realtime';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
+import ProgressiveImage from '../../components/ProgressiveImage';
+import { usePrompt } from '../../components/ConfirmModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
@@ -128,6 +130,8 @@ export default function Editor() {
   // never rewrite the markdown string byte-for-byte.
   const visualEditedRef = React.useRef(false);
   const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [prompt, promptDialog] = usePrompt();
   const [saving, setSaving] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -317,6 +321,7 @@ export default function Editor() {
           }
         } else if (!initialEntry) {
           toastError('Failed loading entry details.');
+          setLoadFailed(true);
         }
         setLoading(false);
       }
@@ -537,6 +542,13 @@ export default function Editor() {
     e.preventDefault();
     if (isSavingRef.current || saving) return;
 
+    // A failed load leaves a blank new-entry form: never save from it, or
+    // the real entry would be overwritten with empty content.
+    if (loadFailed) {
+      toastError('This entry could not be loaded. Go back and try again.');
+      return;
+    }
+
     // Layer A: Dirty Tracking & Byte-for-byte Unmodified Saves
     let contentToSave = formData.content;
     if (id && !dirtyRef.current && originalContentRef.current !== undefined) {
@@ -743,6 +755,25 @@ export default function Editor() {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <div className="notebook-container py-16 text-center">
+        <h1 className="text-xl font-serif font-medium mb-2">Could not load this entry</h1>
+        <p className="text-sm font-sans text-[var(--text-muted)] mb-6">
+          The entry failed to load, so the editor was left empty rather than risk overwriting it with blank content.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/admin')}
+          className="quiet-button text-xs inline-flex items-center gap-1.5 cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Dashboard</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="wide-container pb-24">
       {/* Media Picker Modal */}
@@ -751,6 +782,7 @@ export default function Editor() {
         onClose={() => setShowMediaPicker(false)}
         onSelectMedia={handleSelectMedia}
       />
+      {promptDialog}
 
       {/* Top action bar */}
       <div className="sticky top-0 z-40 bg-[var(--bg-main)] flex flex-col sm:flex-row justify-between items-stretch sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
@@ -762,6 +794,7 @@ export default function Editor() {
               onClick={() => navigate('/admin')}
               className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0 cursor-pointer"
               title="Back to Admin"
+              aria-label="Back to Admin"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -1007,7 +1040,12 @@ export default function Editor() {
               )
             );
             return formData.cover_image && !contentHasImage ? (
-              <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-6 max-h-[400px] object-cover" />
+              <ProgressiveImage
+                src={resolveMediaUrl(formData.cover_image)}
+                alt=""
+                loading="eager"
+                className="w-full rounded mb-6 max-h-[400px]"
+              />
             ) : null;
           })()}
           <RichViewer content={formData.content} />
@@ -1025,11 +1063,12 @@ export default function Editor() {
           <div className={mode === 'split' ? "space-y-6" : "lg:col-span-2 space-y-6"}>
             {/* Title */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-title" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Title {formData.type === 'update' && '(Optional for Updates)'}
               </label>
               <input
                 type="text"
+                id="entry-title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
@@ -1062,13 +1101,14 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleHeading({ level: 2 }).run();
+                    visualEditorRef.current.commands?.toggleHeading({ level: 2 });
                   } else {
                     insertFormatting('## ');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 2"
+                aria-label="Heading 2"
               >
                 <Heading2 className="w-4 h-4" />
               </button>
@@ -1077,31 +1117,33 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleHeading({ level: 3 }).run();
+                    visualEditorRef.current.commands?.toggleHeading({ level: 3 });
                   } else {
                     insertFormatting('### ');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Heading 3"
+                aria-label="Heading 3"
               >
                 <Heading3 className="w-4 h-4" />
               </button>
 
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1 shrink-0" />
 
               <button
                 type="button"
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleBold().run();
+                    visualEditorRef.current.commands?.toggleBold();
                   } else {
                     insertFormatting('**', '**');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Bold"
+                aria-label="Bold"
               >
                 <Bold className="w-4 h-4" />
               </button>
@@ -1110,13 +1152,14 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleItalic().run();
+                    visualEditorRef.current.commands?.toggleItalic();
                   } else {
                     insertFormatting('*', '*');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Italic"
+                aria-label="Italic"
               >
                 <Italic className="w-4 h-4" />
               </button>
@@ -1125,13 +1168,14 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleBlockquote().run();
+                    visualEditorRef.current.commands?.toggleBlockquote();
                   } else {
                     insertFormatting('> ');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Blockquote"
+                aria-label="Blockquote"
               >
                 <Quote className="w-4 h-4" />
               </button>
@@ -1140,27 +1184,34 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.toggleCodeBlock().run();
+                    visualEditorRef.current.commands?.toggleCodeBlock();
                   } else {
                     insertFormatting('```javascript\n', '\n```');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Code Block"
+                aria-label="Code Block"
               >
                 <Code className="w-4 h-4" />
               </button>
 
-              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1" />
+              <span className="h-4 w-[1px] bg-[var(--border-subtle)] mx-1 shrink-0" />
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    const url = typeof window !== 'undefined' ? window.prompt('Enter link URL (https://...):') : null;
+                    const url = await prompt({
+                      title: 'Add link',
+                      label: 'Link URL',
+                      placeholder: 'https://...',
+                      initialValue: '',
+                      confirmLabel: 'Add Link'
+                    });
                     if (url) {
-                      visualEditorRef.current.commands?.setLink({ href: url }).run();
+                      visualEditorRef.current.commands?.setLink({ href: url });
                     }
                   } else {
                     insertFormatting('[', '](https://example.com)');
@@ -1168,6 +1219,7 @@ export default function Editor() {
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                 title="Link"
+                aria-label="Link"
               >
                 <LinkIcon className="w-4 h-4" />
               </button>
@@ -1195,6 +1247,7 @@ export default function Editor() {
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1 shrink-0 whitespace-nowrap"
                 title="Insert Photo/GIF/Video"
+                aria-label="Insert Photo/GIF/Video"
               >
                 <ImageIcon className="w-4 h-4" />
                 <span className="text-[11px] whitespace-nowrap">Add Media</span>
@@ -1214,6 +1267,7 @@ export default function Editor() {
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Embed YouTube Video"
+                aria-label="Embed YouTube Video"
               >
                 <Video className="w-4 h-4" />
               </button>
@@ -1226,13 +1280,14 @@ export default function Editor() {
                     visualEditorRef.current.commands?.insertContent({
                       type: 'mediaGrid',
                       content: [{ type: 'paragraph' }]
-                    }).run();
+                    });
                   } else {
                     insertFormatting('\n[grid]\n', '\n[/grid]\n');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded text-[var(--accent-warm)] font-medium flex items-center gap-1 shrink-0 whitespace-nowrap"
                 title="Insert 2-column Media Grid for side-by-side images"
+                aria-label="Insert 2-column Media Grid for side-by-side images"
               >
                 <Columns className="w-4 h-4" />
                 <span className="hidden xl:inline text-[11px] whitespace-nowrap">Grid</span>
@@ -1247,13 +1302,14 @@ export default function Editor() {
                       type: 'editorialWrap',
                       attrs: { align: 'left', width: '45%' },
                       content: [{ type: 'paragraph' }]
-                    }).run();
+                    });
                   } else {
                     applyImageWrap('left');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
                 title="Float image on the left and wrap text around it"
+                aria-label="Float image on the left and wrap text around it"
               >
                 <AlignLeft className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Left</span>
@@ -1268,13 +1324,14 @@ export default function Editor() {
                       type: 'editorialWrap',
                       attrs: { align: 'right', width: '45%' },
                       content: [{ type: 'paragraph' }]
-                    }).run();
+                    });
                   } else {
                     applyImageWrap('right');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 font-medium cursor-pointer shrink-0 whitespace-nowrap"
                 title="Float image on the right and wrap text around it"
+                aria-label="Float image on the right and wrap text around it"
               >
                 <AlignRight className="w-4 h-4 text-[var(--accent-warm)]" />
                 <span className="hidden xl:inline text-[11px] whitespace-nowrap">Wrap Right</span>
@@ -1285,13 +1342,14 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.insertContent({ type: 'editorialClear' }).run();
+                    visualEditorRef.current.commands?.insertContent({ type: 'editorialClear' });
                   } else {
                     insertFormatting('\n[clear]\n');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer shrink-0 whitespace-nowrap"
                 title="End floating wrap and resume full-width text"
+                aria-label="End floating wrap and resume full-width text"
               >
                 <span className="text-[11px] font-sans px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 whitespace-nowrap font-medium">Clear Float</span>
               </button>
@@ -1301,13 +1359,14 @@ export default function Editor() {
                 onClick={() => {
                   dirtyRef.current = true;
                   if (mode === 'visual' && visualEditorRef.current) {
-                    visualEditorRef.current.commands?.setHorizontalRule().run();
+                    visualEditorRef.current.commands?.setHorizontalRule();
                   } else {
                     insertFormatting('\n---\n');
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"
                 title="Horizontal Rule"
+                aria-label="Horizontal Rule"
               >
                 <Minus className="w-4 h-4" />
               </button>
@@ -1333,7 +1392,7 @@ export default function Editor() {
             {/* Content Body */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+                <label htmlFor="content-textarea" className="block text-xs font-sans uppercase text-[var(--text-muted)]">
                   Body Content ({mode === 'visual' ? 'Visual Block Editor' : 'Markdown'})
                 </label>
                 {mode === 'visual' && (
@@ -1397,10 +1456,11 @@ export default function Editor() {
 
             {/* Type */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-type" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Entry Type
               </label>
               <select
+                id="entry-type"
                 name="type"
                 value={formData.type}
                 onChange={handleChange}
@@ -1415,10 +1475,11 @@ export default function Editor() {
 
             {/* Status */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-status" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Publishing Status
               </label>
               <select
+                id="entry-status"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
@@ -1443,6 +1504,7 @@ export default function Editor() {
                       type="text"
                       readOnly
                       value={getShareableUrl()}
+                      aria-label="Shareable link"
                       className="quiet-input text-[11px] font-mono py-1 px-2 flex-1 select-all bg-[var(--bg-main)]"
                     />
                     <button
@@ -1460,6 +1522,7 @@ export default function Editor() {
                         rel="noopener noreferrer"
                         className="quiet-button-secondary text-xs py-1 px-2 flex items-center cursor-pointer shrink-0"
                         title="Open direct link"
+                        aria-label="Open direct link"
                       >
                         <ExternalLink className="w-3 h-3" />
                       </a>
@@ -1488,12 +1551,13 @@ export default function Editor() {
 
             {/* Location */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-location" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Location</span>
               </label>
               <input
                 type="text"
+                id="entry-location"
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
@@ -1504,12 +1568,13 @@ export default function Editor() {
 
             {/* Weather */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-weather" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <Cloud className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Weather</span>
               </label>
               <input
                 type="text"
+                id="entry-weather"
                 name="weather"
                 value={formData.weather}
                 onChange={handleChange}
@@ -1520,12 +1585,13 @@ export default function Editor() {
 
             {/* Mood */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-mood" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <Smile className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Mood</span>
               </label>
               <input
                 type="text"
+                id="entry-mood"
                 name="mood"
                 value={formData.mood}
                 onChange={handleChange}
@@ -1536,7 +1602,7 @@ export default function Editor() {
 
             {/* Passcode Protection */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
+              <label htmlFor="entry-passcode" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1">
                   <Lock className="w-3 h-3 text-[var(--accent-warm)]" />
                   <span>Passcode Lock (Optional)</span>
@@ -1547,6 +1613,7 @@ export default function Editor() {
               </label>
               <input
                 type="password"
+                id="entry-passcode"
                 name="passcode"
                 value={formData.passcode}
                 onChange={(e) => {
@@ -1586,11 +1653,12 @@ export default function Editor() {
 
             {/* Date */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-date" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Entry Date
               </label>
               <input
                 type="datetime-local"
+                id="entry-date"
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
@@ -1601,7 +1669,7 @@ export default function Editor() {
             {/* Slug */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-sans uppercase text-[var(--text-muted)]">
+                <label htmlFor="entry-slug" className="block text-xs font-sans uppercase text-[var(--text-muted)]">
                   URL Slug
                 </label>
                 <button
@@ -1620,6 +1688,7 @@ export default function Editor() {
               </div>
               <input
                 type="text"
+                id="entry-slug"
                 name="slug"
                 value={formData.slug}
                 onChange={handleChange}
@@ -1635,11 +1704,12 @@ export default function Editor() {
 
             {/* Category */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-category" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Category
               </label>
               <input
                 type="text"
+                id="entry-category"
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
@@ -1650,11 +1720,12 @@ export default function Editor() {
 
             {/* Tags */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-tags" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Tags (comma separated)
               </label>
               <input
                 type="text"
+                id="entry-tags"
                 name="tags"
                 value={formData.tags}
                 onChange={handleChange}
@@ -1666,11 +1737,12 @@ export default function Editor() {
             {/* Cover Image URL - Only for Photo entries */}
             {formData.type === 'photo' && (
               <div>
-                <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+                <label htmlFor="entry-cover-image" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                   Photo / Cover Image URL
                 </label>
                 <input
                   type="text"
+                  id="entry-cover-image"
                   name="cover_image"
                   value={formData.cover_image}
                   onChange={handleChange}
@@ -1682,10 +1754,11 @@ export default function Editor() {
 
             {/* Excerpt */}
             <div>
-              <label className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
+              <label htmlFor="entry-excerpt" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1">
                 Short Excerpt
               </label>
               <textarea
+                id="entry-excerpt"
                 name="excerpt"
                 rows={3}
                 value={formData.excerpt}
@@ -1713,7 +1786,12 @@ export default function Editor() {
                   )
                 );
                 return formData.cover_image && !contentHasImage ? (
-                  <img src={resolveMediaUrl(formData.cover_image)} alt="" className="w-full h-auto rounded mb-4 max-h-[300px] object-cover" />
+                  <ProgressiveImage
+                    src={resolveMediaUrl(formData.cover_image)}
+                    alt=""
+                    loading="eager"
+                    className="w-full rounded mb-4 max-h-[300px]"
+                  />
                 ) : null;
               })()}
               <RichViewer content={formData.content} />
