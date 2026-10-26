@@ -189,32 +189,39 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
     }
   }
 
-  // Cross-device broadcast: Persist to Supabase and send over Realtime channel
+  // Cross-device broadcast: persist to Supabase and send over the Realtime
+  // channel. Returns a promise settling when both finish — it NEVER
+  // rejects, so a failed broadcast can't fail the caller's save. Callers
+  // that need the broadcast to land (PUT / POST /api/posts) await it with
+  // a short timeout; everyone else keeps the old fire-and-forget call.
   const clientToUse = supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
-  if (clientToUse && typeof clientToUse.from === 'function') {
+  if (!clientToUse || typeof clientToUse.from !== 'function') return Promise.resolve();
+  const upsertPromise = (async () => {
     try {
-      clientToUse.from('realtime_sync').upsert({
+      await clientToUse.from('realtime_sync').upsert({
         id: 'latest',
         version: realtimeVersion,
         event,
         payload: data,
         updated_at: new Date().toISOString()
-      }).then(() => {}).catch(() => {});
+      });
     } catch {}
-
+  })();
+  const sendPromise = (async () => {
     try {
       if (typeof clientToUse.channel === 'function') {
         const channel = clientToUse.channel('blog-live-sync', {
           config: { broadcast: { self: false }, private: false }
         });
-        channel.send({
+        await channel.send({
           type: 'broadcast',
           event: 'sync',
           payload
-        }).catch(() => {});
+        });
       }
     } catch {}
-  }
+  })();
+  return Promise.allSettled([upsertPromise, sendPromise]);
 }
 
 // GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
@@ -261,6 +268,14 @@ app.get('/api/sync-check', async (req, res) => {
   let currentVer = realtimeVersion;
   let eventType = null;
   let settingsPayload = null;
+  // Entry version for entry_created/entry_updated/entry_deleted: the
+  // changed entry's updated_at + slug (+ id). Only these three whitelisted
+  // fields leave the server — the full broadcast payload stays private
+  // (see the HIGH-3 comment below). All three are already public via
+  // GET /api/posts, so returning them leaks nothing new.
+  let entryUpdatedAt = null;
+  let entrySlug = null;
+  let entryId = null;
 
   try {
     const client = getSupabaseClient(req);
@@ -268,13 +283,43 @@ app.get('/api/sync-check', async (req, res) => {
     // 1. Try reading latest event & version from realtime_sync
     const { data: syncRow } = await client
       .from('realtime_sync')
-      .select('version, updated_at, event')
+      .select('version, updated_at, event, payload')
       .eq('id', 'latest')
       .maybeSingle();
 
     if (syncRow && syncRow.version) {
       currentVer = Math.max(currentVer, Number(syncRow.version) || 0);
       eventType = syncRow.event;
+      if (eventType === 'entry_created' || eventType === 'entry_updated' || eventType === 'entry_deleted') {
+        let stored = syncRow.payload;
+        if (typeof stored === 'string') {
+          try { stored = JSON.parse(stored); } catch { stored = null; }
+        }
+        if (stored && typeof stored === 'object') {
+          entryUpdatedAt = stored.updated_at || null;
+          entrySlug = stored.slug || null;
+          entryId = stored.id || null;
+        }
+        // The broadcast payload is the source of truth, but if it lacks
+        // the version (e.g. an older broadcast), fall back to the latest
+        // published entry — never for deletes, whose row is gone and
+        // whose slug must not be guessed from another entry.
+        if (eventType !== 'entry_deleted' && (!entryUpdatedAt || !entrySlug)) {
+          try {
+            const { data: latestEntry } = await client
+              .from('public_published_entries')
+              .select('id, slug, updated_at')
+              .order('updated_at', { ascending: false })
+              .limit(1);
+            const row = latestEntry && latestEntry[0];
+            if (row) {
+              if (!entryUpdatedAt && row.updated_at) entryUpdatedAt = row.updated_at;
+              if (!entrySlug && row.slug) entrySlug = row.slug;
+              if (!entryId && row.id) entryId = row.id;
+            }
+          } catch {}
+        }
+      }
       // HIGH-3: the 'latest' row's payload is not returned (it can carry
       // arbitrary mutation data). Settings events are the exception: open
       // pages need the new values to converge without a refresh, so for
@@ -309,6 +354,9 @@ app.get('/api/sync-check', async (req, res) => {
     status: 'ok',
     version: currentVer,
     event: eventType,
+    ...(entryUpdatedAt ? { updated_at: entryUpdatedAt } : {}),
+    ...(entrySlug ? { slug: entrySlug } : {}),
+    ...(entryId ? { id: entryId } : {}),
     ...(settingsPayload ? { payload: settingsPayload } : {}),
     timestamp: new Date().toISOString()
   });
@@ -1265,17 +1313,24 @@ app.post('/api/posts', async (req, res) => {
 
     if (error) throw error;
 
-    broadcastRealtimeEvent('entry_created', {
-      op: 'INSERT',
-      id: data.id,
-      slug: data.slug,
-      title: data.title,
-      updated_at: data.updated_at,
-      // NOTE: this must NOT be named `type` — the client dispatcher reads
-      // payload.type as the event type, so a content type here ('journal')
-      // would make the event unreadable. See broadcastRealtimeEvent.
-      entryType: isPhotoPost ? 'photo' : data.type
-    });
+    // Wait for the cross-device broadcast to land (bounded at 1.5s): the
+    // save's response must not go out before the upsert other devices poll
+    // for, but a slow broadcast must never hold the save hostage — on
+    // timeout the save still succeeds.
+    await Promise.race([
+      broadcastRealtimeEvent('entry_created', {
+        op: 'INSERT',
+        id: data.id,
+        slug: data.slug,
+        title: data.title,
+        updated_at: data.updated_at,
+        // NOTE: this must NOT be named `type` — the client dispatcher reads
+        // payload.type as the event type, so a content type here ('journal')
+        // would make the event unreadable. See broadcastRealtimeEvent.
+        entryType: isPhotoPost ? 'photo' : data.type
+      }),
+      new Promise(resolve => setTimeout(resolve, 1500))
+    ]);
 
     res.status(201).json(data);
   } catch (err) {
@@ -1575,18 +1630,25 @@ app.put('/api/posts/:id', async (req, res) => {
 
     if (error) throw error;
 
-    broadcastRealtimeEvent('entry_updated', {
-      op: 'UPDATE',
-      id: data.id,
-      slug: data.slug,
-      title: data.title,
-      status: data.status,
-      updated_at: data.updated_at,
-      // NOTE: this must NOT be named `type` — the client dispatcher reads
-      // payload.type as the event type, so a content type here ('journal')
-      // would make the event unreadable. See broadcastRealtimeEvent.
-      entryType: isPhotoPost ? 'photo' : data.type
-    });
+    // Wait for the cross-device broadcast to land (bounded at 1.5s): the
+    // save's response must not go out before the upsert other devices poll
+    // for, but a slow broadcast must never hold the save hostage — on
+    // timeout the save still succeeds.
+    await Promise.race([
+      broadcastRealtimeEvent('entry_updated', {
+        op: 'UPDATE',
+        id: data.id,
+        slug: data.slug,
+        title: data.title,
+        status: data.status,
+        updated_at: data.updated_at,
+        // NOTE: this must NOT be named `type` — the client dispatcher reads
+        // payload.type as the event type, so a content type here ('journal')
+        // would make the event unreadable. See broadcastRealtimeEvent.
+        entryType: isPhotoPost ? 'photo' : data.type
+      }),
+      new Promise(resolve => setTimeout(resolve, 1500))
+    ]);
 
     res.json(data);
   } catch (err) {
