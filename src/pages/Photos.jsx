@@ -16,7 +16,7 @@ export default function Photos() {
     description: 'Visual journal, moments & Backblaze film archives.'
   });
 
-  const { displayedEntries: photos, loading, refetch } = useFeedData({
+  const { displayedEntries: photos, loading, error, stale, refreshing, refetch } = useFeedData({
     type: 'photo',
     pageSize: 12
   });
@@ -89,16 +89,32 @@ export default function Photos() {
           as="h1"
           className="font-serif text-3xl sm:text-4xl tracking-tight text-[var(--text-primary)] font-normal"
         />
-        <TypewriterText
-          text={`Visual journal, moments & Backblaze film archives (${photos.length} captures)`}
-          as="p"
-          className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1"
-        />
+        <p className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1">
+          <TypewriterText
+            text="Visual journal, moments & Backblaze film archives"
+            as="span"
+          />
+          {!loading && ` (${photos.length} captures)`}
+        </p>
       </div>
 
       {/* Loading Skeleton */}
       {loading ? (
         <FeedSkeleton type="photo" count={6} />
+      ) : error ? (
+        <div className="py-16 text-center">
+          <p className="font-serif text-lg text-[var(--text-primary)]">Couldn&apos;t load the photos.</p>
+          <p className="font-sans text-xs text-[var(--text-muted)] mt-1 mb-4">
+            Check your connection and try again.
+          </p>
+          <button
+            onClick={refetch}
+            disabled={refreshing}
+            className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+          >
+            {refreshing ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
       ) : photos.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-[var(--border-subtle)] rounded-lg">
           <ImageIcon className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3 opacity-50" />
@@ -108,7 +124,20 @@ export default function Photos() {
           </p>
         </div>
       ) : (
-        /* GRID VIEW (3-column Instagram style) */
+        <>
+        {stale && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-xs font-sans text-[var(--text-muted)]">
+            <span>Showing a saved copy — it may be out of date.</span>
+            <button
+              onClick={refetch}
+              disabled={refreshing}
+              className="underline hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              {refreshing ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        )}
+        {/* GRID VIEW (3-column Instagram style) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">
           {photos.map((item, idx) => {
             const imgSrc = getPhotoSrc(item);
@@ -148,6 +177,7 @@ export default function Photos() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* FULLSCREEN LIGHTBOX MODAL */}

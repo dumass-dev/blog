@@ -39,7 +39,7 @@ export default function Updates() {
     description: 'Lightweight micro-stream of notes, moments, and daily thoughts.'
   });
 
-  const { displayedEntries: updates, loading, entries, hasMore, loadMore } = useFeedData({
+  const { displayedEntries: updates, loading, error, stale, refreshing, entries, hasMore, loadMore, refetch } = useFeedData({
     type: 'update',
     pageSize: 10
   });
@@ -63,11 +63,36 @@ export default function Updates() {
 
       {loading ? (
         <FeedSkeleton type="update" count={4} />
+      ) : error ? (
+        <div className="py-12 text-center">
+          <p className="text-sm font-sans text-[var(--text-primary)]">Couldn&apos;t load the updates.</p>
+          <p className="text-xs font-sans text-[var(--text-muted)] mt-1 mb-4">Check your connection and try again.</p>
+          <button
+            onClick={refetch}
+            disabled={refreshing}
+            className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+          >
+            {refreshing ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
       ) : entries.length === 0 ? (
         <div className="py-12 text-center text-sm font-sans text-[var(--text-muted)]">
           No updates posted yet.
         </div>
       ) : (
+        <>
+        {stale && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-xs font-sans text-[var(--text-muted)]">
+            <span>Showing a saved copy — it may be out of date.</span>
+            <button
+              onClick={refetch}
+              disabled={refreshing}
+              className="underline hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              {refreshing ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        )}
         <div className="space-y-8 sm:space-y-12">
           {updates.map((item, idx) => {
             const itemDate = formatUpdateTimestamp(item.date);
@@ -137,6 +162,7 @@ export default function Updates() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

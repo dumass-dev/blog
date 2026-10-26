@@ -49,10 +49,6 @@ export function subscribeToRealtimeStatus(listener) {
   return () => statusListeners.delete(listener);
 }
 
-export function getRealtimeStatus() {
-  return isConnected;
-}
-
 /**
  * Main event dispatcher for any realtime mutation
  */

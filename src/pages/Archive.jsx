@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { fetchPublishedEntries, getCachedFeed } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, getLastFeedFetchFailed } from '../supabase';
 import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import { stripMarkdown } from '../utils/excerpt';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -53,22 +53,53 @@ export default function Archive() {
   const [searchResults, setSearchResults] = useState(() => (Array.isArray(cached) ? cached : []));
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(() => !cached || cached.length === 0);
+  const [loadError, setLoadError] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // fetchPublishedEntries never throws: it falls back to Supabase, then to
+  // the saved cache. The failure flag tells a failed refresh (show an
+  // error / a "saved copy" notice) from a genuinely empty archive.
+  const loadArchive = useCallback(async () => {
+    const posts = await fetchPublishedEntries();
+    if (!mountedRef.current) return;
+
+    const failed = getLastFeedFetchFailed();
+    const list = Array.isArray(posts) ? posts : [];
+    setAllPosts(list);
+    setArchiveTree(buildTree(list));
+    setLoading(false);
+    setRefreshing(false);
+    if (failed) {
+      if (list.length === 0) {
+        setLoadError(true);
+        setStale(false);
+      } else {
+        setLoadError(false);
+        setStale(true);
+      }
+    } else {
+      setLoadError(false);
+      setStale(false);
+    }
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setLoadError(false);
+    setRefreshing(true);
+    loadArchive();
+  }, [loadArchive]);
 
   // Load the full entry list ONCE (and again only when the feed is invalidated).
   // Search / year-month filtering below is purely local — typing in the search
   // box must not refetch the whole list on every keystroke.
   useEffect(() => {
-    let isMounted = true;
-    const loadArchive = async () => {
-      const posts = await fetchPublishedEntries();
-      if (!isMounted) return;
-
-      const list = Array.isArray(posts) ? posts : [];
-      setAllPosts(list);
-      setArchiveTree(buildTree(list));
-      setLoading(false);
-    };
-
     loadArchive();
 
     const handleInvalidate = () => {
@@ -77,10 +108,9 @@ export default function Archive() {
     window.addEventListener('feed-data-invalidated', handleInvalidate);
 
     return () => {
-      isMounted = false;
       window.removeEventListener('feed-data-invalidated', handleInvalidate);
     };
-  }, []);
+  }, [loadArchive]);
 
   // Local filter: search query / year-month selection over the loaded list
   useEffect(() => {
@@ -160,6 +190,20 @@ export default function Archive() {
         </form>
       </header>
 
+      {/* Saved-copy notice: the list on screen came from cache because the live refresh failed */}
+      {stale && !loading && (
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-2 text-xs font-sans text-[var(--text-muted)]">
+          <span>Showing a saved copy — it may be out of date.</span>
+          <button
+            onClick={handleRetry}
+            disabled={refreshing}
+            className="underline hover:text-[var(--text-primary)] cursor-pointer"
+          >
+            {refreshing ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* Active Filter Title */}
       {(searchQuery || (activeYear && activeMonth)) && (
         <div className="mb-8 p-3 rounded border border-[var(--border-subtle)] text-xs font-sans flex justify-between items-center">
@@ -181,6 +225,18 @@ export default function Archive() {
         <div className="space-y-6">
           {loading ? (
             <FeedSkeleton type="archive" />
+          ) : loadError ? (
+            <div className="py-8 text-center">
+              <p className="text-sm font-sans text-[var(--text-primary)]">Couldn&apos;t load the archive.</p>
+              <p className="text-xs font-sans text-[var(--text-muted)] mt-1 mb-4">Check your connection and try again.</p>
+              <button
+                onClick={handleRetry}
+                disabled={refreshing}
+                className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+              >
+                {refreshing ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
           ) : searchResults.length === 0 ? (
             <div className="py-8 text-center text-sm font-sans text-[var(--text-muted)]">
               No entries found matching your criteria.
@@ -207,7 +263,21 @@ export default function Archive() {
       ) : (
         /* Standard Archive Year/Month Tree */
         <div className="space-y-10">
-          {Object.keys(archiveTree).length === 0 ? (
+          {loading ? (
+            <FeedSkeleton type="archive" />
+          ) : loadError ? (
+            <div className="py-8 text-center">
+              <p className="text-sm font-sans text-[var(--text-primary)]">Couldn&apos;t load the archive.</p>
+              <p className="text-xs font-sans text-[var(--text-muted)] mt-1 mb-4">Check your connection and try again.</p>
+              <button
+                onClick={handleRetry}
+                disabled={refreshing}
+                className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+              >
+                {refreshing ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          ) : Object.keys(archiveTree).length === 0 ? (
             <div className="py-8 text-center text-sm font-sans text-[var(--text-muted)]">
               Archive is empty.
             </div>

@@ -393,6 +393,7 @@ html:not(.theme-ready) *::after {
 .col-span-3 { grid-column: span 3 / span 3; }
 
 .w-full { width: 100%; }
+.w-\[1px\] { width: 1px; }
 .w-2\.5 { width: 0.625rem; }
 .w-3 { width: 0.75rem; }
 .w-3\.5 { width: 0.875rem; }
@@ -455,6 +456,9 @@ html:not(.theme-ready) *::after {
 
 .font-normal { font-weight: 400; }
 .font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.line-through { text-decoration: line-through; }
+.lowercase { text-transform: lowercase; }
 .italic { font-style: italic; }
 .uppercase { text-transform: uppercase; }
 .capitalize { text-transform: capitalize; }
@@ -486,7 +490,12 @@ html:not(.theme-ready) *::after {
 .border-l-0 { border-left: 0; }
 .border-dashed { border-style: dashed; }
 .border-\[var\(--border-subtle\)\] { border-color: var(--border-subtle); }
+.border-\[var\(--border-subtle\)\]\/40 { border-color: color-mix(in srgb, var(--border-subtle) 40%, transparent); }
+.border-\[var\(--border-subtle\)\]\/50 { border-color: color-mix(in srgb, var(--border-subtle) 50%, transparent); }
+.border-\[var\(--border-subtle\)\]\/60 { border-color: color-mix(in srgb, var(--border-subtle) 60%, transparent); }
+.border-\[var\(--border-subtle\)\]\/70 { border-color: color-mix(in srgb, var(--border-subtle) 70%, transparent); }
 .border-\[var\(--text-primary\)\] { border-color: var(--text-primary); }
+.border-t-\[var\(--accent-warm\)\] { border-top-color: var(--accent-warm); }
 
 .rounded { border-radius: 4px; }
 .rounded-lg { border-radius: 8px; }
@@ -495,8 +504,15 @@ html:not(.theme-ready) *::after {
 /* Backgrounds */
 .bg-\[var\(--bg-main\)\] { background-color: var(--bg-main); }
 .bg-\[var\(--card-bg\)\] { background-color: var(--card-bg); }
+.bg-\[var\(--card-bg\)\]\/95 { background-color: color-mix(in srgb, var(--card-bg) 95%, transparent); }
 .bg-\[var\(--code-bg\)\] { background-color: var(--code-bg); }
 .bg-\[var\(--text-primary\)\] { background-color: var(--text-primary); }
+.bg-\[var\(--text-muted\)\] { background-color: var(--text-muted); }
+.bg-\[var\(--border-subtle\)\] { background-color: var(--border-subtle); }
+.bg-\[var\(--border-subtle\)\]\/20 { background-color: color-mix(in srgb, var(--border-subtle) 20%, transparent); }
+.bg-\[var\(--border-subtle\)\]\/40 { background-color: color-mix(in srgb, var(--border-subtle) 40%, transparent); }
+.bg-\[var\(--border-subtle\)\]\/60 { background-color: color-mix(in srgb, var(--border-subtle) 60%, transparent); }
+.bg-amber-500\/10 { background-color: rgb(245 158 11 / 0.1); }
 .bg-\[var\(--accent-warm\)\] { background-color: var(--accent-warm) !important; }
 .border-\[var\(--accent-warm\)\] { border-color: var(--accent-warm) !important; }
 .bg-red-600 { background-color: var(--text-primary); }
@@ -561,6 +577,12 @@ html:not(.theme-ready) *::after {
 .hover\:underline:hover { text-decoration: underline; }
 .hover\:border-\[var\(--border-hover\)\]:hover { border-color: var(--border-hover); }
 .hover\:border-\[var\(--accent-warm\)\]:hover { border-color: var(--accent-warm); }
+.hover\:border-\[var\(--text-primary\)\]:hover { border-color: var(--text-primary); }
+.hover\:border-\[var\(--border-subtle\)\]:hover { border-color: var(--border-subtle); }
+.hover\:bg-\[var\(--code-bg\)\]:hover { background-color: var(--code-bg); }
+.hover\:bg-\[var\(--code-bg\)\]\/40:hover { background-color: color-mix(in srgb, var(--code-bg) 40%, transparent); }
+.hover\:bg-\[var\(--code-bg\)\]\/80:hover { background-color: color-mix(in srgb, var(--code-bg) 80%, transparent); }
+.hover\:bg-\[var\(--card-bg\)\]:hover { background-color: var(--card-bg); }
 
 /* Quiet editorial container - Minimal Big Width */
 .notebook-container {
@@ -709,9 +731,11 @@ html {
    .skeleton-shimmer everywhere else on the site — same --code-bg base,
    same gradient band, same 1.6s ease-in-out sweep — recreated as an
    animated background because an <img> cannot host the ::after layer
-   the component version uses. RichViewer tags the img .img-loaded /
-   .img-failed when it settles, which clears the shimmer; a failed
-   image keeps its reserved box with its alt text. */
+   the component version uses. RichViewer tags the img .img-loaded when
+   it settles, which clears the shimmer; a terminally failed image is
+   replaced by RichViewer with a visible fallback box (image-off icon +
+   "Image unavailable") that keeps the reserved box, so the page never
+   collapses to an empty grey box. */
 .prose-editorial:not(.ProseMirror) img {
   aspect-ratio: auto 16 / 9;
   background-color: var(--code-bg);
@@ -2686,10 +2710,33 @@ a.quiet-button-primary:hover {
 .focus\:outline-none:focus { outline: none; }
 .focus\:ring-0:focus { box-shadow: none; }
 .disabled\:opacity-40:disabled { opacity: 0.4; }
+.disabled\:opacity-50:disabled { opacity: 0.5; }
 .disabled\:cursor-not-allowed:disabled { cursor: not-allowed; }
+.disabled\:cursor-wait:disabled { cursor: wait; }
+.focus\:border-\[var\(--text-secondary\)\]:focus { border-color: var(--text-secondary); }
+.focus-within\:border-\[var\(--accent-warm\)\]:focus-within { border-color: var(--accent-warm); }
+.placeholder\:text-\[var\(--text-muted\)\]::placeholder { color: var(--text-muted); }
+.accent-\[var\(--accent-warm\)\] { accent-color: var(--accent-warm); }
 .last\:border-0:last-child { border-width: 0; }
 .group:hover .group-hover\:rotate-12 { transform: rotate(12deg); }
 .group:active .group-active\:opacity-100 { opacity: 1; }
+
+/* Visible keyboard focus. :focus-visible only fires for keyboard/assistive
+   focus, so mouse users keep the quiet look. Placed late so it wins over
+   the :focus { outline: none } rules above; the quiet-* rules tie on
+   specificity and lose by source order. */
+:is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+.quiet-input:focus-visible,
+.quiet-button:focus-visible,
+a.quiet-button:focus-visible,
+.quiet-button-secondary:focus-visible,
+a.quiet-button-secondary:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
 
 /* --- dark-mode variants (the .dark class on <html> drives these) --- */
 .dark .dark\:bg-white\/5 { background-color: rgba(255, 255, 255, 0.05); }

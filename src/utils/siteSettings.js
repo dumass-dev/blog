@@ -48,16 +48,6 @@ function notify() {
   });
 }
 
-export function getSiteSettings() {
-  return cached;
-}
-
-export function subscribeSiteSettings(fn) {
-  if (typeof fn !== 'function') return () => {};
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-
 /**
  * Fetch the shared settings. Concurrent callers share one request; once
  * loaded, the cached copy is returned without a new request. A failed
