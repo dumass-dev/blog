@@ -20,6 +20,21 @@ export const supabase = client;
 const entriesCache = new Map();
 const feedsCache = new Map();
 
+// Last feed-fetch outcome. fetchPublishedEntries never throws: it falls
+// back to Supabase, then to the saved feed cache. Callers therefore cannot
+// tell a failed refresh from a genuinely empty blog from the return value
+// alone. This flag is set synchronously inside fetchPublishedEntries just
+// before it returns, so a caller that awaits it and reads the getter
+// immediately afterwards sees its own fetch's outcome.
+let lastFeedFetchFailed = false;
+export function getLastFeedFetchFailed() { return lastFeedFetchFailed; }
+
+// Feed cache TTL: a locally saved feed list is a fallback, not fresh data.
+// Saves are stamped; a list older than this is shown only as a "saved
+// copy" when a live refresh fails (see isFeedCacheStale / useFeedData).
+export const FEED_CACHE_TTL_MS = 10 * 60 * 1000;
+const feedCacheMeta = new Map(); // cacheKey -> { savedAt }
+
 export function getCachedEntry(slugOrId) {
   if (!slugOrId) return null;
   return entriesCache.get(slugOrId) || null;
@@ -54,7 +69,6 @@ export function noteListVersions(items) {
   items.forEach(item => { if (item) noteEntryVersion(item.slug, item.updated_at, item.id); });
 }
 export function getEntryVersion(slug) { return entryVersions.get(slug) || null; }
-export function getListVersion() { return listVersion; }
 export function forgetEntryVersion(slug, id) {
   if (slug) entryVersions.delete(slug);
   if (id) entryVersions.delete(id);
@@ -73,6 +87,7 @@ export function invalidateFeedCache({ keepVersions = false } = {}) {
   if (!keepVersions) forgetAllEntryVersions();
   feedsCache.clear();
   entriesCache.clear();
+  feedCacheMeta.clear();
   try {
     const keys = ['home', 'all', 'journal', 'writing', 'photo', 'update'];
     keys.forEach(k => localStorage.removeItem(`feed_cache_${k}`));
@@ -128,26 +143,82 @@ export function handleEntriesTableChange(payload) {
   }
 }
 
+// Saved feed lists are stored as { v: 1, savedAt, items }. Older saves (and
+// the offline tests' mocks) are bare arrays; those have no stamp and are
+// treated as saved at epoch 0, i.e. stale.
+function parseFeedCache(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { items: parsed, savedAt: 0 };
+    if (parsed && Array.isArray(parsed.items)) {
+      return {
+        items: parsed.items,
+        savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function persistFeedCache(cacheKey, list, savedAt = Date.now()) {
+  feedCacheMeta.set(cacheKey, { savedAt });
+  try {
+    localStorage.setItem(`feed_cache_${cacheKey}`, JSON.stringify({ v: 1, savedAt, items: list }));
+  } catch {}
+}
+
+// When the saved list was last written, as an epoch-ms timestamp, or null
+// when there is no saved list for the key.
+export function getFeedCacheSavedAt(typeKey = 'all') {
+  const meta = feedCacheMeta.get(typeKey);
+  if (meta) return meta.savedAt;
+  try {
+    const parsed = parseFeedCache(localStorage.getItem(`feed_cache_${typeKey}`));
+    if (parsed) {
+      feedCacheMeta.set(typeKey, { savedAt: parsed.savedAt });
+      return parsed.savedAt;
+    }
+  } catch {}
+  return null;
+}
+
+// True when a saved list exists for the key and it is older than the TTL.
+export function isFeedCacheStale(typeKey = 'all') {
+  const savedAt = getFeedCacheSavedAt(typeKey);
+  if (savedAt === null) return false;
+  return Date.now() - savedAt > FEED_CACHE_TTL_MS;
+}
+
 export function getCachedFeed(typeKey = 'all') {
   if (feedsCache.has(typeKey)) return feedsCache.get(typeKey);
   try {
-    const raw = localStorage.getItem(`feed_cache_${typeKey}`);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        feedsCache.set(typeKey, parsed);
-        return parsed;
-      }
+    const parsed = parseFeedCache(localStorage.getItem(`feed_cache_${typeKey}`));
+    if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+      feedCacheMeta.set(typeKey, { savedAt: parsed.savedAt });
+      feedsCache.set(typeKey, parsed.items);
+      return parsed.items;
     }
   } catch {}
 
   // Fallback: If a specific section feed (like 'journal', 'writing', 'photo', 'update') is not yet cached independently,
   // derive it instantly from 'home' or 'all' feed cache for 0ms instant section page navigation
   if (typeKey !== 'all' && typeKey !== 'home') {
+    let parentSavedAt = feedCacheMeta.get('home')?.savedAt ?? feedCacheMeta.get('all')?.savedAt;
     const parentCache = feedsCache.get('home') || feedsCache.get('all') || (() => {
       try {
-        const rawHome = localStorage.getItem('feed_cache_home') || localStorage.getItem('feed_cache_all');
-        return rawHome ? JSON.parse(rawHome) : null;
+        let rawHome = localStorage.getItem('feed_cache_home');
+        let parentKey = 'home';
+        if (!rawHome) {
+          rawHome = localStorage.getItem('feed_cache_all');
+          parentKey = 'all';
+        }
+        if (!rawHome) return null;
+        const parsed = parseFeedCache(rawHome);
+        if (!parsed) return null;
+        feedCacheMeta.set(parentKey, { savedAt: parsed.savedAt });
+        if (parentSavedAt === undefined) parentSavedAt = parsed.savedAt;
+        return parsed.items;
       } catch { return null; }
     })();
 
@@ -174,6 +245,7 @@ export function getCachedFeed(typeKey = 'all') {
       }
 
       if (Array.isArray(derived) && derived.length > 0) {
+        if (typeof parentSavedAt === 'number') feedCacheMeta.set(typeKey, { savedAt: parentSavedAt });
         feedsCache.set(typeKey, derived);
         return derived;
       }
@@ -228,9 +300,9 @@ export function updateCachedEntryViews(id, slug, views) {
         }
       });
       if (changed) {
-        try {
-          localStorage.setItem(`feed_cache_${key}`, JSON.stringify(feedList));
-        } catch {}
+        // Rewrite the saved list keeping its original stamp: a view-count
+        // patch is not a fresh fetch, so it must not reset the TTL.
+        persistFeedCache(key, feedList, getFeedCacheSavedAt(key) ?? Date.now());
       }
     }
   }
@@ -303,10 +375,9 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
       noteListVersions(list);
       const cacheKey = forHomeFeed ? 'home' : (type || 'all');
       feedsCache.set(cacheKey, list);
-      try {
-        localStorage.setItem(`feed_cache_${cacheKey}`, JSON.stringify(list));
-      } catch {}
+      persistFeedCache(cacheKey, list);
 
+      lastFeedFetchFailed = false;
       return list;
     }
   } catch (_apiErr) {}
@@ -331,15 +402,21 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (limit) query = query.limit(limit);
 
     let { data, error } = await query;
-    
+
+    // An error on the first query is a failure only if the unfiltered
+    // fallback cannot produce usable rows either (a fallback that runs
+    // clean and returns zero rows means the table is genuinely empty).
+    let supaFailed = Boolean(error);
     if (error || !data || (type === 'photo' && data.length === 0)) {
       try {
-        const { data: allData } = await supabase
+        const { data: allData, error: allError } = await supabase
           .from('public_published_entries')
           .select('*')
           .order('date', { ascending: false });
 
-        if (allData && allData.length > 0) {
+        if (allError) {
+          supaFailed = true;
+        } else if (allData) {
           if (type === 'photo') {
             data = allData.filter(item => 
               item.type === 'photo' || 
@@ -349,8 +426,19 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
           } else {
             data = allData;
           }
+          supaFailed = false;
         }
-      } catch (_fallbackErr) {}
+      } catch (_fallbackErr) {
+        supaFailed = true;
+      }
+    }
+
+    if (supaFailed && !data) {
+      // Both live sources failed and no usable rows came back: serve the
+      // saved copy (if any) and flag the failure for the caller.
+      lastFeedFetchFailed = true;
+      const fallbackKey = forHomeFeed ? 'home' : (type || 'all');
+      return getCachedFeed(fallbackKey) || [];
     }
 
     let rawList = data || [];
@@ -415,13 +503,13 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     noteListVersions(list);
     const cacheKey = forHomeFeed ? 'home' : (type || 'all');
     feedsCache.set(cacheKey, list);
-    try {
-      localStorage.setItem(`feed_cache_${cacheKey}`, JSON.stringify(list));
-    } catch {}
+    persistFeedCache(cacheKey, list);
 
+    lastFeedFetchFailed = false;
     return list;
   } catch (e) {
     console.error('Supabase fetch entries error:', e);
+    lastFeedFetchFailed = true;
     const fallbackKey = forHomeFeed ? 'home' : (type || 'all');
     return getCachedFeed(fallbackKey) || [];
   }
@@ -482,24 +570,6 @@ export function initSupabaseRealtime() {
 // Automatically subscribe in browser (skip in node test environment)
 if (typeof window !== 'undefined' && (typeof process === 'undefined' || process?.env?.NODE_ENV !== 'test')) {
   initSupabaseRealtime();
-}
-
-/**
- * Realtime subscription for entries
- */
-export function subscribeToEntries(onDataChange) {
-  if (typeof window === 'undefined' || !supabase) return () => {};
-  const channel = supabase
-    .channel(`public:entries:${Date.now()}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, () => {
-      invalidateFeedCache();
-      if (typeof onDataChange === 'function') onDataChange();
-    })
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
 }
 
 /**

@@ -54,6 +54,10 @@ export default function EntryDetail() {
   });
   const [loading, setLoading] = useState(initialState.loading);
   const [error, setError] = useState(initialState.error);
+  // True when the entry could not be loaded because the fetch itself failed
+  // (network / server / timeout) — as opposed to the entry genuinely not
+  // existing. Renders a retry state instead of "Entry Not Found".
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(initialState.isUnlocked);
   const [unlockPasscode, setUnlockPasscode] = useState('');
   const isUnlockedRef = useRef(initialState.isUnlocked);
@@ -72,6 +76,12 @@ export default function EntryDetail() {
     let postData = null;
     let prev = null;
     let next = null;
+    // Distinguish "the entry positively does not exist" from "the fetch
+    // failed". safeApiFetch returns null for both a 404 and a timeout, so
+    // the Supabase fallback is the arbiter: rows back means found, an
+    // empty result means missing, a thrown query means the fetch failed.
+    let fetchFailed = false;
+    let confirmedMissing = false;
 
     if (!isSilent) {
       const cached = getCachedEntry(slug);
@@ -112,27 +122,52 @@ export default function EntryDetail() {
           query = query.eq('slug', slug);
         }
 
-        let { data: posts } = await query;
-        if ((!posts || posts.length === 0) && !isUuid) {
-          const ilikeRes = await supabase.from('public_published_entries').select('*').ilike('slug', slug);
-          if (ilikeRes.data && ilikeRes.data.length > 0) {
-            posts = ilikeRes.data;
+        let { data: posts, error: postsErr } = await query;
+        if (postsErr) {
+          // The query itself errored (RLS, network, …) — that is a failed
+          // fetch, not proof the entry is gone.
+          fetchFailed = true;
+        } else {
+          if ((!posts || posts.length === 0) && !isUuid) {
+            const ilikeRes = await supabase.from('public_published_entries').select('*').ilike('slug', slug);
+            if (ilikeRes.error) {
+              fetchFailed = true;
+            } else if (ilikeRes.data && ilikeRes.data.length > 0) {
+              posts = ilikeRes.data;
+            }
+          }
+          if (posts && posts[0]) {
+            postData = posts[0];
+            cacheEntry(postData);
+          } else if (!fetchFailed) {
+            confirmedMissing = true;
           }
         }
-        if (posts && posts[0]) {
-          postData = posts[0];
-          cacheEntry(postData);
-        }
-      } catch (_err) {}
+      } catch (_err) {
+        fetchFailed = true;
+      }
     }
 
     if (!postData || postData.status === 'draft') {
+      // A draft is positively unpublished, same as a missing entry. A
+      // missing verdict only counts when no query errored along the way.
+      const isMissing = postData?.status === 'draft' || (confirmedMissing && !fetchFailed);
       if (!isSilent) {
-        setError('Entry not found.');
+        if (isMissing) {
+          setError('Entry not found.');
+          setLoadFailed(false);
+        } else {
+          setError('This entry could not be loaded. Check your connection and try again.');
+          setLoadFailed(true);
+        }
         setLoading(false);
       } else {
-        // If a quiet reload fails to find the entry or it was changed to draft, immediately mark as unpublished
-        setIsDeleted(true);
+        // Silent background refresh: only mark the entry unpublished when
+        // a source positively says it is gone. A failed refresh must NOT
+        // flip a readable entry to "unpublished" — leave it exactly as is.
+        if (isMissing) {
+          setIsDeleted(true);
+        }
       }
       return;
     }
@@ -236,6 +271,7 @@ export default function EntryDetail() {
       isUnlockedRef.current = true;
       setIsUnlocked(true);
     }
+    setLoadFailed(false);
     setLoading(false);
   }, [slug, showViewCount]);
 
@@ -247,6 +283,7 @@ export default function EntryDetail() {
     setData(resolved.data);
     setLoading(resolved.loading);
     setError(resolved.error);
+    setLoadFailed(false);
     setIsUnlocked(resolved.isUnlocked);
     setIsDeleted(false);
 
@@ -390,6 +427,27 @@ export default function EntryDetail() {
   }
 
   if (error || !data || !data.entry) {
+    if (loadFailed) {
+      return (
+        <div className="notebook-container py-16 text-center">
+          <h1 className="text-2xl font-serif font-medium mb-4">Couldn&apos;t load this entry</h1>
+          <p className="text-sm font-sans text-[var(--text-secondary)] mb-6">
+            {error || 'Check your connection and try again.'}
+          </p>
+          <button
+            onClick={() => {
+              setLoadFailed(false);
+              setError(null);
+              setLoading(true);
+              loadEntry(false);
+            }}
+            className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="notebook-container py-16 text-center">
         <h1 className="text-2xl font-serif font-medium mb-4">Entry Not Found</h1>
@@ -411,6 +469,16 @@ export default function EntryDetail() {
   );
 
   const displayType = isPhotoEntry ? 'photo' : entry.type;
+
+  // Neighbour titles and the byline chips come from the API unvalidated.
+  // A missing/null title must not throw during render and take the whole
+  // page down; an empty chip still renders its CSS '·' separator, which
+  // is what produced the doubled "· ·" in the byline.
+  const prevTitle = typeof prev?.title === 'string' ? prev.title : '';
+  const nextTitle = typeof next?.title === 'string' ? next.title : '';
+  const firstTag = entry.tags
+    ? entry.tags.split(',').map(t => t.trim()).find(Boolean) || ''
+    : '';
 
   // Check if content already includes the image to prevent duplicate image rendering
   const contentHasImage = Boolean(
@@ -496,9 +564,11 @@ export default function EntryDetail() {
             <time dateTime={entry.date}>{formatDate(entry.date)}</time>
           </span>
 
-          <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
-            <span>{displayType}</span>
-          </span>
+          {displayType ? (
+            <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <span>{displayType}</span>
+            </span>
+          ) : null}
 
           {entry.category && (
             <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
@@ -506,11 +576,11 @@ export default function EntryDetail() {
             </span>
           )}
 
-          {entry.tags && (
+          {firstTag ? (
             <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
-              <span>#{entry.tags.split(',')[0].trim()}</span>
+              <span>#{firstTag}</span>
             </span>
-          )}
+          ) : null}
 
           {entry.type !== 'update' && (
             <span className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0">
@@ -648,7 +718,7 @@ export default function EntryDetail() {
             <Link to={`/entry/${prev.slug || prev.id}`} className="group block text-left">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5 text-[10px] sm:text-xs">← Previous</span>
               <span className="font-serif text-xs sm:text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors truncate block">
-                {prev.title.split(' ').length > 3 ? prev.title.split(' ').slice(0, 3).join(' ') + '...' : prev.title}
+                {prevTitle.split(' ').length > 3 ? prevTitle.split(' ').slice(0, 3).join(' ') + '...' : prevTitle}
               </span>
             </Link>
           ) : <div />}
@@ -659,7 +729,7 @@ export default function EntryDetail() {
             <Link to={`/entry/${next.slug || next.id}`} className="group block text-right">
               <span className="text-[var(--text-muted)] block uppercase tracking-wider mb-0.5 text-[10px] sm:text-xs">Next →</span>
               <span className="font-serif text-xs sm:text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-warm)] transition-colors truncate block">
-                {next.title.split(' ').length > 3 ? next.title.split(' ').slice(0, 3).join(' ') + '...' : next.title}
+                {nextTitle.split(' ').length > 3 ? nextTitle.split(' ').slice(0, 3).join(' ') + '...' : nextTitle}
               </span>
             </Link>
           ) : <div />}

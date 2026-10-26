@@ -1,55 +1,74 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Lightbulb, Heart, Meh, ThumbsDown } from 'lucide-react';
 import { supabase, subscribeToReactions } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
+import { useToast } from '../context/ToastContext';
 
 export default function Reactions({ postId, passcode }) {
+  const { error: toastError } = useToast();
   const [counts, setCounts] = useState({ thoughtful: 0, loved: 0, boring: 0, dislike: 0 });
   const [userReacted, setUserReacted] = useState({});
+  // 'loading' until the first successful load; 'error' only when the
+  // counts have never loaded — a failed background refresh keeps showing
+  // the last known counts instead of flashing all-zero pills.
+  const [loadState, setLoadState] = useState('loading');
+  const hasLoadedRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const loadReactions = useCallback(async () => {
+    if (!postId) return;
+    try {
+      let realPostId = postId;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+      if (!isUuid) {
+        let { data: posts } = await supabase.from('public_published_entries').select('id').eq('slug', postId);
+        if (!posts || !posts[0]) {
+          const { data: rawPosts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (rawPosts && rawPosts[0]) posts = rawPosts;
+        }
+        if (posts && posts[0]) realPostId = posts[0].id;
+      }
+
+      const { data: reactions, error: reactionsErr } = await supabase
+        .from('reactions')
+        .select('reaction_type')
+        .eq('post_id', realPostId);
+      if (reactionsErr) throw reactionsErr;
+
+      const newCounts = { thoughtful: 0, loved: 0, boring: 0, dislike: 0 };
+      (reactions || []).forEach(r => {
+        if (newCounts[r.reaction_type] !== undefined) {
+          newCounts[r.reaction_type]++;
+        }
+      });
+
+      if (mountedRef.current) {
+        setCounts(newCounts);
+        hasLoadedRef.current = true;
+        setLoadState('ready');
+      }
+    } catch {
+      // A failed load must not masquerade as all-zero counts.
+      if (mountedRef.current && !hasLoadedRef.current) {
+        setLoadState('error');
+      }
+    }
+
+    try {
+      const stored = localStorage.getItem(`reacted_${postId}`);
+      if (stored && mountedRef.current) {
+        setUserReacted(JSON.parse(stored));
+      }
+    } catch (_e) {}
+  }, [postId]);
 
   useEffect(() => {
     if (!postId) return;
-    let isMounted = true;
-
-    const loadReactions = async () => {
-      try {
-        let realPostId = postId;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
-        if (!isUuid) {
-          let { data: posts } = await supabase.from('public_published_entries').select('id').eq('slug', postId);
-          if (!posts || !posts[0]) {
-            const { data: rawPosts } = await supabase.from('entries').select('id').eq('slug', postId);
-            if (rawPosts && rawPosts[0]) posts = rawPosts;
-          }
-          if (posts && posts[0]) realPostId = posts[0].id;
-        }
-
-        const { data: reactions } = await supabase
-          .from('reactions')
-          .select('reaction_type')
-          .eq('post_id', realPostId);
-
-        const newCounts = { thoughtful: 0, loved: 0, boring: 0, dislike: 0 };
-        (reactions || []).forEach(r => {
-          if (newCounts[r.reaction_type] !== undefined) {
-            newCounts[r.reaction_type]++;
-          }
-        });
-
-        if (isMounted) {
-          setCounts(newCounts);
-        }
-      } catch {
-        // Keep default counts
-      }
-
-      try {
-        const stored = localStorage.getItem(`reacted_${postId}`);
-        if (stored && isMounted) {
-          setUserReacted(JSON.parse(stored));
-        }
-      } catch (_e) {}
-    };
 
     loadReactions();
     const unsubscribe = subscribeToReactions(postId, () => {
@@ -68,11 +87,10 @@ export default function Reactions({ postId, passcode }) {
     window.addEventListener('reactions-updated', handleReactionEvent);
 
     return () => {
-      isMounted = false;
       unsubscribe();
       window.removeEventListener('reactions-updated', handleReactionEvent);
     };
-  }, [postId]);
+  }, [postId, loadReactions]);
 
   const handleReact = async (type) => {
     if (userReacted[type]) return; // Prevent spamming same reaction
@@ -87,6 +105,7 @@ export default function Reactions({ postId, passcode }) {
     } catch (_e) {}
 
     let updatedCounts = null;
+    let posted = false;
 
     try {
       const res = await fetch(`/api/posts/${postId}/reactions`, {
@@ -97,12 +116,13 @@ export default function Reactions({ postId, passcode }) {
 
       if (res.ok) {
         updatedCounts = await res.json();
+        posted = true;
       }
     } catch {
       // API call failed, fallback to direct Supabase insert
     }
 
-    if (updatedCounts && typeof updatedCounts === 'object') {
+    if (posted && updatedCounts && typeof updatedCounts === 'object') {
       setCounts(updatedCounts);
       publishRealtimeUpdate({
         type: 'reaction',
@@ -110,7 +130,11 @@ export default function Reactions({ postId, passcode }) {
         postId,
         counts: updatedCounts
       });
-    } else {
+    } else if (posted) {
+      // The server accepted the reaction but returned no usable counts;
+      // refresh the real counts instead of trusting the optimistic +1.
+      loadReactions();
+    } else if (!posted) {
       // Direct Supabase fallback
       try {
         let realPostId = postId;
@@ -120,7 +144,11 @@ export default function Reactions({ postId, passcode }) {
           if (posts && posts[0]) realPostId = posts[0].id;
         }
 
-        await supabase.from('reactions').insert([{ post_id: realPostId, reaction_type: type }]);
+        // An insert that resolves with an error (e.g. RLS deny) is a
+        // failed post, not a silent success — check it.
+        const { error: insertErr } = await supabase.from('reactions').insert([{ post_id: realPostId, reaction_type: type }]);
+        if (insertErr) throw insertErr;
+        posted = true;
         publishRealtimeUpdate({
           type: 'reaction',
           op: 'INSERT',
@@ -129,6 +157,24 @@ export default function Reactions({ postId, passcode }) {
       } catch (e) {
         console.error('Failed to post reaction to Supabase:', e);
       }
+    }
+
+    if (!posted) {
+      // Both backends failed: revert the optimistic update entirely —
+      // count, button state, and the persisted reacted flag — so the
+      // reader is not left believing the reaction was recorded.
+      setCounts(prev => ({ ...prev, [type]: Math.max(0, (prev[type] || 0) - 1) }));
+      const reverted = { ...userReacted };
+      delete reverted[type];
+      setUserReacted(reverted);
+      try {
+        if (Object.keys(reverted).length === 0) {
+          localStorage.removeItem(`reacted_${postId}`);
+        } else {
+          localStorage.setItem(`reacted_${postId}`, JSON.stringify(reverted));
+        }
+      } catch (_e) {}
+      toastError('Couldn’t save your reaction. Try again.');
     }
   };
 
@@ -145,6 +191,21 @@ export default function Reactions({ postId, passcode }) {
         Leave a quiet reaction
       </div>
 
+      {loadState === 'loading' ? (
+        <div className="text-xs font-sans text-[var(--text-muted)] italic text-center py-2">
+          Loading reactions…
+        </div>
+      ) : loadState === 'error' ? (
+        <div className="text-center py-2">
+          <p className="text-xs font-sans text-[var(--text-muted)] mb-2">Couldn&apos;t load reactions.</p>
+          <button
+            onClick={loadReactions}
+            className="quiet-button text-xs font-sans uppercase tracking-wider py-1.5 px-4 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
       <div className="reaction-pills-container">
         {reactionButtons.map(item => {
           const Icon = item.icon;
@@ -172,6 +233,7 @@ export default function Reactions({ postId, passcode }) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchPublishedEntries, getCachedFeed } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, getLastFeedFetchFailed, isFeedCacheStale } from '../supabase';
 
 function filterEntries(list, { type, forHomeFeed }) {
   if (!Array.isArray(list)) return [];
@@ -48,21 +48,48 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
   });
 
   const [page, setPage] = useState(1);
+  const [error, setError] = useState(false);
+  // True while a saved copy is on screen because the live refresh failed
+  // (or because the saved copy itself is older than the feed TTL and no
+  // refresh has succeeded yet). Cleared by any successful refresh.
+  const [stale, setStale] = useState(() => {
+    const cached = getInitialEntries();
+    return cached.length > 0 && isFeedCacheStale(cacheKey);
+  });
+  const [refreshing, setRefreshing] = useState(false);
   const isFetchingRef = useRef(false);
 
   const loadFeed = useCallback(async () => {
     // Prevent concurrent parallel fetches
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+    setRefreshing(true);
     try {
       const data = await fetchPublishedEntries({ type, category, tag, limit, forHomeFeed });
       const list = filterEntries(data, { type, forHomeFeed });
       setEntries(list);
+      // fetchPublishedEntries never throws: it falls back to Supabase, then
+      // to the saved cache. The failure flag tells a failed refresh (show
+      // an error / a "saved copy" notice) from a genuinely empty blog.
+      if (getLastFeedFetchFailed()) {
+        if (list.length === 0) {
+          setError(true);
+          setStale(false);
+        } else {
+          setError(false);
+          setStale(true);
+        }
+      } else {
+        setError(false);
+        setStale(false);
+      }
     } catch (err) {
       console.error('Error fetching feed:', err);
+      setError(true);
     } finally {
       // Always clear the skeleton after the first fetch attempt — never leave it stuck
       setLoading(false);
+      setRefreshing(false);
       isFetchingRef.current = false;
     }
   }, [type, category, tag, limit, forHomeFeed]);
@@ -99,6 +126,9 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
     entries,
     displayedEntries,
     loading,
+    error,
+    stale,
+    refreshing,
     page,
     setPage,
     totalPages,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MessageSquare, Send, User, Trash2 } from 'lucide-react';
 import { supabase, subscribeToComments } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
@@ -15,45 +15,58 @@ export default function Comments({ postId, passcode }) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [authorName, setAuthorName] = useState('');
-  const [content, setContent] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
+  // True when the list has never loaded because the fetch failed — a
+  // failed load must not render as "No comments yet". A failed background
+  // refresh keeps the last known list instead.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const loadComments = useCallback(async () => {
+    if (!postId) return;
+    try {
+      let realPostId = postId;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+      if (!isUuid) {
+        let { data: posts } = await supabase.from('public_published_entries').select('id').eq('slug', postId);
+        if (!posts || !posts[0]) {
+          const { data: rawPosts } = await supabase.from('entries').select('id').eq('slug', postId);
+          if (rawPosts && rawPosts[0]) posts = rawPosts;
+        }
+        if (posts && posts[0]) realPostId = posts[0].id;
+      }
+
+      const { data: supaComments, error: commentsErr } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', realPostId)
+        .order('created_at', { ascending: true });
+      if (commentsErr) throw commentsErr;
+
+      if (mountedRef.current) {
+        setComments(supaComments || []);
+        hasLoadedRef.current = true;
+        setLoadFailed(false);
+        setLoading(false);
+      }
+    } catch {
+      if (mountedRef.current) {
+        if (!hasLoadedRef.current) {
+          setComments([]);
+          setLoadFailed(true);
+        }
+        setLoading(false);
+      }
+    }
+  }, [postId]);
 
   useEffect(() => {
     if (!postId) return;
-    let isMounted = true;
-
-    const loadComments = async () => {
-      try {
-        let realPostId = postId;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
-        if (!isUuid) {
-          let { data: posts } = await supabase.from('public_published_entries').select('id').eq('slug', postId);
-          if (!posts || !posts[0]) {
-            const { data: rawPosts } = await supabase.from('entries').select('id').eq('slug', postId);
-            if (rawPosts && rawPosts[0]) posts = rawPosts;
-          }
-          if (posts && posts[0]) realPostId = posts[0].id;
-        }
-
-        const { data: supaComments } = await supabase
-          .from('comments')
-          .select('*')
-          .eq('post_id', realPostId)
-          .order('created_at', { ascending: true });
-
-        if (isMounted) {
-          setComments(supaComments || []);
-          setLoading(false);
-        }
-      } catch {
-        if (isMounted) {
-          setComments([]);
-          setLoading(false);
-        }
-      }
-    };
 
     loadComments();
     const unsubscribe = subscribeToComments(postId, () => {
@@ -68,11 +81,14 @@ export default function Comments({ postId, passcode }) {
     window.addEventListener('comments-updated', handleCommentEvent);
 
     return () => {
-      isMounted = false;
       unsubscribe();
       window.removeEventListener('comments-updated', handleCommentEvent);
     };
-  }, [postId]);
+  }, [postId, loadComments]);
+  const [authorName, setAuthorName] = useState('');
+  const [content, setContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const handleDeleteComment = async (commentId) => {
     if (!window.confirm('Are you sure you want to delete this comment?')) return;
@@ -141,7 +157,6 @@ export default function Comments({ postId, passcode }) {
     // Optimistically add comment to UI state instantly
     setComments(prev => [...prev, optimisticComment]);
     setContent('');
-    toastSuccess('Your comment has been posted.');
 
     let realComment = null;
 
@@ -188,6 +203,8 @@ export default function Comments({ postId, passcode }) {
 
     if (realComment) {
       setComments(prev => prev.map(c => (c.id === tempId ? realComment : c)));
+      // Success is only confirmed once the POST actually landed.
+      toastSuccess('Your comment has been posted.');
       publishRealtimeUpdate({
         type: 'comment',
         op: 'INSERT',
@@ -281,6 +298,18 @@ export default function Comments({ postId, passcode }) {
         {loading ? (
           <div className="text-xs font-sans text-[var(--text-muted)] italic py-4">
             Loading comments...
+          </div>
+        ) : loadFailed ? (
+          <div className="py-4">
+            <p className="text-xs font-sans text-[var(--text-muted)] italic">
+              Couldn&apos;t load comments.
+            </p>
+            <button
+              onClick={() => { setLoading(true); setLoadFailed(false); loadComments(); }}
+              className="quiet-button text-xs font-sans uppercase tracking-wider py-1.5 px-4 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer mt-2"
+            >
+              Retry
+            </button>
           </div>
         ) : comments.length === 0 ? (
           <div className="text-xs font-sans text-[var(--text-muted)] py-4 italic">

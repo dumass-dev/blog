@@ -2,7 +2,9 @@
  * Auto-refresh expired Backblaze B2 presigned URLs on img load failure
  */
 export async function handleImageError(e, originalUrl) {
-  const img = e.currentTarget;
+  // e.target is the <img> for both direct onError handlers and delegated
+  // container listeners (where e.currentTarget would be the container).
+  const img = e.target || e.currentTarget;
   if (!img || img.dataset.hasRefreshed === 'true') return;
   img.dataset.hasRefreshed = 'true';
 

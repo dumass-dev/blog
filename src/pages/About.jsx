@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -53,59 +53,95 @@ export default function About() {
     } catch {}
     return defaultAbout;
   });
-  const [loading, setLoading] = useState(false);
+  // The skeleton only ever shows when there is no saved About content to
+  // render yet; a saved copy renders immediately and refreshes in the
+  // background. (loading used to start false and never become true, so the
+  // skeleton branch was dead and a failed fetch rendered the default
+  // author as if it were the real page.)
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_about_data');
+      if (!cached) return true;
+      const parsed = JSON.parse(cached);
+      return !(parsed && (
+        parsed.bio || parsed.tagline ||
+        (Array.isArray(parsed.projects) && parsed.projects.length > 0) ||
+        (Array.isArray(parsed.links) && parsed.links.length > 0)
+      ));
+    } catch {
+      return true;
+    }
+  });
+  const [loadFailed, setLoadFailed] = useState(false);
 
-  useEffect(() => {
-    const doFetch = async () => {
-      let data = null;
+  const hasRealContent = (d) => Boolean(d && (
+    d.bio || d.tagline ||
+    (Array.isArray(d.projects) && d.projects.length > 0) ||
+    (Array.isArray(d.links) && d.links.length > 0)
+  ));
+
+  const doFetch = useCallback(async () => {
+    let data = null;
+    try {
+      const res = await fetch('/api/about');
+      if (res.ok) {
+        const text = await res.text();
+        if (text && !text.trim().startsWith('<')) {
+          data = JSON.parse(text);
+        }
+      }
+    } catch {}
+
+    // Fallback: Direct Supabase query if API server endpoint is not reachable
+    if (!data && supabase && typeof supabase.from === 'function') {
       try {
-        const res = await fetch('/api/about');
-        if (res.ok) {
-          const text = await res.text();
-          if (text && !text.trim().startsWith('<')) {
-            data = JSON.parse(text);
-          }
+        const { data: supaRows } = await supabase.from('about').select('*').limit(1);
+        if (supaRows && supaRows[0]) {
+          data = supaRows[0];
         }
       } catch {}
+    }
 
-      // Fallback: Direct Supabase query if API server endpoint is not reachable
-      if (!data && supabase && typeof supabase.from === 'function') {
-        try {
-          const { data: supaRows } = await supabase.from('about').select('*').limit(1);
-          if (supaRows && supaRows[0]) {
-            data = supaRows[0];
-          }
-        } catch {}
+    if (data) {
+      let projects = data.projects;
+      if (typeof projects === 'string') {
+        try { projects = JSON.parse(projects); } catch { projects = []; }
+      }
+      let links = data.links;
+      if (typeof links === 'string') {
+        try { links = JSON.parse(links); } catch { links = []; }
       }
 
-      if (data) {
-        let projects = data.projects;
-        if (typeof projects === 'string') {
-          try { projects = JSON.parse(projects); } catch { projects = []; }
+      const updated = {
+        author_name: (data.author_name && data.author_name.trim() !== '') ? data.author_name : 'q04ti',
+        tagline: data.tagline || '',
+        bio: data.bio || '',
+        projects: Array.isArray(projects) ? projects : [],
+        links: Array.isArray(links) ? links : []
+      };
+      setAboutData(updated);
+      setLoadFailed(false);
+      try {
+        localStorage.setItem('cached_about_data', JSON.stringify(updated));
+        if (updated.author_name) {
+          localStorage.setItem('site_author_name', updated.author_name);
         }
-        let links = data.links;
-        if (typeof links === 'string') {
-          try { links = JSON.parse(links); } catch { links = []; }
-        }
+      } catch {}
+    } else {
+      // Both sources failed. The error state only renders when there is
+      // no real content to show; a saved copy keeps rendering as-is.
+      setLoadFailed(true);
+    }
+    setLoading(false);
+  }, []);
 
-        const updated = {
-          author_name: (data.author_name && data.author_name.trim() !== '') ? data.author_name : 'q04ti',
-          tagline: data.tagline || '',
-          bio: data.bio || '',
-          projects: Array.isArray(projects) ? projects : [],
-          links: Array.isArray(links) ? links : []
-        };
-        setAboutData(updated);
-        try {
-          localStorage.setItem('cached_about_data', JSON.stringify(updated));
-          if (updated.author_name) {
-            localStorage.setItem('site_author_name', updated.author_name);
-          }
-        } catch {}
-      }
-      setLoading(false);
-    };
+  const handleRetry = () => {
+    setLoadFailed(false);
+    setLoading(true);
+    doFetch();
+  };
 
+  useEffect(() => {
     // Always fetch fresh on mount so projects/bio/links never stay stale
     doFetch();
 
@@ -115,12 +151,25 @@ export default function About() {
     };
     window.addEventListener('about-data-updated', handleUpdate);
     return () => window.removeEventListener('about-data-updated', handleUpdate);
-  }, []);
+  }, [doFetch]);
 
   return (
     <div className="notebook-container">
       {loading ? (
         <FeedSkeleton type="about" />
+      ) : loadFailed && !hasRealContent(aboutData) ? (
+        <div className="py-16 text-center animate-content-fade">
+          <h1 className="text-2xl font-serif font-medium mb-3">Couldn&apos;t load the About page</h1>
+          <p className="text-sm font-sans text-[var(--text-secondary)] mb-6">
+            Check your connection and try again.
+          </p>
+          <button
+            onClick={handleRetry}
+            className="quiet-button text-xs font-sans uppercase tracking-wider py-2.5 px-6 rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <div className="space-y-12 animate-content-fade">
           {/* Header section */}
