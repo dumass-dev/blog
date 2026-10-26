@@ -608,7 +608,7 @@ export default function Dashboard() {
       {/* Action Bar */}
       <div className="admin-quick-actions-container">
         <Link to="/admin/new?type=journal" className="quiet-button admin-quick-action text-xs flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3.5 h-3.5 shrink-0" />
           <span>New Journal Entry</span>
         </Link>
 

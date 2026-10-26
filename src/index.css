@@ -233,6 +233,7 @@ html:not(.theme-ready) *::after {
 .inline-block { display: inline-block; }
 .block { display: block; }
 .hidden { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 .items-center { align-items: center; }
 .items-start { align-items: flex-start; }
 .justify-between { justify-content: space-between; }
@@ -1481,6 +1482,20 @@ article flex, .prose flex, header div {
   white-space: nowrap;
   text-align: center;
   flex-shrink: 0;
+  /* The grid columns at phone width are ~173px; the default quiet-button
+     side padding (20px) leaves a 133px content box, but "New Journal Entry"
+     needs ~143px (icon + gap + text), so the flex row crushed the icon to
+     a sliver. Tighter side padding here frees the 10px it needs.
+     NOTE: this must be `a.admin-quick-action`, not `.admin-quick-action` —
+     `a.quiet-button` is (0,1,1) and beats a bare class (0,1,0) regardless
+     of source order, so the bare-class padding never applied. */
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+a.admin-quick-action {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 @media (min-width: 768px) {
