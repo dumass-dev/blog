@@ -484,9 +484,15 @@ const VisualEditor = forwardRef(function VisualEditor(
         middleware: [offset(10), flip(), shift({ padding: 8 })]
       }).then(({ x, y }) => {
         if (imageToolbarRef.current && !isUserDraggedRef.current) {
-          imageToolbarRef.current.style.left = `${Math.round(x)}px`;
-          imageToolbarRef.current.style.top = `${Math.round(y)}px`;
-          imageToolbarRef.current.style.display = 'flex';
+          const el = imageToolbarRef.current;
+          el.style.display = 'flex';
+          // An image taller than the screen pushed the toolbar above the
+          // top edge (off-screen); keep it inside the visible area.
+          const h = el.offsetHeight || 0;
+          const maxTop = Math.max(8, window.innerHeight - h - 8);
+          const top = Math.min(Math.max(8, y), maxTop);
+          el.style.left = `${Math.round(x)}px`;
+          el.style.top = `${Math.round(top)}px`;
         }
       });
     }

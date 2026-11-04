@@ -2873,3 +2873,38 @@ a.quiet-button-secondary:focus-visible {
 @media (max-width: 639px) {
   .ProseMirror.min-h-\[420px\] { min-height: 280px; }
 }
+
+/* Markdown tables in entries: visible cells and a header row (the
+   container rules above already make wide tables scroll sideways). */
+.prose-editorial table {
+  border-collapse: collapse;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.prose-editorial th,
+.prose-editorial td {
+  border: 1px solid var(--border-subtle);
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-editorial th {
+  font-weight: 600;
+  background-color: var(--code-bg);
+}
+
+/* Dashboard header buttons on phones: wrap onto a second row instead of
+   scrolling sideways with half a button showing at the edge. */
+@media (max-width: 639px) {
+  .admin-header-actions-scroll > div {
+    min-width: 0 !important;
+    flex-wrap: wrap;
+  }
+}
+
+/* No separator dot pointing at the right-aligned Share button. */
+.meta-chip:has(+ .meta-share)::after {
+  content: none;
+}

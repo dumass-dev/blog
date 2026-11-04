@@ -48,6 +48,35 @@ export default function Photos() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedPhotoIndex, photos.length, navigatePhoto]);
 
+  // Keep the page behind the photo viewer from scrolling while it is open.
+  const isViewerOpen = selectedPhotoIndex !== null;
+  useEffect(() => {
+    if (!isViewerOpen) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isViewerOpen]);
+
+  // Swipe left/right on the photo to move between photos on touch screens.
+  const touchStartRef = React.useRef(null);
+  const handleTouchStart = (e) => {
+    const t = e.touches && e.touches[0];
+    touchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const handleTouchEnd = (e) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      navigatePhoto(dx < 0 ? 1 : -1);
+    }
+  };
+
   const openPhoto = (photo, index) => {
     if (photo.has_passcode && photo.content && photo.content.includes('🔒')) {
       setPasscodeModalPhoto(photo);
@@ -214,7 +243,11 @@ export default function Photos() {
           {/* Main Modal Layout Card */}
           <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--bg-main)] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row border border-[var(--border-subtle)]">
             {/* Image Viewport Column */}
-            <div className="md:flex-1 bg-black flex items-center justify-center relative min-h-[260px] max-h-[58vh] md:max-h-[85vh] p-4 select-none">
+            <div
+              className="md:flex-1 bg-black flex items-center justify-center relative min-h-[260px] max-h-[58vh] md:max-h-[85vh] p-4 select-none"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               {/* High-visibility Close Button strictly on Photo Container Top-Left */}
               <button
                 onClick={() => setSelectedPhotoIndex(null)}

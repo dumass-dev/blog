@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ZoomIn, ZoomOut, Camera } from 'lucide-react';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import Modal from './Modal';
 import ProgressiveImage from './ProgressiveImage';
 
@@ -12,7 +12,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
   }, [isOpen, src]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Editorial Photo Lightbox" maxWidthClass="max-w-4xl w-full">
+    <Modal isOpen={isOpen} onClose={onClose} title="Photo viewer" maxWidthClass="max-w-4xl w-full">
       <div className="flex flex-col space-y-4 select-none touch-action-none">
         {/* Top Header with Top-Left Close Button */}
         <div className="flex justify-between items-center text-[var(--text-primary)] relative min-h-[44px]">
@@ -26,8 +26,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
             >
               <X className="w-5 h-5 text-[var(--text-primary)]" />
             </button>
-            <Camera className="w-4 h-4 text-[var(--accent-warm)]" />
-            <span>Editorial Photo Lightbox</span>
+
           </div>
 
           <div className="flex items-center space-x-2">

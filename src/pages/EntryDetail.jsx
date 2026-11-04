@@ -396,10 +396,17 @@ export default function EntryDetail() {
 
   const handleImageClick = (e) => {
     if (e.target.tagName === 'IMG') {
+      // Prefer the figure's real caption; fall back to alt text only when it
+      // reads like a description (not "image", "x" or a file name).
+      const figcaption = e.target.closest('figure')?.querySelector('figcaption')?.textContent?.trim() || '';
+      const alt = (e.target.alt || '').trim();
+      const altIsDescriptive = alt.length > 2 &&
+        !/^(?:image|img|photo|picture|cover image)$/i.test(alt) &&
+        !/\.(?:jpe?g|png|gif|webp|avif|heic)$/i.test(alt);
       setLightbox({
         isOpen: true,
         src: e.target.src,
-        caption: e.target.alt || data?.entry?.title || ''
+        caption: figcaption || (altIsDescriptive ? alt : '')
       });
     }
   };
@@ -515,6 +522,20 @@ export default function EntryDetail() {
 
   };
 
+
+  const tagsBlock = entry.tags ? (
+    <div className="flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-10 min-w-0 max-w-full">
+      {entry.tags.split(',').map((tag, idx) => (
+        <Link
+          key={`${tag.trim()}-${idx}`}
+          to={`/archive?tag=${encodeURIComponent(tag.trim())}`}
+          className="hover:text-[var(--text-primary)] transition-colors inline-block max-w-full truncate"
+        >
+          #{tag.trim()}
+        </Link>
+      ))}
+    </div>
+  ) : null;
   return (
     <article className="notebook-container relative animate-content-fade">
       {/* Photo Lightbox */}
@@ -599,7 +620,7 @@ export default function EntryDetail() {
 
           <button 
             onClick={handleShare}
-            className="meta-chip inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ml-auto transition-colors rounded px-2 py-1 -my-1"
+            className="meta-chip meta-share inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ml-auto transition-colors rounded px-2 py-1 -my-1"
             title="Share this entry"
           >
             <Share2 className="w-3 h-3 opacity-60 shrink-0" />
@@ -688,6 +709,9 @@ export default function EntryDetail() {
             <RichViewer content={entry.content} />
           </div>
 
+          {/* Tags sit with the content they describe, before reactions/comments */}
+          {tagsBlock}
+
           {/* Emoji Reactions Bar (hidden for Photo posts) */}
           {shouldShowCommentsAndReactions(entry) && <Reactions postId={entry.id} passcode={unlockPasscode} />}
 
@@ -696,20 +720,8 @@ export default function EntryDetail() {
         </>
       )}
 
-      {/* Tags */}
-      {entry.tags && (
-        <div className="pt-4 flex flex-wrap gap-2 text-xs font-sans text-[var(--text-muted)] mb-12 min-w-0 max-w-full">
-          {entry.tags.split(',').map((tag, idx) => (
-            <Link
-              key={`${tag.trim()}-${idx}`}
-              to={`/archive?tag=${encodeURIComponent(tag.trim())}`}
-              className="hover:text-[var(--text-primary)] transition-colors inline-block max-w-full truncate"
-            >
-              #{tag.trim()}
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Tags (an unlocked entry shows them right under its body instead) */}
+      {!isUnlocked && tagsBlock}
 
       {/* Next & Previous navigation */}
       <nav className="pt-8 border-t border-[var(--border-subtle)] flex flex-row items-start justify-between gap-4 text-xs font-sans w-full">

@@ -111,13 +111,18 @@ export default function Header() {
         setMenuOpen(false);
       }
     }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    }
     if (menuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [menuOpen]);
 
@@ -231,7 +236,7 @@ export default function Header() {
                   <React.Fragment key={item.path}>
                     <Link
                       to={item.path}
-                      className={`py-1 px-2 rounded-md transition-colors lowercase flex justify-between items-center ${
+                      className={`py-2 px-2 rounded-md transition-colors lowercase flex justify-between items-center ${
                         isActive
                           ? 'bg-[var(--code-bg)] text-[var(--text-primary)] font-medium'
                           : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--code-bg)]/80'

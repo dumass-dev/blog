@@ -349,7 +349,7 @@ export default function Media() {
                   )}
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {(!item.mime_type || item.mime_type.startsWith('image/')) && (
                     <Link
                       to={`/admin/new?type=photo&cover_image=${encodeURIComponent(item.signed_url || item.url)}`}
@@ -362,7 +362,7 @@ export default function Media() {
                   <button
                     onClick={() => handleDelete(item.id)}
                     disabled={deletingId === item.id}
-                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-1 disabled:opacity-40"
+                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer p-2 disabled:opacity-40"
                     title="Delete media"
                     aria-label="Delete media"
                   >

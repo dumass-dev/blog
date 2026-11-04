@@ -226,7 +226,7 @@ export default function AboutEdit() {
   return (
     <div className="notebook-container pb-24">
       {confirmDialog}
-      <div className="flex justify-between items-center py-4 border-b border-[var(--border-subtle)] mb-8">
+      <div className="flex flex-wrap justify-between items-center gap-3 py-4 border-b border-[var(--border-subtle)] mb-8">
         <div className="flex items-center space-x-3">
           <Link
             to="/admin"
@@ -234,7 +234,7 @@ export default function AboutEdit() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-xl font-serif font-medium">Edit About Page</h1>
+          <h1 className="text-xl font-serif font-medium whitespace-nowrap">Edit About Page</h1>
         </div>
 
         <div className="flex items-center gap-3">
@@ -246,7 +246,7 @@ export default function AboutEdit() {
             type="button"
             onClick={handleSubmit}
             disabled={saving || loadFailed}
-            className="quiet-button text-xs flex items-center gap-1.5"
+            className="quiet-button text-xs flex items-center gap-1.5 whitespace-nowrap"
           >
             <Save className="w-3.5 h-3.5" />
             <span>{saving ? 'Saving...' : 'Save Settings'}</span>
@@ -288,7 +288,7 @@ export default function AboutEdit() {
         </div>
 
         {/* Site Default Typewriter Setting */}
-        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div>
             <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)]">
               Site Default Typewriter Effect
@@ -300,7 +300,7 @@ export default function AboutEdit() {
           <button
             type="button"
             onClick={handleToggleTypewriterDefault}
-            className={`px-3 py-1.5 rounded text-xs font-sans font-medium transition-colors border cursor-pointer ${
+            className={`px-3 py-1.5 rounded text-xs font-sans font-medium transition-colors border cursor-pointer shrink-0 whitespace-nowrap ${
               formData.default_typewriter_enabled
                 ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
                 : 'bg-[var(--code-bg)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
@@ -311,11 +311,11 @@ export default function AboutEdit() {
         </div>
 
         {/* Site Default Theme Setting */}
-        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div>
-            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex items-center gap-2">
+            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex flex-wrap items-center gap-2">
               <span>Site Default Theme</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase">
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase whitespace-nowrap">
                 {formData.default_theme === 'light' ? 'Light Mode' : 'Dark Mode'}
               </span>
             </div>
@@ -326,7 +326,7 @@ export default function AboutEdit() {
           <button
             type="button"
             onClick={handleToggleDefaultTheme}
-            className="px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)] hover:opacity-90"
+            className="px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)] hover:opacity-90"
           >
             {formData.default_theme === 'dark' ? (
               <>
@@ -343,11 +343,11 @@ export default function AboutEdit() {
         </div>
 
         {/* Site Default View Count Visibility Setting */}
-        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex justify-between items-center">
+        <div className="p-4 rounded border border-[var(--border-subtle)] bg-[var(--card-bg)] flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div>
-            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex items-center gap-2">
+            <div className="text-xs font-sans uppercase font-medium text-[var(--text-primary)] flex flex-wrap items-center gap-2">
               <span>View Count Visibility on Main Website</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase">
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] uppercase whitespace-nowrap">
                 {formData.show_view_count ? 'Visible' : 'Hidden'}
               </span>
             </div>
@@ -358,7 +358,7 @@ export default function AboutEdit() {
           <button
             type="button"
             onClick={handleToggleViewCountDefault}
-            className={`px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded text-xs font-sans font-medium transition-all border cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
               formData.show_view_count
                 ? 'bg-[var(--text-primary)] text-[var(--bg-main)] border-[var(--text-primary)]'
                 : 'bg-[var(--code-bg)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
