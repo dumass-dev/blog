@@ -678,7 +678,7 @@ export default function EntryDetail() {
                 alt={entry.title || 'Cover image'}
                 objectFit="object-cover"
                 className="w-full h-auto rounded border border-[var(--border-subtle)] max-h-[440px]"
-                imgClassName="group-hover:opacity-95 transition-opacity"
+                imgClassName="max-h-[440px] group-hover:opacity-95 transition-opacity"
               />
             </div>
           )}

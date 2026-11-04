@@ -344,7 +344,12 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
 
   const now = Date.now();
   const cached = b2UrlCache.get(storageKey);
-  if (cached && cached.expiresAt > now + 60000) {
+  // Reuse a cached URL only while it has plenty of life left: the media
+  // proxy lets browsers/CDN cache its redirect for up to 1 hour, so a URL
+  // handed out with less than that remaining could be served after it has
+  // expired (a broken image until the cached redirect runs out).
+  const MIN_REMAINING_MS = 2 * 60 * 60 * 1000;
+  if (cached && cached.expiresAt > now + MIN_REMAINING_MS) {
     return cached.url;
   }
 

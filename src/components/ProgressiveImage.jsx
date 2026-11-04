@@ -24,15 +24,24 @@ export default function ProgressiveImage({
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
+  // One retry for the media proxy (/api/media/file/...): the browser may
+  // hold a cached redirect whose signed URL has since expired. A ?retry=1
+  // request skips that cache and gets a fresh signature — the same second
+  // chance RichViewer gives images inside entries.
+  const [retried, setRetried] = useState(false);
   const imgRef = React.useRef(null);
 
   React.useEffect(() => {
     setIsLoaded(false);
     setIsError(false);
+    setRetried(false);
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
       setIsLoaded(true);
     }
   }, [src]);
+
+  const canRetry = typeof src === 'string' && src.includes('/api/media/file/');
+  const imgSrc = retried && canRetry ? `${src}${src.includes('?') ? '&' : '?'}retry=1` : src;
 
   const handleLoad = (e) => {
     setIsLoaded(true);
@@ -40,15 +49,23 @@ export default function ProgressiveImage({
   };
 
   const handleError = (e) => {
+    if (canRetry && !retried) {
+      setRetried(true);
+      return;
+    }
     setIsError(true);
     setIsLoaded(false);
     if (customOnError) customOnError(e);
   };
 
+  // A failed image keeps a visible box (with the "Image unavailable" note)
+  // even where its size only came from the image itself.
+  const boxStyle = isError ? { minHeight: '120px', width: '100%', ...style } : style;
+
   return (
     <div
       className={`relative overflow-hidden bg-[var(--code-bg)] select-none ${aspectRatio || ''} ${className}`}
-      style={style}
+      style={boxStyle}
       onClick={onClick}
     >
       {/* Skeleton loader shown while loading */}
@@ -70,7 +87,7 @@ export default function ProgressiveImage({
       {src && !isError && (
         <img
           ref={imgRef}
-          src={src}
+          src={imgSrc}
           alt={alt}
           loading={loading}
           decoding="async"

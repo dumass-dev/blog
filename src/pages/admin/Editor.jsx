@@ -1107,6 +1107,7 @@ export default function Editor() {
                 alt=""
                 loading="eager"
                 className="w-full rounded mb-6 max-h-[400px]"
+                imgClassName="max-h-[400px]"
               />
             ) : null;
           })()}
@@ -1861,6 +1862,7 @@ export default function Editor() {
                     alt=""
                     loading="eager"
                     className="w-full rounded mb-4 max-h-[300px]"
+                    imgClassName="max-h-[300px]"
                   />
                 ) : null;
               })()}

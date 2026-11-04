@@ -204,7 +204,7 @@ export default function Home() {
                           alt={item.title || 'Photo'}
                           objectFit="object-cover"
                           className="w-full h-auto max-h-[520px]"
-                          imgClassName="group-hover:opacity-95 transition-opacity"
+                          imgClassName="max-h-[520px] group-hover:opacity-95 transition-opacity"
                         />
                       </Link>
                     </div>
