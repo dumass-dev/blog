@@ -1559,7 +1559,7 @@ export default function Editor() {
 
             {/* Location */}
             <div>
-              <label htmlFor="entry-location" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-location" className="text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Location</span>
               </label>
@@ -1576,7 +1576,7 @@ export default function Editor() {
 
             {/* Weather */}
             <div>
-              <label htmlFor="entry-weather" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-weather" className="text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <Cloud className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Weather</span>
               </label>
@@ -1593,7 +1593,7 @@ export default function Editor() {
 
             {/* Mood */}
             <div>
-              <label htmlFor="entry-mood" className="block text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
+              <label htmlFor="entry-mood" className="text-xs font-sans uppercase text-[var(--text-muted)] mb-1 flex items-center gap-1">
                 <Smile className="w-3 h-3 text-[var(--accent-warm)]" />
                 <span>Mood</span>
               </label>

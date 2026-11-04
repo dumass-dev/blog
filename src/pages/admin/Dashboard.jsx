@@ -613,7 +613,7 @@ export default function Dashboard() {
         </Link>
 
         <Link to="/admin/new?type=photo" className="quiet-button admin-quick-action text-xs flex items-center gap-1.5">
-          <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-warm)]" />
+          <ImageIcon className="w-3.5 h-3.5 shrink-0" />
           <span>Post Photo</span>
         </Link>
 

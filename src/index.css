@@ -2840,3 +2840,36 @@ a.quiet-button-secondary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .motion-reduce\:transition-none { transition: none; }
 }
+
+/* ============================================================
+   Audit fixes (2026-11-04): more classes used in JSX that had no
+   rule. Purely additive. Split mode's classes stay undefined on
+   purpose (see the note above).
+   ============================================================ */
+
+/* Lightbox images fit inside their box instead of being cropped. */
+.object-contain { object-fit: contain; }
+
+/* Photo grid hover zoom and cover hover fade (were no-ops). */
+.group:hover .group-hover\:scale-105 { transform: scale(1.05); }
+.group:hover .group-hover\:opacity-95 { opacity: 0.95; }
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .group-hover\:scale-105 { transform: none; }
+}
+
+/* Visual editor: a comfortable writing area and a visible placeholder. */
+.min-h-\[420px\] { min-height: 420px; }
+.max-w-none { max-width: none; }
+.cursor-text { cursor: text; }
+.select-text { user-select: text; -webkit-user-select: text; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--text-muted);
+  font-style: italic;
+}
+@media (max-width: 639px) {
+  .ProseMirror.min-h-\[420px\] { min-height: 280px; }
+}

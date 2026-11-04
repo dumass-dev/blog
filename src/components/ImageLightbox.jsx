@@ -59,6 +59,7 @@ export default function ImageLightbox({ src, alt, caption, isOpen, onClose }) {
               style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
               objectFit="object-contain"
               className="max-h-[60dvh] max-w-full rounded shadow-lg transition-transform duration-200 ease-out"
+              imgClassName="max-h-[60dvh]"
             />
           </div>
         </div>

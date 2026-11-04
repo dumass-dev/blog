@@ -232,6 +232,7 @@ export default function Photos() {
                   alt={activePhoto.title || 'Photo'}
                   objectFit="object-contain"
                   className="max-w-full max-h-[52vh] md:max-h-[80vh] rounded shadow-lg"
+                  imgClassName="max-h-[52vh] md:max-h-[80vh]"
                 />
               ) : (
                 <div className="text-white/60 font-serif italic text-sm">No preview available</div>
