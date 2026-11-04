@@ -7,7 +7,7 @@ import { publishRealtimeUpdate } from '../../utils/realtime';
 import RichViewer from '../../components/RichViewer';
 import MediaPicker from '../../components/MediaPicker';
 import ProgressiveImage from '../../components/ProgressiveImage';
-import { usePrompt } from '../../components/ConfirmModal';
+import { usePrompt, useConfirm } from '../../components/ConfirmModal';
 import ThemeToggle from '../../components/ThemeToggle';
 import { stripMarkdown } from '../../utils/excerpt';
 import { toLocalDatetimeInputString, fromLocalDatetimeInputString } from '../../utils/date';
@@ -124,6 +124,10 @@ export default function Editor() {
   const visualEditorRef = React.useRef(null);
   const originalContentRef = React.useRef(initialEntry?.content || '');
   const dirtyRef = React.useRef(false);
+  // dirtyRef only tracks the body (it drives byte-for-byte saves); this one
+  // also covers title/metadata so the leave-page guard sees every edit.
+  const fieldsEditedRef = React.useRef(false);
+  const hasUnsavedChanges = () => (dirtyRef.current || fieldsEditedRef.current) && !isSavingRef.current;
   // True only while the Visual editor holds edits that have not yet been
   // pulled into formData.content. Tab switches and saves pull the live
   // Visual document ONLY when this is set, so merely opening Visual can
@@ -132,6 +136,7 @@ export default function Editor() {
   const [loading, setLoading] = useState(() => Boolean(id && !initialEntry));
   const [loadFailed, setLoadFailed] = useState(false);
   const [prompt, promptDialog] = usePrompt();
+  const [confirmLeave, confirmLeaveDialog] = useConfirm();
   const [saving, setSaving] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -142,6 +147,31 @@ export default function Editor() {
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const recognitionRef = React.useRef(null);
   const isSavingRef = React.useRef(false);
+
+  // Leaving with unsaved edits: the browser asks on refresh/close, and the
+  // in-app back arrow asks before navigating away.
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!hasUnsavedChanges()) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  const handleBack = async () => {
+    if (hasUnsavedChanges()) {
+      const ok = await confirmLeave({
+        title: 'Leave without saving?',
+        message: 'You have changes to this entry that are not saved yet. If you leave now, they will be lost.',
+        confirmLabel: 'Leave',
+        cancelLabel: 'Keep editing'
+      });
+      if (!ok) return;
+    }
+    navigate('/admin');
+  };
   const cursorPosRef = React.useRef({ start: null, end: null });
   const loadedEntryIdRef = React.useRef(null);
 
@@ -309,6 +339,7 @@ export default function Editor() {
           const rawContent = entryData.content || '';
           originalContentRef.current = rawContent;
           dirtyRef.current = false;
+          fieldsEditedRef.current = false;
           visualEditedRef.current = false;
           const gate = checkFidelity(rawContent);
           if (!gate.ok) {
@@ -344,6 +375,7 @@ export default function Editor() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    fieldsEditedRef.current = true;
     if (name === 'content') {
       dirtyRef.current = true;
       // The markdown string is now owned by the textarea side; any pending
@@ -387,10 +419,30 @@ export default function Editor() {
     const scrollPos = textarea.scrollTop;
     const windowScrollY = window.scrollY;
 
-    const selectedText = text.substring(start, end) || 'text';
-    const replacement = prefix + selectedText + suffix;
-
-    const newText = text.substring(0, start) + replacement + text.substring(end);
+    let newText;
+    let selStart;
+    let selEnd;
+    if (!suffix && /^(?:#{1,6} |> )$/.test(prefix)) {
+      // Line markers (headings, quotes) belong at the start of the line,
+      // replacing any heading marker already there.
+      const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+      const existing = (text.substring(lineStart).match(/^(?:#{1,6} |> )/) || [''])[0];
+      newText = text.substring(0, lineStart) + prefix + text.substring(lineStart + existing.length);
+      const shift = prefix.length - existing.length;
+      selStart = Math.max(lineStart + prefix.length, start + shift);
+      selEnd = Math.max(selStart, end + shift);
+    } else if (!suffix) {
+      // Plain snippets (divider, [clear], a URL) are inserted as-is.
+      newText = text.substring(0, start) + prefix + text.substring(end);
+      selStart = selEnd = start + prefix.length;
+    } else {
+      // Wrapping markers: wrap the selection, or insert a placeholder word
+      // that is left selected so typing replaces it.
+      const selectedText = text.substring(start, end) || 'text';
+      newText = text.substring(0, start) + prefix + selectedText + suffix + text.substring(end);
+      selStart = start + prefix.length;
+      selEnd = selStart + selectedText.length;
+    }
     setFormData(prev => ({ ...prev, content: newText }));
 
     // Reset cursor after update without jumping or scrolling the editor/page
@@ -398,7 +450,7 @@ export default function Editor() {
       const el = document.getElementById('content-textarea');
       if (el) {
         el.focus({ preventScroll: true });
-        el.setSelectionRange(start + prefix.length, end + prefix.length);
+        el.setSelectionRange(selStart, selEnd);
         el.scrollTop = scrollPos;
       }
       window.scrollTo({ top: windowScrollY, behavior: 'instant' });
@@ -745,6 +797,7 @@ export default function Editor() {
     }
     originalContentRef.current = normalizedContent;
     dirtyRef.current = false;
+    fieldsEditedRef.current = false;
     visualEditedRef.current = false;
     setSaving(false);
     isSavingRef.current = false;
@@ -791,6 +844,7 @@ export default function Editor() {
         onSelectMedia={handleSelectMedia}
       />
       {promptDialog}
+      {confirmLeaveDialog}
 
       {/* Top action bar */}
       <div className="sticky top-0 z-40 bg-[var(--bg-main)] flex flex-col sm:flex-row justify-between items-stretch sm:items-center py-4 border-b border-[var(--border-subtle)] mb-8 gap-3 sm:gap-4">
@@ -799,7 +853,7 @@ export default function Editor() {
           <div className="flex items-center space-x-2.5 min-w-0">
             <button
               type="button"
-              onClick={() => navigate('/admin')}
+              onClick={handleBack}
               className="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0 cursor-pointer"
               title="Back to Admin"
               aria-label="Back to Admin"
@@ -855,7 +909,7 @@ export default function Editor() {
                   // it would load silently drops/degrades the unfaithful
                   // parts, and any later edit + save would bake that loss
                   // in. Stay in the current mode, where the warning banner
-                  // (with its deliberate "Switch to Visual" override) is
+                  // (with its deliberate "Use Visual anyway" override) is
                   // visible, instead of switching and hiding the warning.
                   const gate = checkFidelity(formData.content);
                   if (!gate.ok) {
@@ -1090,14 +1144,14 @@ export default function Editor() {
               <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--code-bg)] border border-[var(--border-subtle)] text-xs font-sans text-[var(--accent-warm)]">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>This entry contains formatting that requires raw Markdown mode to preserve 100% fidelity ({gateWarning}).</span>
+                  <span>This entry has formatting the visual editor can't keep exactly ({gateWarning}). Stay in Markdown to edit it safely.</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMode('visual')}
                   className="text-xs underline hover:opacity-80 shrink-0 ml-2"
                 >
-                  Switch to Visual
+                  Use Visual anyway
                 </button>
               </div>
             )}
@@ -1270,7 +1324,15 @@ export default function Editor() {
                       window.dispatchEvent(new window.CustomEvent('editor-open-video-dialog'));
                     }
                   } else {
-                    insertFormatting('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+                    prompt({
+                      title: 'Embed video',
+                      label: 'YouTube or video URL',
+                      placeholder: 'https://www.youtube.com/watch?v=...',
+                      initialValue: '',
+                      confirmLabel: 'Insert'
+                    }).then((url) => {
+                      if (url && url.trim()) insertFormatting(`\n${url.trim()}\n`);
+                    });
                   }
                 }}
                 className="p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0 whitespace-nowrap"

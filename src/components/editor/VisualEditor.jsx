@@ -70,6 +70,12 @@ const VisualEditor = forwardRef(function VisualEditor(
 
   const [slashState, setSlashState] = useState(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+  // The suggestion callbacks below are created once with the editor, so they
+  // must read the live slash state through refs, not the first-render values.
+  const slashStateRef = useRef(null);
+  const selectedSlashIndexRef = useRef(0);
+  slashStateRef.current = slashState;
+  selectedSlashIndexRef.current = selectedSlashIndex;
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const showLinkPromptRef = useRef(false);
   showLinkPromptRef.current = showLinkPrompt;
@@ -109,36 +115,53 @@ const VisualEditor = forwardRef(function VisualEditor(
           render: () => {
             return {
               onStart: (props) => {
+                slashStateRef.current = props;
+                selectedSlashIndexRef.current = 0;
                 setSlashState(props);
                 setSelectedSlashIndex(0);
               },
               onUpdate: (props) => {
+                slashStateRef.current = props;
+                const count = (props.items || []).length;
+                if (selectedSlashIndexRef.current > Math.max(0, count - 1)) {
+                  selectedSlashIndexRef.current = 0;
+                  setSelectedSlashIndex(0);
+                }
                 setSlashState(props);
               },
               onKeyDown: (props) => {
+                const current = slashStateRef.current;
+                const items = current?.items || [];
                 if (props.event.key === 'ArrowUp') {
-                  setSelectedSlashIndex((prev) => (prev <= 0 ? 0 : prev - 1));
+                  const next = Math.max(0, selectedSlashIndexRef.current - 1);
+                  selectedSlashIndexRef.current = next;
+                  setSelectedSlashIndex(next);
                   return true;
                 }
                 if (props.event.key === 'ArrowDown') {
-                  setSelectedSlashIndex((prev) => prev + 1);
+                  const next = Math.min(Math.max(0, items.length - 1), selectedSlashIndexRef.current + 1);
+                  selectedSlashIndexRef.current = next;
+                  setSelectedSlashIndex(next);
                   return true;
                 }
-                if (props.event.key === 'Enter') {
-                  const items = slashState?.items || [];
-                  const activeItem = items[selectedSlashIndex] || items[0];
-                  if (activeItem && slashState) {
-                    slashState.command(activeItem);
+                if (props.event.key === 'Enter' || props.event.key === 'Tab') {
+                  const activeItem = items[selectedSlashIndexRef.current] || items[0];
+                  if (activeItem && current) {
+                    current.command(activeItem);
                     return true;
                   }
+                  return false;
                 }
                 if (props.event.key === 'Escape') {
+                  slashStateRef.current = null;
                   setSlashState(null);
                   return true;
                 }
                 return false;
               },
               onExit: () => {
+                slashStateRef.current = null;
+                selectedSlashIndexRef.current = 0;
                 setSlashState(null);
                 setSelectedSlashIndex(0);
               }
@@ -781,23 +804,56 @@ const VisualEditor = forwardRef(function VisualEditor(
         slashMenuRef.current.style.flexDirection = 'column';
       } else {
         const virtualElement = {
-          getBoundingClientRect: slashState.clientRect
+          // clientRect() returns null once the "/" decoration is gone
+          // (e.g. the instant a command runs); fall back to the caret.
+          getBoundingClientRect: () => {
+            const rect = slashState.clientRect && slashState.clientRect();
+            if (rect) return rect;
+            try {
+              const coords = editor.view.coordsAtPos(editor.state.selection.from);
+              return { x: coords.left, y: coords.top, left: coords.left, top: coords.top, right: coords.right, bottom: coords.bottom, width: 0, height: coords.bottom - coords.top };
+            } catch {
+              return { x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+            }
+          }
         };
-        computePosition(virtualElement, slashMenuRef.current, {
+        // Lay the menu out (invisibly) before measuring, so flip/shift see
+        // its real size instead of the 0x0 of a display:none element.
+        const menuEl = slashMenuRef.current;
+        if (menuEl.style.display === 'none') menuEl.style.visibility = 'hidden';
+        menuEl.style.position = 'fixed';
+        menuEl.style.right = 'auto';
+        menuEl.style.width = '';
+        menuEl.style.maxWidth = '';
+        menuEl.style.display = 'flex';
+        menuEl.style.flexDirection = 'column';
+        computePosition(virtualElement, menuEl, {
+          strategy: 'fixed', // the menu is position:fixed
           placement: 'bottom-start',
           middleware: [offset(6), flip(), shift({ padding: 8 })]
         }).then(({ x, y }) => {
           if (slashMenuRef.current) {
-            slashMenuRef.current.style.position = 'fixed';
-            slashMenuRef.current.style.left = `${x}px`;
-            slashMenuRef.current.style.top = `${y}px`;
-            slashMenuRef.current.style.right = 'auto';
-            slashMenuRef.current.style.bottom = 'auto';
-            slashMenuRef.current.style.width = '';
-            slashMenuRef.current.style.maxWidth = '';
-            slashMenuRef.current.style.maxHeight = '20rem';
-            slashMenuRef.current.style.display = 'flex';
-            slashMenuRef.current.style.flexDirection = 'column';
+            // Keep the whole menu on screen: if it would run past the bottom
+            // edge, open it above the caret instead.
+            // The menu can still grow after this (its items render on the
+            // next pass), so when it opens upwards it is anchored by its
+            // bottom edge and grows away from the caret, never off-screen.
+            const el = slashMenuRef.current;
+            const MENU_MAX_H = 320; // 20rem
+            const caret = virtualElement.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - caret.bottom - 14;
+            const spaceAbove = caret.top - 14;
+            el.style.left = `${x}px`;
+            if (spaceBelow < MENU_MAX_H && spaceAbove > spaceBelow) {
+              el.style.top = 'auto';
+              el.style.bottom = `${Math.round(window.innerHeight - caret.top + 6)}px`;
+              el.style.maxHeight = `${Math.min(MENU_MAX_H, spaceAbove)}px`;
+            } else {
+              el.style.bottom = 'auto';
+              el.style.top = `${y}px`;
+              el.style.maxHeight = `${Math.min(MENU_MAX_H, Math.max(160, spaceBelow))}px`;
+            }
+            el.style.visibility = 'visible';
           }
         });
       }
@@ -815,6 +871,41 @@ const VisualEditor = forwardRef(function VisualEditor(
       editor.off('transaction', updatePopups);
     };
   }, [editor, updatePopups]);
+
+  // The slash menu mounts on the render after "/" is typed, but popups are
+  // only positioned on editor transactions — so without this the menu stayed
+  // hidden until the next keystroke. Position it as soon as it mounts/changes.
+  // Keep the keyboard-highlighted command visible inside the scrolling menu.
+  useEffect(() => {
+    const menu = slashMenuRef.current;
+    if (!menu) return;
+    const active = menu.querySelector(`[data-slash-index="${selectedSlashIndex}"]`);
+    if (active && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedSlashIndex]);
+
+  useEffect(() => {
+    if (!slashState) return undefined;
+    updatePopups();
+    // Typing near the bottom makes the editor scroll the caret into view
+    // after the menu was placed; follow the caret while the menu is open.
+    let frame = null;
+    const follow = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        updatePopups();
+      });
+    };
+    window.addEventListener('scroll', follow, { passive: true });
+    window.addEventListener('resize', follow);
+    return () => {
+      window.removeEventListener('scroll', follow);
+      window.removeEventListener('resize', follow);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [slashState, updatePopups]);
 
   // Close link prompt if user clicks/taps outside the bubble menu
   useEffect(() => {
@@ -1380,6 +1471,7 @@ const VisualEditor = forwardRef(function VisualEditor(
               <button
                 key={item.title}
                 type="button"
+                data-slash-index={idx}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   slashState.command(item);
