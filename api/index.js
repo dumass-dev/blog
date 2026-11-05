@@ -225,6 +225,19 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
   return Promise.allSettled([upsertPromise, sendPromise]);
 }
 
+// Send a realtime broadcast and wait for it to land (bounded) before the
+// route responds. On Vercel a function can be frozen the moment its response
+// goes out, so a fire-and-forget broadcast could silently never reach other
+// devices (and the realtime_sync row the 10s sync-check polls might never
+// update). The broadcast never rejects; a slow one is cut off after `ms` so
+// it can't hold the request hostage. Writes only the single 'latest' row.
+export function settleBroadcast(event, data = {}, supabaseClient = null, ms = 1500) {
+  return Promise.race([
+    broadcastRealtimeEvent(event, data, supabaseClient),
+    new Promise(resolve => setTimeout(resolve, ms))
+  ]);
+}
+
 // GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
 const MAX_SSE_CLIENTS = 100;
 app.get('/api/realtime-stream', (req, res) => {
@@ -385,7 +398,7 @@ app.post('/api/realtime-broadcast', async (req, res) => {
     const body = req.body || {};
     const event = body.event || body.type || 'resync';
     const client = getSupabaseClient(req);
-    broadcastRealtimeEvent(event, body, client);
+    await settleBroadcast(event, body, client);
     res.json({ success: true, version: realtimeVersion });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1123,7 +1136,7 @@ async function handleSaveAbout(req, res) {
       show_view_count: saveData.show_view_count
     };
 
-    broadcastRealtimeEvent('about_updated', {
+    await settleBroadcast('about_updated', {
       data: broadcastPayload
     });
 
@@ -1808,7 +1821,7 @@ app.post('/api/posts/:identifier/views', async (req, res) => {
 
     // 4. Only broadcast realtime view update if view count is visible
     if (showViews) {
-      broadcastRealtimeEvent('entry_view_updated', {
+      await settleBroadcast('entry_view_updated', {
         id: post.id,
         slug: post.slug,
         views: newViews
@@ -1850,7 +1863,7 @@ app.delete('/api/posts/:id', async (req, res) => {
 
     if (error) throw error;
 
-    broadcastRealtimeEvent('entry_deleted', {
+    await settleBroadcast('entry_deleted', {
       op: 'DELETE',
       id
     });
@@ -2212,7 +2225,7 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       hearts: (allReactions || []).length
     });
 
-    broadcastRealtimeEvent('reaction_updated', {
+    await settleBroadcast('reaction_updated', {
       postId,
       reaction_type,
       counts: updatedCounts
@@ -2285,7 +2298,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     if (error) throw error;
 
-    broadcastRealtimeEvent('comment_created', {
+    await settleBroadcast('comment_created', {
       op: 'INSERT',
       postId,
       comment: data
@@ -2327,7 +2340,7 @@ app.delete('/api/comments/:id', async (req, res) => {
       return res.status(404).json({ error: 'Comment not found or delete not permitted.' });
     }
 
-    broadcastRealtimeEvent('comment_deleted', {
+    await settleBroadcast('comment_deleted', {
       op: 'DELETE',
       commentId: data[0].id
     });
@@ -2390,7 +2403,7 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
       }
     }
 
-    broadcastRealtimeEvent('now_playing_updated', {
+    await settleBroadcast('now_playing_updated', {
       title, artist, album, isPaused
     }, supabase);
 
@@ -2467,7 +2480,7 @@ app.post('/api/now-playing/toggle', express.json(), async (req, res) => {
 
     if (error) throw error;
     try {
-      broadcastRealtimeEvent('now_playing_updated', { showOnHome }, supabase);
+      await settleBroadcast('now_playing_updated', { showOnHome }, supabase);
     } catch {}
     res.json({ success: true, showOnHome });
   } catch (err) {
