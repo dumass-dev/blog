@@ -160,6 +160,66 @@ export default function Editor() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Local safety copy of unsaved work (this browser only, never the
+  // database): a crash, closed window or dead battery used to lose the post.
+  // Saved every few seconds while there are unsaved edits; offered back the
+  // next time this entry (or a new entry of this type) is opened; cleared on
+  // a successful save or when dismissed.
+  const backupKey = `editor_backup_${id || `new:${initialType}`}`;
+  const formDataRef = React.useRef(formData);
+  formDataRef.current = formData;
+  const [restorable, setRestorable] = useState(null);
+  const restoreCheckedRef = React.useRef(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!hasUnsavedChanges() || loading) return;
+      try {
+        const current = formDataRef.current || {};
+        let content = current.content || '';
+        if (visualEditedRef.current && visualEditorRef.current?.getMarkdown) {
+          const live = visualEditorRef.current.getMarkdown();
+          if (live) content = live;
+        }
+        localStorage.setItem(backupKey, JSON.stringify({
+          title: current.title || '',
+          content,
+          savedAt: Date.now()
+        }));
+      } catch { /* storage full / unavailable: skip */ }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [backupKey, loading]);
+
+  useEffect(() => {
+    if (loading || restoreCheckedRef.current) return;
+    restoreCheckedRef.current = true;
+    try {
+      const raw = localStorage.getItem(backupKey);
+      if (!raw) return;
+      const b = JSON.parse(raw);
+      const current = formDataRef.current || {};
+      const differs = b && ((b.content || '') !== (current.content || '') || (b.title || '') !== (current.title || ''));
+      const fresh = b && b.savedAt && Date.now() - b.savedAt < 14 * 24 * 60 * 60 * 1000;
+      if (differs && fresh && ((b.content || '').trim() || (b.title || '').trim())) setRestorable(b);
+      else localStorage.removeItem(backupKey);
+    } catch { /* ignore a corrupt backup */ }
+  }, [loading, backupKey]);
+
+  const restoreBackup = () => {
+    if (!restorable) return;
+    setFormData(prev => ({ ...prev, title: restorable.title, content: restorable.content }));
+    if (visualEditorRef.current?.setContent) visualEditorRef.current.setContent(restorable.content || '');
+    dirtyRef.current = true;
+    fieldsEditedRef.current = true;
+    visualEditedRef.current = false;
+    setRestorable(null);
+  };
+  const discardBackup = () => {
+    try { localStorage.removeItem(backupKey); } catch {}
+    setRestorable(null);
+  };
+
   const handleBack = async () => {
     if (hasUnsavedChanges()) {
       const ok = await confirmLeave({
@@ -169,6 +229,8 @@ export default function Editor() {
         cancelLabel: 'Keep editing'
       });
       if (!ok) return;
+      // Chose to leave without saving: don't offer these edits back later.
+      try { localStorage.removeItem(backupKey); } catch {}
     }
     navigate('/admin');
   };
@@ -808,7 +870,13 @@ export default function Editor() {
         type: savedData.type
       }
     });
-    toastSuccess(id ? 'Entry updated successfully.' : 'Entry published successfully.');
+    {
+      const savedStatus = savedData.status || formData.status;
+      const isDraft = savedStatus === 'draft';
+      toastSuccess(isDraft
+        ? (id ? 'Draft saved (not public).' : 'Saved as a draft (not public).')
+        : (id ? 'Entry updated successfully.' : 'Entry published successfully.'));
+    }
     if (payload.passcode === null) {
       setHasExistingPasscode(false);
       setRemovePasscodeFlag(false);
@@ -821,6 +889,11 @@ export default function Editor() {
     visualEditedRef.current = false;
     setSaving(false);
     isSavingRef.current = false;
+    try {
+      localStorage.removeItem(backupKey);
+      if (savedData?.id) localStorage.removeItem(`editor_backup_${savedData.id}`);
+    } catch {}
+    setRestorable(null);
 
     if (!id && savedData?.id) {
       // Smoothly transition new entry into edit route so the author remains in the editor
@@ -1136,6 +1209,17 @@ export default function Editor() {
       )}
 
       {/* Edit & Split Mode */}
+      {restorable && (
+        <div className="mb-4 p-3 rounded border border-[var(--accent-warm)] bg-[var(--code-bg)] flex flex-wrap items-center justify-between gap-3 text-xs font-sans" role="status">
+          <span className="text-[var(--text-primary)]">
+            Unsaved changes from {new Date(restorable.savedAt).toLocaleString()} were found for this entry.
+          </span>
+          <span className="flex gap-2">
+            <button type="button" onClick={restoreBackup} className="quiet-button py-1 px-3 text-xs">Restore</button>
+            <button type="button" onClick={discardBackup} className="quiet-button-secondary py-1 px-3 text-xs">Discard</button>
+          </span>
+        </div>
+      )}
       <form
         onSubmit={handleSave}
         className={`${mode === 'preview' ? 'hidden' : ''} ${

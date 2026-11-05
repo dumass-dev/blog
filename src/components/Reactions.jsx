@@ -93,7 +93,9 @@ export default function Reactions({ postId, passcode }) {
   }, [postId, loadReactions]);
 
   const handleReact = async (type) => {
-    if (userReacted[type]) return; // Prevent spamming same reaction
+    // One reaction per reader per post: it used to be locked per TYPE, so a
+    // single visitor could tap all four and count 4 times.
+    if (Object.keys(userReacted).some(k => userReacted[k])) return;
 
     // Optimistic UI update
     setCounts(prev => ({ ...prev, [type]: (prev[type] || 0) + 1 }));
@@ -211,15 +213,19 @@ export default function Reactions({ postId, passcode }) {
           const Icon = item.icon;
           const count = counts[item.key] || 0;
           const hasReacted = !!userReacted[item.key];
+          const reactedOther = !hasReacted && Object.keys(userReacted).some(k => userReacted[k]);
           return (
             <button
               key={item.key}
               onClick={() => handleReact(item.key)}
-              disabled={hasReacted}
-              className={`reaction-pill flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border text-xs font-sans transition-all cursor-pointer ${
+              disabled={hasReacted || reactedOther}
+              aria-pressed={hasReacted}
+              className={`reaction-pill flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border text-xs font-sans transition-all ${
                 hasReacted
-                  ? 'font-medium scale-105 shadow-sm'
-                  : 'border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--accent-warm)] hover:text-[var(--accent-warm)] bg-[var(--code-bg)]'
+                  ? 'font-medium scale-105 shadow-sm cursor-default'
+                  : reactedOther
+                    ? 'border-[var(--border-subtle)] text-[var(--text-primary)] bg-[var(--code-bg)] opacity-50 cursor-default'
+                    : 'cursor-pointer border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--accent-warm)] hover:text-[var(--accent-warm)] bg-[var(--code-bg)]'
               }`}
               style={hasReacted ? { backgroundColor: 'var(--text-primary)', color: 'var(--bg-main)', borderColor: 'var(--text-primary)' } : {}}
               title={`Mark as ${item.label}`}

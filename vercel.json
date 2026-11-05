@@ -44,6 +44,14 @@
   ],
   "rewrites": [
     {
+      "source": "/rss.xml",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/feed.xml",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/index.js"
     },
@@ -64,7 +72,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/((?!api/|uploads/|assets/|favicon.ico|sitemap\\.xml|robots\\.txt|_static_shell).*)",
+      "source": "/((?!api/|uploads/|assets/|favicon.ico|sitemap\\.xml|rss\\.xml|feed\\.xml|robots\\.txt|_static_shell).*)",
       "destination": "/api/index.js"
     }
   ]

@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { getSupabaseClient, supabase } from '../server/supabase.js';
-import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry, getVaultStorageStats } from '../server/b2.js';
+import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, isStorageKeyLocated, deleteFromB2, refreshB2Url, toMediaProxyUrl, proxyB2UrlsInText, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry, getVaultStorageStats } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
 import { readImageDims } from '../server/imageDims.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
@@ -557,7 +557,9 @@ app.get(/^\/api\/media\/file\/(.+)$/, async (req, res) => {
     // Cache the redirect for 1h only — well inside the signed URL's 24h
     // life, so a cached redirect can never keep handing a browser an
     // expired signature (which renders as a broken-image box).
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    // A redirect to a bucket that wasn't confirmed to hold the file (storage
+    // didn't answer) is cached for a minute only, so a miss can't stick.
+    res.setHeader('Cache-Control', isStorageKeyLocated(storageKey) ? 'public, max-age=3600' : 'public, max-age=60');
     res.redirect(302, signedUrl);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -583,12 +585,10 @@ app.get('/api/media', async (req, res) => {
       const rawUrl = item.url || '';
       const key = extractB2StorageKey(rawUrl) || rawUrl;
       const proxyUrl = key && /^(?:images|videos|audio|files)\//.test(key) ? `/api/media/file/${key}` : rawUrl;
-      // Generate a fresh signed URL for immediate admin panel display
-      let displayUrl = proxyUrl;
-      try {
-        const fresh = await refreshB2Url(key);
-        if (fresh) displayUrl = fresh;
-      } catch {}
+      // Thumbnails use the permanent proxy address: signing a fresh link for
+      // every file meant one round trip to Backblaze (US) per item before the
+      // list could even respond (~6s for 11 files).
+      const displayUrl = proxyUrl;
       return {
         ...item,
         url: displayUrl,
@@ -685,8 +685,8 @@ app.get('/api/posts/on-this-day', async (req, res) => {
         }
       }
 
-      freshCover = await refreshB2Url(freshCover);
-      const freshContent = await refreshB2Url(post.content);
+      freshCover = toMediaProxyUrl(freshCover);
+      const freshContent = proxyB2UrlsInText(post.content);
       const viewsToReturn = (showViews || isAdmin) ? post.views : undefined;
 
       if (!isAdmin && has_passcode) {
@@ -1247,6 +1247,36 @@ function versionedCacheHeader(req, res, currentVersion) {
   }
 }
 
+// GET /api/search?q= — full-text-ish search over published posts (title,
+// body, tags). The archive's list doesn't carry post bodies, so searching a
+// word that only appears in a post's text used to find nothing. Returns ids
+// only; locked (passcode) posts match on title/tags, never their hidden text.
+app.get('/api/search', async (req, res) => {
+  try {
+    const raw = typeof req.query.q === 'string' ? req.query.q : '';
+    // PostgREST filter syntax: strip characters that would break or widen it.
+    const q = raw.replace(/[%_,()*\\:"'.]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (q.length < 2) return res.json({ ids: [] });
+    const pattern = `%${q}%`;
+    const { data, error } = await getSupabaseClient(req)
+      .from('public_published_entries')
+      .select('id, has_passcode, title, tags, content')
+      .or(`title.ilike.${pattern},content.ilike.${pattern},tags.ilike.${pattern}`)
+      .limit(100);
+    if (error) throw error;
+    const needle = q.toLowerCase();
+    const ids = (data || [])
+      .filter(r => !r.has_passcode
+        || (r.title || '').toLowerCase().includes(needle)
+        || (r.tags || '').toLowerCase().includes(needle))
+      .map(r => r.id);
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5');
+    res.json({ ids });
+  } catch (err) {
+    res.status(500).json({ error: err.message, ids: [] });
+  }
+});
+
 // GET /api/posts
 app.get('/api/posts', async (req, res) => {
   try {
@@ -1319,7 +1349,7 @@ app.get('/api/posts', async (req, res) => {
         }
       }
       if (freshCover) {
-        freshCover = await refreshB2Url(freshCover);
+        freshCover = toMediaProxyUrl(freshCover);
       }
 
       if (!isAdmin && has_passcode) {
@@ -1572,8 +1602,8 @@ app.get('/api/posts/:slug', async (req, res) => {
       const imgMatch = post.content && post.content.match(/https?:\/\/[^\s)"]+(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+[^\s)"]*/i);
       if (imgMatch) freshCover = imgMatch[0];
     }
-    freshCover = await refreshB2Url(freshCover);
-    const freshContent = await refreshB2Url(post.content);
+    freshCover = toMediaProxyUrl(freshCover);
+    const freshContent = proxyB2UrlsInText(post.content);
 
     const { data: prevNextData } = await getSupabaseClient(req)
       .from('public_published_entries')
@@ -1664,8 +1694,8 @@ app.post('/api/posts/:identifier/verify-passcode', async (req, res) => {
       return res.status(401).json({ error: result?.error_message || 'Incorrect passcode.' });
     }
 
-    const freshContent = await refreshB2Url(result.content);
-    const freshCover = await refreshB2Url(result.cover_image);
+    const freshContent = proxyB2UrlsInText(result.content);
+    const freshCover = toMediaProxyUrl(result.cover_image);
 
     return res.json({
       unlocked: true,
@@ -2655,7 +2685,7 @@ export async function getEffectiveShowViews(supabase) {
 }
 
 // Serve application HTML with injected site default theme and view count visibility to guarantee zero flash
-async function serveInjectedHtml(req, res, extraHead = '') {
+async function serveInjectedHtml(req, res, extraHead = '', pageMeta = null) {
   let html = '';
   try {
     html = fs.readFileSync(path.join(process.cwd(), 'dist', 'index.html'), 'utf8');
@@ -2772,6 +2802,12 @@ async function serveInjectedHtml(req, res, extraHead = '') {
     html = html.replace(/<title>q04ti\s*—/i, `<title>${authorName} —`);
   }
 
+  if (pageMeta) {
+    const esc = (str) => String(str || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+    if (pageMeta.title) html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(pageMeta.title)}</title>`);
+    if (pageMeta.description) html = html.replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${esc(pageMeta.description)}" />`);
+  }
+
   const syncScript = `<script>window.__SITE_SHOW_VIEWS__=${effectiveShowViews ? 'true' : 'false'};window.__SITE_AUTHOR_NAME__=${JSON.stringify(authorName)};</script>`;
   if (extraHead) {
     html = html.replace('</head>', `${syncScript}${extraHead}</head>`);
@@ -2811,7 +2847,11 @@ app.get('/entry/:slug', async (req, res) => {
         }
         image = `https://${req.headers.host}${image}`;
       }
+      const pageUrl = `https://${req.headers.host}/entry/${encodeURIComponent(slug)}`;
       ogTags = `
+        <link rel="canonical" href="${pageUrl}" />
+        <meta property="og:url" content="${pageUrl}" />
+        <meta property="og:site_name" content="q04ti" />
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${excerpt}" />
         ${image ? `<meta property="og:image" content="${image}" />` : ''}
@@ -2822,11 +2862,61 @@ app.get('/entry/:slug', async (req, res) => {
         ${image ? `<meta name="twitter:image" content="${image}" />` : ''}
       `;
     }
-    return serveInjectedHtml(req, res, ogTags);
+    // The post's own <title> and description in the HTML itself (not only
+    // after the app's JavaScript runs), for search engines, browser tabs
+    // and link previews that read the plain HTML.
+    const pageMeta = post && !post.has_passcode ? {
+      title: `${post.title || 'Untitled'} — q04ti`,
+      description: post.excerpt || ''
+    } : null;
+    return serveInjectedHtml(req, res, ogTags, pageMeta);
   } catch (err) {
     console.error('OG Tag Error:', err);
     return res.redirect(`/?entry=${req.params.slug}`);
   }
+});
+
+// RSS feed (/rss.xml): published, non-locked posts, newest first.
+app.get(['/rss.xml', '/feed.xml', '/api/rss.xml'], async (req, res) => {
+  const esc = (str) => String(str || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[ch]);
+  const origin = `https://${req.headers.host || 'blog.q04ti.dev'}`;
+  let items = '';
+  try {
+    const { data: posts } = await getSupabaseClient(req)
+      .from('public_published_entries')
+      .select('id, slug, title, excerpt, date, created_at, has_passcode, type')
+      .order('date', { ascending: false })
+      .limit(50);
+    items = (posts || [])
+      .filter(p => !p.has_passcode && p.slug)
+      .map(p => {
+        const link = `${origin}/entry/${encodeURIComponent(p.slug)}`;
+        const when = new Date(p.date || p.created_at || Date.now()).toUTCString();
+        return `    <item>
+      <title>${esc(p.title || 'Untitled')}</title>
+      <link>${esc(link)}</link>
+      <guid isPermaLink="false">${esc(p.id)}</guid>
+      <pubDate>${when}</pubDate>
+      <description>${esc(p.excerpt || '')}</description>
+    </item>`;
+      }).join('\n');
+  } catch (err) {
+    console.error('RSS generation failed:', err.message);
+  }
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>q04ti</title>
+    <link>${origin}/</link>
+    <atom:link href="${origin}/rss.xml" rel="self" type="application/rss+xml" />
+    <description>Journal, writing &amp; archive.</description>
+    <language>en</language>
+${items}
+  </channel>
+</rss>`;
+  res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300');
+  return res.send(xml);
 });
 
 // SITEMAP & ROBOTS.TXT

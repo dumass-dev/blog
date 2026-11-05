@@ -68,7 +68,9 @@ export default function StorageUsageCard({ storageData, refreshing, onRefresh })
             Storage & Cloud
           </span>
           <span className="text-[11px] font-mono text-[var(--text-muted)] truncate">
-            ({formatBytes(totalUsed)} / {formatBytes(totalAllocated)})
+            {/* Each pool against its own limit (the old combined "x / 30.49 GB"
+                mixed media and database and disagreed with the 30 GB below). */}
+            (Media {formatBytes(b2Used)} / {formatBytes(b2Allocated)} · DB {formatBytes(supaUsed)} / {formatBytes(supaAllocated)})
           </span>
         </div>
 

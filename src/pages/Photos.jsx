@@ -25,6 +25,16 @@ export default function Photos() {
 
   useEntryPrefetch(photos);
 
+  // Only show the placeholder tiles if loading is actually slow: an empty
+  // gallery has no saved copy, so the skeleton flashed six phantom tiles
+  // right before "0 captures" on every visit.
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  useEffect(() => {
+    if (!loading) { setShowSkeleton(false); return; }
+    const t = setTimeout(() => setShowSkeleton(true), 350);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
 
@@ -152,7 +162,7 @@ export default function Photos() {
 
       {/* Loading Skeleton */}
       {loading ? (
-        <FeedSkeleton type="photo" count={6} />
+        showSkeleton ? <FeedSkeleton type="photo" count={6} /> : <div className="min-h-[40vh]" aria-busy="true" />
       ) : error ? (
         <div className="py-16 text-center">
           <p className="font-serif text-lg text-[var(--text-primary)]">Couldn&apos;t load the photos.</p>

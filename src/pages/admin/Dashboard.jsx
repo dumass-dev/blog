@@ -62,6 +62,17 @@ export default function Dashboard() {
   const [stats, setStats] = useState(() => cachedData.stats || { total: 0, published: 0, drafts: 0, updates: 0, mediaCount: 0, totalViews: 0, topPosts: [] });
   const [storageData, setStorageData] = useState(() => cachedData.storage || null);
   const [entries, setEntries] = useState(() => cachedData.entries || []);
+  // The overview counts follow the live list: deleting/publishing a post
+  // updated the table instantly but left "N entries" stale until a reload.
+  useEffect(() => {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    const total = entries.length;
+    const published = entries.filter(e => e.status === 'published').length;
+    const drafts = entries.filter(e => e.status === 'draft').length;
+    setStats(prev => (prev.total === total && prev.published === published && prev.drafts === drafts)
+      ? prev
+      : { ...prev, total, published, drafts });
+  }, [entries]);
   const [comments, setComments] = useState(() => cachedData.comments || []);
   const [loading, setLoading] = useState(() => !cachedData.entries);
   const [loadError, setLoadError] = useState(false);

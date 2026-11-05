@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTypewriter } from '../context/TypewriterContext';
 
+// Text already typed out once during this visit appears instantly after
+// that: going back to a page (or between posts) used to replay every
+// heading and excerpt each time, which made the site feel slow even when
+// the data was already there. Per tab, in memory; a reload starts fresh.
+const typedThisVisit = new Set();
+const MAX_REMEMBERED = 2000;
+
 export default function TypewriterText({
   text,
   children,
@@ -18,7 +25,7 @@ export default function TypewriterText({
   // and types out only after mount, so a heading never reads truncated
   // mid-animation ("Chronolo") on its first paint. The animation itself is
   // unchanged — it still runs from 0 to full on every content change.
-  const [visibleCount, setVisibleCount] = useState(content.length);
+  const [visibleCount, setVisibleCount] = useState(() => content.length);
   const [isComplete, setIsComplete] = useState(false);
   const animFrameRef = useRef(null);
   const onCompleteRef = useRef(onComplete);
@@ -32,7 +39,10 @@ export default function TypewriterText({
     window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const shouldAnimate = typewriterEnabled && !isReducedMotion && Boolean(content);
+  // Decided once per mounted text: already-seen text never animates (and so
+  // never flickers full -> empty -> typed).
+  const alreadyTyped = typedThisVisit.has(content);
+  const shouldAnimate = typewriterEnabled && !isReducedMotion && Boolean(content) && !alreadyTyped;
 
   useEffect(() => {
     if (!shouldAnimate) {
@@ -76,6 +86,8 @@ export default function TypewriterText({
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(step);
       } else {
+        if (typedThisVisit.size >= MAX_REMEMBERED) typedThisVisit.clear();
+        typedThisVisit.add(content);
         setVisibleCount(N);
         setIsComplete(true);
         if (onCompleteRef.current) onCompleteRef.current();

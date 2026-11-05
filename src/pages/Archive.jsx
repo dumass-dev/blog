@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { fetchPublishedEntries, getCachedFeed, getLastFeedFetchFailed } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, getLastFeedFetchFailed, safeApiFetch } from '../supabase';
 import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import { stripMarkdown } from '../utils/excerpt';
 import FeedSkeleton from '../components/FeedSkeleton';
@@ -112,13 +112,30 @@ export default function Archive() {
     };
   }, [loadArchive]);
 
+  // Post bodies aren't in the loaded list, so matches inside a post's text
+  // come from the server (debounced); title/tag/excerpt matches are instant.
+  const [bodyMatchIds, setBodyMatchIds] = useState(() => new Set());
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) { setBodyMatchIds(new Set()); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      safeApiFetch(`/api/search?q=${encodeURIComponent(q)}`).then((res) => {
+        if (!cancelled && res && Array.isArray(res.ids)) setBodyMatchIds(new Set(res.ids));
+      });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [searchQuery]);
+
   // Local filter: search query / year-month selection over the loaded list
   useEffect(() => {
     let filtered = allPosts || [];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
+        bodyMatchIds.has(p.id) ||
         (p.title && p.title.toLowerCase().includes(q)) ||
+        (p.excerpt && p.excerpt.toLowerCase().includes(q)) ||
         (p.content && p.content.toLowerCase().includes(q)) ||
         (p.tags && p.tags.toLowerCase().includes(q)) ||
         (p.category && p.category.toLowerCase().includes(q))
@@ -133,7 +150,7 @@ export default function Archive() {
     }
 
     setSearchResults(filtered);
-  }, [allPosts, searchQuery, activeYear, activeMonth]);
+  }, [allPosts, searchQuery, activeYear, activeMonth, bodyMatchIds]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

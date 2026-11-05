@@ -356,24 +356,32 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
   // 1. Check if vault is already known in memory
   let vault = keyVaultMap.get(storageKey);
 
-  // 2. Discover vault across active configured vaults if not yet known
+  // 2. Discover the bucket that really holds the file (one retry: a slow
+  // or failed Backblaze reply must not be mistaken for "not here").
+  let verified = Boolean(vault);
   if (!vault) {
     const activeVaults = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
-    for (const v of activeVaults) {
-      try {
-        await v.client.send(new HeadObjectCommand({ Bucket: v.bucket, Key: storageKey }));
-        vault = v;
-        keyVaultMap.set(storageKey, v);
-        break;
-      } catch (_err) {
-        // Not in this bucket, check next
+    for (let pass = 0; pass < 2 && !vault; pass++) {
+      for (const v of activeVaults) {
+        try {
+          await v.client.send(new HeadObjectCommand({ Bucket: v.bucket, Key: storageKey }));
+          vault = v;
+          keyVaultMap.set(storageKey, v);
+          break;
+        } catch (_err) {
+          // Not in this bucket (or no answer), check next
+        }
       }
     }
+    verified = Boolean(vault);
   }
 
-  // 3. Fallback to default active vault
+  // 3. Not found anywhere: sign for the first bucket in the chain, but do
+  // NOT cache it. This used to fall back to whichever bucket the instance
+  // currently thought was "active" and cache that guess for 24h, so a
+  // transient miss produced a "Key not found" link that stuck around.
   if (!vault) {
-    vault = getActiveVault('visuals') || vaults.journal;
+    vault = [vaults.media1, vaults.media2, vaults.journal].find(v => !!v.client);
   }
 
   if (!vault || !vault.client) return null;
@@ -384,7 +392,7 @@ export async function getB2SignedUrl(storageKey, expiresInSeconds = 86400) {
       Key: storageKey,
     });
     const freshUrl = await getSignedUrl(vault.client, getCommand, { expiresIn: expiresInSeconds });
-    if (freshUrl) {
+    if (freshUrl && verified) {
       b2UrlCache.set(storageKey, {
         url: freshUrl,
         expiresAt: now + (expiresInSeconds * 1000)
@@ -404,6 +412,32 @@ export function extractB2StorageKey(urlOrKey) {
   if (!urlOrKey || typeof urlOrKey !== 'string') return null;
   const match = urlOrKey.match(/(?:images|videos|audio|files)\/\d{4}\/\d{2}\/[^/\s?#]+\.[a-z0-9]+/i);
   return match ? match[0] : null;
+}
+
+// Permanent address for one of our stored files: the site's own media
+// proxy (/api/media/file/<key>), which signs a fresh short-lived link on
+// each visit. Nothing handed to browsers can expire, and building it needs
+// no call to Backblaze (signing every cover in every list used to make the
+// server ask Backblaze in the US about each one). Non-storage URLs
+// (YouTube, other sites) are returned unchanged.
+export function toMediaProxyUrl(value) {
+  if (!value || typeof value !== 'string') return value;
+  const v = value.trim();
+  if (v.startsWith('/api/media/file/')) return v;
+  const key = extractB2StorageKey(v);
+  if (!key) return value;
+  if (v === key || /backblazeb2\.com/i.test(v)) return `/api/media/file/${key}`;
+  return value;
+}
+
+// Same for every raw Backblaze link inside a post body, each to ITS OWN
+// file (refreshB2Url replaced every link with the first image's link).
+export function proxyB2UrlsInText(text) {
+  if (!text || typeof text !== 'string' || !/backblazeb2\.com/i.test(text)) return text;
+  return text.replace(/https?:\/\/[^\s)"'<>]*backblazeb2\.com\/[^\s)"'<>]*/gi, (m) => {
+    const key = extractB2StorageKey(m);
+    return key ? `/api/media/file/${key}` : m;
+  });
 }
 
 /**
@@ -428,6 +462,12 @@ export async function refreshB2Url(urlOrText) {
 // the bucket the client says it uploaded to (must be one of ours), then a
 // HEAD probe across all vaults. Memory alone is not enough on Vercel —
 // each request can land on a fresh instance that remembers nothing.
+// True when the bucket holding this key has been confirmed (by a HEAD) on
+// this instance — lets the media proxy cache only verified redirects.
+export function isStorageKeyLocated(storageKey) {
+  return keyVaultMap.has(storageKey);
+}
+
 export async function findVaultForKey(storageKey, bucketHint) {
   const known = keyVaultMap.get(storageKey);
   if (known) return known;
