@@ -1,8 +1,13 @@
+/* global process */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Vercel builds turn off the SSE stream client (see /api/realtime-stream).
+    'import.meta.env.VITE_REALTIME_SSE': JSON.stringify(process.env.VERCEL ? 'off' : 'on'),
+  },
   build: {
     rollupOptions: {
       output: {

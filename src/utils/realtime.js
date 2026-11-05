@@ -237,8 +237,13 @@ export function publishRealtimeUpdate(payload) {
 /**
  * Setup Server-Sent Events (SSE) stream connection
  */
+const SSE_ENABLED = !(typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_REALTIME_SSE === 'off');
+
 function setupSSEConnection() {
   if (typeof window === 'undefined' || typeof window.EventSource === 'undefined') return;
+  // Off on Vercel: an always-open stream keeps a serverless function running
+  // around the clock. Supabase Realtime + the sync-check cover live updates.
+  if (!SSE_ENABLED) return;
 
   if (sseConnection) {
     try { sseConnection.close(); } catch {}
@@ -489,7 +494,7 @@ export function initRealtimeSync() {
   // 4. Initial sync version check
   checkSyncVersion();
 
-  // 5. Tab visibility change & active fast-sync check (Every 3.5s when visible)
+  // 5. Tab visibility change & background sync-check (every 10s when visible)
   try {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
@@ -508,12 +513,15 @@ export function initRealtimeSync() {
       checkSyncVersion();
     });
 
-    // Fast 3.5s background sync-check while tab is visible on mobile or desktop
+    // Background sync-check while the tab is visible — a safety net behind
+    // Supabase Realtime (which is instant). Every check is a serverless call,
+    // so 10s (was 3.5s) keeps a tab left open within the free plan's limits.
+    // Focus, visibility and reconnects still check immediately.
     const syncInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         checkSyncVersion();
       }
-    }, 3500);
+    }, 10000);
     if (syncInterval && typeof syncInterval.unref === 'function') {
       syncInterval.unref();
     }

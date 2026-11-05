@@ -227,6 +227,18 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
 // GET /api/realtime-stream — Server-Sent Events (SSE) stream for instant real-time sync
 const MAX_SSE_CLIENTS = 100;
 app.get('/api/realtime-stream', (req, res) => {
+  // On Vercel, every open SSE connection keeps a function instance running
+  // (billed as Provisioned Memory) for up to 5 minutes, then reconnects —
+  // one tab left open used ~1,400 GB-hrs/month and paused the free plan.
+  // Each serverless instance also only reaches its own clients, so
+  // cross-device sync already comes from Supabase Realtime + /api/sync-check.
+  // 204 tells EventSource clients (incl. old cached bundles) to stop.
+  // `npm start` (a normal long-running server) keeps the stream.
+  if (process.env.VERCEL) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(204).end();
+  }
+
   // LOW-1: Cap concurrent SSE connections to prevent resource exhaustion
   if (sseClients.size >= MAX_SSE_CLIENTS) {
     return res.status(503).json({ error: 'Realtime capacity reached. Try again shortly.' });
