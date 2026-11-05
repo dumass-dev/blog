@@ -11,27 +11,21 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('@tiptap') || id.includes('prosemirror') || id.includes('@floating-ui')) {
-              return 'vendor-editor';
-            }
-            if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('react/')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@supabase')) {
-              return 'vendor-supabase';
-            }
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
-            }
-            if (id.includes('marked') || id.includes('dompurify')) {
-              return 'vendor-marked';
-            }
-          }
-        }
-      }
-    }
+        // Vendor chunks. React gets the highest priority: with the older
+        // manualChunks function the editor group also swallowed React (a
+        // dependency of @tiptap/react), so every public page downloaded the
+        // whole 544 KB editor bundle. Now the editor chunk is admin-only.
+        codeSplitting: {
+          groups: [
+            { name: 'vendor-react', priority: 40, test: /node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|use-sync-external-store)[\\/]/ },
+            { name: 'vendor-supabase', priority: 30, test: /node_modules[\\/]@supabase[\\/]/ },
+            { name: 'vendor-marked', priority: 30, test: /node_modules[\\/](marked|dompurify)[\\/]/ },
+            { name: 'vendor-icons', priority: 30, test: /node_modules[\\/]lucide-react[\\/]/ },
+            { name: 'vendor-editor', priority: 10, test: /node_modules[\\/](@tiptap|prosemirror-[^\\/]+|@floating-ui|orderedmap|rope-sequence|w3c-keyname|linkifyjs|markdown-it|fast-equals)[\\/]/ },
+          ],
+        },
+      },
+    },
   },
   server: {
     port: 3000,
