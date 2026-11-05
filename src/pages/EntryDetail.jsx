@@ -7,7 +7,7 @@ import Reactions from '../components/Reactions';
 import Comments from '../components/Comments';
 import QuoteCardModal from '../components/QuoteCardModal';
 import ProtectedEntryModal from '../components/ProtectedEntryModal';
-import { supabase, safeApiFetch, getCachedEntry, cacheEntry, updateCachedEntryViews, getEntryVersion, noteEntryVersion } from '../supabase';
+import { supabase, safeApiFetch, getCachedEntry as getFreshCachedEntry, getEntrySnapshot, cacheEntry, updateCachedEntryViews, getEntryVersion, noteEntryVersion } from '../supabase';
 import { publishRealtimeUpdate } from '../utils/realtime';
 import { resolveEntryDetailState, shouldShowCommentsAndReactions } from '../utils/entry';
 import { Clock, MapPin, Cloud, Smile, Eye, Quote, Share2 } from 'lucide-react';
@@ -34,6 +34,26 @@ function calcReadingTime(text) {
 }
 
 import useDocumentMeta from '../hooks/useDocumentMeta';
+
+// Fresh cached copy, else the last-seen copy kept across a realtime
+// invalidation (loadEntry always fetches right after, so it is only on
+// screen until the fresh entry arrives) — reopening an entry never shows
+// the skeleton when we already had its content.
+function getCachedEntry(slug) {
+  const fresh = getFreshCachedEntry(slug);
+  const hasBody = (e) => Boolean(e && typeof e.content === 'string' && e.content.trim() !== '');
+  if (hasBody(fresh)) return fresh;
+  const snap = getEntrySnapshot(slug);
+  if (!hasBody(snap)) return fresh || snap;
+  // A feed refetch after the invalidation re-cached the body-less list copy.
+  // Reuse the last-seen body only for the SAME version of the entry; if it
+  // was edited since (updated_at changed), the new body is genuinely loading.
+  if (!fresh) return snap;
+  if (fresh.updated_at && snap.updated_at && fresh.updated_at === snap.updated_at) {
+    return { ...fresh, content: snap.content };
+  }
+  return fresh;
+}
 
 export default function EntryDetail() {
   const { slug } = useParams();
@@ -84,7 +104,7 @@ export default function EntryDetail() {
     let confirmedMissing = false;
 
     if (!isSilent) {
-      const cached = getCachedEntry(slug);
+      const cached = getFreshCachedEntry(slug);
       if (cached && typeof cached.content === 'string' && cached.content.trim() !== '') {
         postData = cached;
       }
@@ -97,7 +117,7 @@ export default function EntryDetail() {
     // so the reader always gets current content without the old sticky
     // cache-bust that bypassed the edge on every fetch after one edit.
     try {
-      const preCached = getCachedEntry(slug);
+      const preCached = getFreshCachedEntry(slug);
       const v = getEntryVersion(slug) || (preCached && preCached.updated_at) || null;
       const resData = await safeApiFetch(`/api/posts/${encodeURIComponent(slug)}${v ? `?v=${encodeURIComponent(v)}` : ''}`);
       if (resData) {

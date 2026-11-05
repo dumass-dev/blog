@@ -1,5 +1,5 @@
 /* global CustomEvent, EventSource, BroadcastChannel */
-import { supabase, invalidateFeedCache, updateCachedEntryViews, noteEntryVersion, forgetEntryVersion } from '../supabase.js';
+import { supabase, invalidateFeedCache, updateCachedEntryViews, noteEntryVersion, forgetEntryVersion, dropFromSnapshots } from '../supabase.js';
 
 let isInitialized = false;
 let sseConnection = null;
@@ -96,6 +96,11 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     const updatedAt = inner.updated_at || payload.updated_at || null;
     const entrySlug = inner.slug || payload.slug || null;
     const entryId = inner.id || payload.id || null;
+    // A deleted (or unpublished) entry must not linger in the last-seen
+    // display copy pages paint while their fresh fetch is in flight.
+    const isUnpublish = (inner.status || payload.status || inner.data?.status || payload.data?.status) === 'draft';
+    const isRowDelete = (inner.op || payload.op) === 'DELETE';
+    const shouldDropSnapshot = (eventType === 'entry_deleted' || isUnpublish || isRowDelete) && (entrySlug || entryId);
     if (eventType === 'entry_deleted') {
       if (entrySlug || entryId) forgetEntryVersion(entrySlug, entryId);
       invalidateFeedCache();
@@ -105,6 +110,9 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     } else {
       invalidateFeedCache();
     }
+    // After the invalidation (which snapshots what was cached), so the
+    // removed entry cannot be re-captured into the display copy.
+    if (shouldDropSnapshot) dropFromSnapshots(entrySlug, entryId);
 
     if (typeof window !== 'undefined') {
       try {

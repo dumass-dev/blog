@@ -78,7 +78,62 @@ export function forgetAllEntryVersions() {
   listVersion = null;
 }
 
+// Display snapshots: what the reader last saw, kept across invalidations.
+// invalidateFeedCache still clears the real caches (so every fetch after a
+// realtime event is fresh), but pages mounting in the gap before that fetch
+// lands paint the last-seen copy instead of a blank skeleton — the skeleton
+// is only for genuinely never-loaded data. Pages always fetch on mount and
+// on 'feed-data-invalidated', so a snapshot is on screen only until the
+// fresh data replaces it. Deleted entries are dropped from snapshots at once.
+const feedSnapshots = new Map(); // cacheKey -> list
+const entrySnapshots = new Map(); // slug or id -> entry
+function snapshotCurrentCaches() {
+  for (const [key, list] of feedsCache.entries()) {
+    if (Array.isArray(list) && list.length > 0) feedSnapshots.set(key, list);
+  }
+  try {
+    ['home', 'all', 'journal', 'writing', 'photo', 'update'].forEach((k) => {
+      if (feedSnapshots.has(k) && feedsCache.has(k)) return;
+      const parsed = parseFeedCache(localStorage.getItem(`feed_cache_${k}`));
+      if (parsed && parsed.items.length > 0 && !feedsCache.has(k)) feedSnapshots.set(k, parsed.items);
+    });
+  } catch {}
+  for (const [key, entry] of entriesCache.entries()) {
+    if (!entry) continue;
+    const prev = entrySnapshots.get(key);
+    // Never replace a snapshot that has the body with a body-less copy.
+    const hasBody = typeof entry.content === 'string' && entry.content !== '';
+    const prevHasBody = prev && typeof prev.content === 'string' && prev.content !== '';
+    if (hasBody || !prevHasBody) entrySnapshots.set(key, entry);
+  }
+}
+export function getFeedSnapshot(cacheKey = 'all') {
+  const list = feedSnapshots.get(cacheKey) || (cacheKey !== 'home' && cacheKey !== 'all'
+    ? (feedSnapshots.get('home') || feedSnapshots.get('all'))
+    : null);
+  return Array.isArray(list) && list.length > 0 ? list : null;
+}
+export function getEntrySnapshot(slugOrId) {
+  if (!slugOrId) return null;
+  return entrySnapshots.get(slugOrId) || null;
+}
+export function dropFromSnapshots(slug, id) {
+  const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
+  const keys = [norm(slug), norm(id)].filter(Boolean);
+  if (keys.length === 0) return;
+  for (const [k, entry] of [...entrySnapshots.entries()]) {
+    if (keys.includes(norm(k)) || (entry && (keys.includes(norm(entry.id)) || keys.includes(norm(entry.slug))))) {
+      entrySnapshots.delete(k);
+    }
+  }
+  for (const [k, list] of [...feedSnapshots.entries()]) {
+    if (!Array.isArray(list)) continue;
+    feedSnapshots.set(k, list.filter((e) => !(e && (keys.includes(norm(e.id)) || keys.includes(norm(e.slug))))));
+  }
+}
+
 export function invalidateFeedCache({ keepVersions = false } = {}) {
+  snapshotCurrentCaches();
   // Default: forget known versions. A versioned fetch is only safe when
   // the client KNOWS the version is current; after an invalidation that
   // carried no new version, the known ones may be stale, and re-requesting

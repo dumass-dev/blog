@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchPublishedEntries, getCachedFeed, getLastFeedFetchFailed, isFeedCacheStale } from '../supabase';
+import { fetchPublishedEntries, getCachedFeed, getFeedSnapshot, getLastFeedFetchFailed, isFeedCacheStale } from '../supabase';
 
 function filterEntries(list, { type, forHomeFeed }) {
   if (!Array.isArray(list)) return [];
@@ -32,8 +32,11 @@ function filterEntries(list, { type, forHomeFeed }) {
 export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize = 10 } = {}) {
   const cacheKey = forHomeFeed ? 'home' : (type || 'all');
 
+  // Fresh cache first; after a realtime invalidation cleared it, the
+  // last-seen copy — shown only until the fetch below replaces it, so going
+  // back to a list never flashes the skeleton over data we already had.
   const getInitialEntries = () => {
-    const cached = getCachedFeed(cacheKey);
+    const cached = getCachedFeed(cacheKey) || getFeedSnapshot(cacheKey);
     return filterEntries(cached || [], { type, forHomeFeed });
   };
 
