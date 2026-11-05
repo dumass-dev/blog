@@ -1352,7 +1352,12 @@ app.get('/api/posts', async (req, res) => {
       for (const item of processed) {
         if (item && item.updated_at && (!maxUpdatedAt || Date.parse(item.updated_at) > Date.parse(maxUpdatedAt))) maxUpdatedAt = item.updated_at;
       }
-      versionedCacheHeader(req, res, maxUpdatedAt);
+      // Lists are never cached long: a list's "version" (newest updated_at)
+      // does not change when a post is DELETED, so a long-cached versioned
+      // list kept serving a deleted post for up to 10 minutes. 5s at the CDN
+      // still collapses bursts into one function call.
+      void maxUpdatedAt;
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5');
     }
     res.json(processed);
   } catch (_err) {
@@ -1937,10 +1942,6 @@ app.delete('/api/posts/:id', async (req, res) => {
 
     const { data: entry } = await supabaseClient.from('entries').select('*').eq('id', id).single();
 
-    if (entry) {
-      await cleanupOrphanedB2FilesForEntry(supabaseClient, entry);
-    }
-
     const { error } = await supabaseClient
       .from('entries')
       .delete()
@@ -1948,10 +1949,23 @@ app.delete('/api/posts/:id', async (req, res) => {
 
     if (error) throw error;
 
+    // Tell readers first (the post vanishes from their pages right away),
+    // then clean up its storage files — the cleanup talks to Backblaze in
+    // the US and used to delay the delete reaching anyone by seconds.
+    // slug is included so pages that only know the post by its link drop it.
     await settleBroadcast('entry_deleted', {
       op: 'DELETE',
-      id
+      id,
+      slug: entry?.slug
     });
+
+    if (entry) {
+      try {
+        await cleanupOrphanedB2FilesForEntry(supabaseClient, entry);
+      } catch (cleanupErr) {
+        console.error('Storage cleanup after delete failed:', cleanupErr.message);
+      }
+    }
 
     res.json({ success: true, message: 'Entry deleted successfully' });
   } catch (err) {

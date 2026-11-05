@@ -73,9 +73,14 @@ export function forgetEntryVersion(slug, id) {
   if (slug) entryVersions.delete(slug);
   if (id) entryVersions.delete(id);
 }
+// After a delete / resync the next list request carries a unique marker
+// (?r=…), so it can never be answered by any cached copy (CDN or browser)
+// taken before the change. Cleared once a fresh list has been received.
+let listBust = null;
 export function forgetAllEntryVersions() {
   entryVersions.clear();
   listVersion = null;
+  listBust = String(Date.now());
 }
 
 // Display snapshots: what the reader last saw, kept across invalidations.
@@ -421,12 +426,14 @@ export async function fetchPublishedEntries({ type, limit, tag, category, forHom
     if (tag) params.append('tag', tag);
     if (limit) params.append('limit', String(limit));
     if (listVersion) params.append('v', listVersion);
+    else if (listBust) params.append('r', listBust);
 
     const queryStr = params.toString();
     const apiUrl = `/api/posts${queryStr ? `?${queryStr}` : ''}`;
     const apiData = await safeApiFetch(apiUrl);
 
     if (Array.isArray(apiData)) {
+      listBust = null;
       let list = apiData;
       if (forHomeFeed) {
         list = list.filter(item => item.show_in_feed !== false);
