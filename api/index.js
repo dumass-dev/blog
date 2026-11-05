@@ -1255,11 +1255,14 @@ app.get('/api/posts', async (req, res) => {
     const auth = await verifyAdminUser(req);
     const isAdmin = auth.authorized;
 
+    const table = isAdmin ? 'entries' : 'public_published_entries';
+    // Only columns that exist on the source: the entries table has no
+    // is_pinned (the public view does), and asking for a missing column made
+    // every lightweight admin list (dashboard load) fail with a 500.
+    const baseFields = 'id, slug, title, date, category, tags, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, views, created_at, status, updated_at';
     const fields = includeContent === 'true'
       ? '*'
-      : 'id, slug, title, date, category, tags, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
-
-    const table = isAdmin ? 'entries' : 'public_published_entries';
+      : (isAdmin ? baseFields : `${baseFields}, is_pinned`);
     let query = getSupabaseClient(req).from(table).select(fields);
 
     if (status === 'all' || status === 'draft') {
