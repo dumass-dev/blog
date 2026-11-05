@@ -702,7 +702,9 @@ export default function Editor() {
           status: payload.status || 'published',
           category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
           tags: payload.tags || '',
-          cover_image: payload.cover_image || '',
+          // Never write image bytes straight into the database: a base64
+          // cover can only be moved to storage by the API save.
+          cover_image: (payload.cover_image && !String(payload.cover_image).startsWith('data:')) ? payload.cover_image : '',
           excerpt: stripMarkdown(payload.content, 150),
           date: payload.date || new Date().toISOString(),
           location: payload.location || null,

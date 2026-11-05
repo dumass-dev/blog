@@ -24,3 +24,13 @@ test('non-image or malformed data URIs are left as they were (never lost)', asyn
   const svg = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=';
   assert.strictEqual(await offloadDataUriImage(svg), svg);
 });
+
+test('base64 images inside the post body are moved out, text untouched', async () => {
+  const { offloadDataUrisInContent } = await import('../api/index.js');
+  const body = `Hello\n\n![shot](${PNG})\n\nSame again ![x](${PNG}) and text.`;
+  const out = await offloadDataUrisInContent(body);
+  assert.ok(!out.includes('data:image'), 'no base64 left');
+  assert.match(out, /!\[shot\]\(\/api\/media\/file\/images\/.+\.png\)/);
+  assert.ok(out.startsWith('Hello') && out.endsWith('and text.'));
+  assert.strictEqual(await offloadDataUrisInContent('plain text'), 'plain text');
+});

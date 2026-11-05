@@ -488,6 +488,21 @@ export async function offloadDataUriImage(value) {
   }
 }
 
+// Same rule for the post body: any base64 image inside the markdown/HTML
+// is moved to Backblaze and replaced by its proxy link, so a post row only
+// ever holds text. Each distinct image is uploaded once.
+const DATA_URI_IN_TEXT = /data:image\/(?:png|jpe?g|gif|webp|avif);base64,[a-z0-9+/=]+/gi;
+export async function offloadDataUrisInContent(content) {
+  if (typeof content !== 'string' || !content.includes('data:image/')) return content;
+  const found = [...new Set(content.match(DATA_URI_IN_TEXT) || [])];
+  let out = content;
+  for (const uri of found) {
+    const key = await offloadDataUriImage(uri);
+    if (key && key !== uri) out = out.split(uri).join(`/api/media/file/${key}`);
+  }
+  return out;
+}
+
 // GET /api/media/dims/* — pixel size of an image, read from its first bytes.
 // Lets entry images reserve their real shape before the file arrives (no
 // wrong-shaped placeholder, no jump). Nothing is stored anywhere: storage keys
@@ -1385,7 +1400,7 @@ app.post('/api/posts', async (req, res) => {
     const entryData = {
       title,
       slug,
-      content: payload.content || '',
+      content: await offloadDataUrisInContent(payload.content || ''),
       type: isPhotoPost ? 'journal' : (payload.type || 'journal'),
       status: payload.status || 'published',
       category: isPhotoPost ? 'Photos' : (payload.category || 'General'),
@@ -1707,6 +1722,9 @@ app.put('/api/posts/:id', async (req, res) => {
     };
     for (const field of ['title', 'content', 'status', 'tags', 'date', 'location', 'weather', 'mood']) {
       if (payload[field] !== undefined) updateData[field] = payload[field];
+    }
+    if (typeof updateData.content === 'string') {
+      updateData.content = await offloadDataUrisInContent(updateData.content);
     }
     if (payload.show_in_feed !== undefined) updateData.show_in_feed = Boolean(payload.show_in_feed);
     if (payload.passcode !== undefined) {

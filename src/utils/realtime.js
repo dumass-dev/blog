@@ -42,6 +42,10 @@ function notifyStatus(status) {
   });
 }
 
+export function isRealtimeConnected() {
+  return isConnected;
+}
+
 export function subscribeToRealtimeStatus(listener) {
   if (typeof listener !== 'function') return () => {};
   statusListeners.add(listener);
@@ -533,10 +537,18 @@ export function initRealtimeSync() {
     // Supabase Realtime (which is instant). Every check is a serverless call,
     // so 10s (was 3.5s) keeps a tab left open within the free plan's limits.
     // Focus, visibility and reconnects still check immediately.
+    // While the Supabase live connection is up it delivers every change
+    // instantly, so the backup only needs to run once a minute (each check
+    // is a billed function call — 10s polling from every open tab was the
+    // biggest source of Vercel usage). When the connection is down the
+    // backup is the only path, so it runs every 10s.
+    let lastBackupCheck = 0;
     const syncInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        checkSyncVersion();
-      }
+      if (document.visibilityState !== 'visible') return;
+      const gap = isConnected ? 60000 : 10000;
+      if (Date.now() - lastBackupCheck < gap - 500) return;
+      lastBackupCheck = Date.now();
+      checkSyncVersion();
     }, 10000);
     if (syncInterval && typeof syncInterval.unref === 'function') {
       syncInterval.unref();

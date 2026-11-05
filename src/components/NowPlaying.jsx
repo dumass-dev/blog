@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { safeApiFetch } from '../supabase';
 import { fetchSiteSettings } from '../utils/siteSettings';
 import { Music } from 'lucide-react';
+import { isRealtimeConnected } from '../utils/realtime';
 
 export default function NowPlaying({ forceShow = false, expandable = false, defaultExpanded = true }) {
   const [data, setData] = useState(null);
@@ -72,17 +73,34 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
     };
 
     fetchNowPlaying();
-    interval = setInterval(fetchNowPlaying, 15000); // refresh every 15s
+    // Track changes arrive instantly over the live connection
+    // ('now-playing-updated' below), so polling is only a backup: every 15s
+    // when that connection is down, once a minute when it is up. Hidden tabs
+    // don't poll at all (each poll is a billed function call).
+    let lastPoll = Date.now();
+    interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const gap = isRealtimeConnected() ? 60000 : 15000;
+      if (Date.now() - lastPoll < gap - 500) return;
+      lastPoll = Date.now();
+      fetchNowPlaying();
+    }, 15000);
 
     const handleRealtimeUpdate = () => {
       fetchNowPlaying();
     };
 
     window.addEventListener('now-playing-updated', handleRealtimeUpdate);
+    // Coming back to the tab: catch up at once instead of on the next poll.
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') { lastPoll = Date.now(); fetchNowPlaying(); }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('now-playing-updated', handleRealtimeUpdate);
+      document.removeEventListener('visibilitychange', handleVisible);
     };
   }, []);
 
