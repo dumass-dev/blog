@@ -74,6 +74,18 @@ export function dispatchRealtimeMutation(payload, { isLocal = false } = {}) {
     return;
   }
 
+  // One save reaches viewers twice: the server's `entry_updated` broadcast
+  // and the editor's own `entry` mutation. Same entry + same updated_at is
+  // the same content, so the second copy is skipped (no second refetch).
+  // A local event still records the key so its server echo is skipped too.
+  const ENTRY_FAMILY = ['entry', 'entry_created', 'entry_updated'];
+  const versionStamp = inner.updated_at || payload.updated_at || inner.data?.updated_at || payload.data?.updated_at;
+  const entryTarget = inner.id || payload.id || inner.data?.id || inner.slug || payload.slug || '';
+  if (ENTRY_FAMILY.includes(eventType) && versionStamp && entryTarget) {
+    const seen = isDuplicateEvent(`entry-version:${entryTarget}:${versionStamp}`);
+    if (seen && !isLocal) return;
+  }
+
   if (payload.version || inner.version) {
     lastKnownVersion = payload.version || inner.version;
   }

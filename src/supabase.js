@@ -367,15 +367,41 @@ export function updateCachedEntryViews(id, slug, views) {
 /**
  * Helper to safely fetch from API endpoints, returning null if 404/non-JSON
  */
+// Identical plain GETs already in flight share one network request: a single
+// realtime edit used to make every component showing an entry refetch it at
+// the same moment (8 requests per viewer per save). Each caller still gets
+// its own freshly parsed copy, so no one can mutate another's data.
+const inflightGets = new Map();
+
+async function fetchText(url, fetchOptions, timeout) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function safeApiFetch(url, options = {}) {
   try {
     const { timeout = 5000, ...fetchOptions } = options;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const text = await res.text();
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    const shareable = method === 'GET' && !fetchOptions.body && !fetchOptions.headers && !fetchOptions.signal;
+    let textPromise;
+    if (shareable && inflightGets.has(url)) {
+      textPromise = inflightGets.get(url);
+    } else {
+      textPromise = fetchText(url, fetchOptions, timeout);
+      if (shareable) {
+        inflightGets.set(url, textPromise);
+        const clear = () => { if (inflightGets.get(url) === textPromise) inflightGets.delete(url); };
+        textPromise.then(clear, clear);
+      }
+    }
+    const text = await textPromise;
     if (!text || text.trim().startsWith('<')) return null;
     return JSON.parse(text);
   } catch (_err) {
