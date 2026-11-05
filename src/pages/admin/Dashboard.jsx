@@ -902,7 +902,7 @@ export default function Dashboard() {
                     <th className="py-3 px-4 font-normal min-w-[200px]">Title / Content</th>
                     <th className="py-3 px-4 font-normal whitespace-nowrap w-24">Type</th>
                     <th className="py-3 px-4 font-normal whitespace-nowrap w-36">Status</th>
-                    <th className="py-3 px-4 font-normal text-right whitespace-nowrap w-64 min-w-[260px]">Actions</th>
+                    <th className="py-3 px-4 font-normal text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -949,7 +949,7 @@ export default function Dashboard() {
                             buttons, so the table gives this column that much room (and
                             scrolls sideways when needed) instead of the buttons spilling
                             left over the Status badge at mid widths. */}
-                        <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap [&>*]:shrink-0">
+                        <div className="inline-flex items-center gap-1.5 whitespace-nowrap min-w-max [&>*]:shrink-0">
                           <button
                             type="button"
                             onClick={() => setAnalyticsTarget(item)}
