@@ -120,6 +120,9 @@ export default function NowPlaying({ forceShow = false, expandable = false, defa
 
   if (!data && !forceShow) return null;
   if (data && !data.showOnHome && !forceShow) return null;
+  // No song on record at all: hide the card rather than claim the author
+  // "last listened to Nothing playing".
+  if (!forceShow && data && !(data.title && String(data.title).trim())) return null;
 
   const displayData = data && data.title ? data : {
     ...data,

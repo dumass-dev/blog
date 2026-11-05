@@ -2479,15 +2479,25 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
 
     const { title, artist, album, isPaused, progress, coverUrl } = req.body;
 
-    const trackData = {
-      title,
-      artist,
-      album,
-      is_paused: isPaused,
-      progress,
-      cover_url: coverUrl,
-      updated_at: new Date().toISOString()
-    };
+    // The music app sends an EMPTY track when playback stops or the app
+    // closes. Saving that blank wiped the last song and the card read
+    // "last listened to Nothing playing". A stop now keeps the last song and
+    // only marks it paused, so the card shows "last listened to <song>".
+    const hasTrack = typeof title === 'string' && title.trim() !== '';
+    const trackData = hasTrack
+      ? {
+          title,
+          artist,
+          album,
+          is_paused: isPaused,
+          progress,
+          cover_url: coverUrl,
+          updated_at: new Date().toISOString()
+        }
+      : {
+          is_paused: true,
+          updated_at: new Date().toISOString()
+        };
 
     const { data: updatedRows, error } = await supabase
       .from('now_playing')
@@ -2513,9 +2523,9 @@ app.post('/api/now-playing', express.json(), async (req, res) => {
       }
     }
 
-    await settleBroadcast('now_playing_updated', {
-      title, artist, album, isPaused
-    }, supabase);
+    await settleBroadcast('now_playing_updated', hasTrack
+      ? { title, artist, album, isPaused }
+      : { isPaused: true }, supabase);
 
     res.json({ success: true });
   } catch (err) {
