@@ -336,6 +336,11 @@ export default function Editor() {
             date: formattedDate || prev.date
           }));
 
+          // An existing post's link is fixed: editing its title must not
+          // silently change the URL (shared links and open pages would hit
+          // "Entry Not Found"). "Sync with title" still changes it on purpose.
+          if (entryData.slug) setIsCustomSlug(true);
+
           const rawContent = entryData.content || '';
           originalContentRef.current = rawContent;
           dirtyRef.current = false;
@@ -1785,6 +1790,7 @@ export default function Editor() {
                 {isCustomSlug
                   ? 'Custom slug active. Clear input or click "Sync with title" to auto-sync.'
                   : 'Auto-syncs when you edit the title. Type here to customize slug.'}
+                {id && isCustomSlug ? ' Changing it changes this post’s link.' : ''}
               </p>
             </div>
 

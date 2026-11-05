@@ -2277,7 +2277,12 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
     const rawType = req.body.reaction_type || req.body.type || 'loved';
     const reaction_type = rawType === 'heart' ? 'loved' : rawType;
 
-    const VALID_REACTIONS = ['thoughtful', 'cozy', 'loved', 'inspiring'];
+    // The site's buttons are thoughtful / loved / boring / dislike (the
+    // live database accepts these). 'boring' and 'dislike' used to be
+    // rejected here, so those clicks fell back to a direct browser insert
+    // that skipped this route's rate limit and live broadcast. cozy and
+    // inspiring stay accepted for older clients.
+    const VALID_REACTIONS = ['thoughtful', 'loved', 'boring', 'dislike', 'cozy', 'inspiring'];
     if (!VALID_REACTIONS.includes(reaction_type)) {
       return res.status(400).json({ error: 'Invalid reaction type.' });
     }
@@ -2297,23 +2302,26 @@ app.post('/api/posts/:id/reactions', async (req, res) => {
       .select('reaction_type')
       .eq('post_id', postId);
 
-    const updatedCounts = { thoughtful: 0, cozy: 0, loved: 0, inspiring: 0 };
+    const updatedCounts = { thoughtful: 0, loved: 0, boring: 0, dislike: 0 };
     (allReactions || []).forEach(r => {
       if (updatedCounts[r.reaction_type] !== undefined) {
         updatedCounts[r.reaction_type]++;
       }
     });
 
-    res.json({
-      success: true,
-      ...updatedCounts,
-      hearts: (allReactions || []).length
-    });
-
+    // Broadcast BEFORE responding: on Vercel the function can be frozen as
+    // soon as the response is sent, which silently dropped this notice and
+    // other readers never saw the reaction.
     await settleBroadcast('reaction_updated', {
       postId,
       reaction_type,
       counts: updatedCounts
+    });
+
+    res.json({
+      success: true,
+      ...updatedCounts,
+      hearts: (allReactions || []).length
     });
   } catch (err) {
     if (err.message && /rate limit exceeded/i.test(err.message)) {

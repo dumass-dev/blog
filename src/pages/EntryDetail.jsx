@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import RichViewer from '../components/RichViewer';
 import TypewriterText from '../components/TypewriterText';
 import ImageLightbox from '../components/ImageLightbox';
@@ -57,6 +57,9 @@ function getCachedEntry(slug) {
 
 export default function EntryDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const cachedInitial = getCachedEntry(slug);
   const initialState = resolveEntryDetailState(slug, cachedInitial);
 
@@ -333,6 +336,16 @@ export default function EntryDetail() {
 
         if (isDelete && isCurrentPost) {
           setIsDeleted(true);
+          return;
+        }
+
+        // The post's link was changed on purpose: follow it to the new
+        // address instead of showing "Entry Not Found" on the old one.
+        if (
+          !isDelete && targetStatus !== 'draft' && targetId && currentId &&
+          norm(targetId) === norm(currentId) && targetSlug && norm(targetSlug) !== norm(currentSlug)
+        ) {
+          navigateRef.current(`/entry/${encodeURIComponent(targetSlug)}`, { replace: true });
           return;
         }
 
