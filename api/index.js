@@ -1257,7 +1257,7 @@ app.get('/api/posts', async (req, res) => {
 
     const fields = includeContent === 'true'
       ? '*'
-      : 'id, slug, title, date, category, tags, read_time, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
+      : 'id, slug, title, date, category, tags, excerpt, cover_image, type, has_passcode, show_in_feed, location, weather, mood, is_pinned, views, created_at, status, updated_at';
 
     const table = isAdmin ? 'entries' : 'public_published_entries';
     let query = getSupabaseClient(req).from(table).select(fields);
