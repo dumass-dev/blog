@@ -771,6 +771,16 @@ html {
   animation: none;
 }
 
+/* While a sized image is still loading it has no width of its own, so a
+   centred/floated/grid figure shrank to its 140px minimum and showed a
+   tiny wrong-shaped box. Until it loads, it fills its size slot (still
+   capped by the size's max-width); the real shape comes from RichViewer. */
+.prose-editorial:not(.ProseMirror) img[class*="image-size-"]:not(.img-loaded):not(.img-failed),
+.prose-editorial:not(.ProseMirror) .media-figure[class*="image-size-"]:has(> img:not(.img-loaded):not(.img-failed)),
+.prose-editorial:not(.ProseMirror) .media-image-block[class*="image-size-"]:has(> img:not(.img-loaded):not(.img-failed)) {
+  width: 100%;
+}
+
 @keyframes prose-img-shimmer {
   0% { background-position: 150% 0; }
   100% { background-position: -50% 0; }

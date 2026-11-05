@@ -78,12 +78,48 @@ function rememberImgDims(img) {
   } catch {}
 }
 
+// First-ever view of an image: ask the server for its size (read from the
+// file's first bytes, CDN-cached) so the placeholder has the real shape
+// instead of the generic 16:9 guess. One request per image, shared.
+const dimsRequests = new Map();
+function fetchImgDims(key) {
+  const m = /^\/api\/media\/file\/(images\/.+)$/.exec(key);
+  if (!m) return null;
+  if (!dimsRequests.has(key)) {
+    dimsRequests.set(key, fetch(`/api/media/dims/${m[1]}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !(d.width > 0) || !(d.height > 0)) return null;
+        const dims = loadImgDims();
+        dims[key] = [d.width, d.height];
+        try { localStorage.setItem(IMG_DIMS_KEY, JSON.stringify(dims)); } catch {}
+        return dims[key];
+      })
+      .catch(() => null));
+  }
+  return dimsRequests.get(key);
+}
+
 function applyKnownImgDims(root) {
   const dims = loadImgDims();
   root.querySelectorAll('img').forEach((img) => {
     if (img.style.aspectRatio) return;
-    const d = dims[imgDimsKey(img.currentSrc || img.src)];
-    if (d) img.style.aspectRatio = `${d[0]} / ${d[1]}`;
+    const key = imgDimsKey(img.getAttribute('src') || img.currentSrc || img.src);
+    const d = dims[key];
+    if (d) {
+      img.style.aspectRatio = `${d[0]} / ${d[1]}`;
+      return;
+    }
+    if (img.classList.contains('img-loaded') || (img.complete && img.naturalWidth > 0)) return;
+    const pending = fetchImgDims(key);
+    if (pending) {
+      pending.then((got) => {
+        // Only while still loading: a loaded image already shows its own shape.
+        if (got && img.isConnected && !img.style.aspectRatio && !img.classList.contains('img-loaded')) {
+          img.style.aspectRatio = `${got[0]} / ${got[1]}`;
+        }
+      });
+    }
   });
 }
 

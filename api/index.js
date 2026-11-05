@@ -8,6 +8,7 @@ import path from 'path';
 import { getSupabaseClient, supabase } from '../server/supabase.js';
 import { getB2PresignedPutUrl, verifyB2UploadedFile, getB2SignedUrl, deleteFromB2, refreshB2Url, extractB2StorageKey, uploadToB2, isB2Configured, cleanupOrphanedB2FilesForEntry, getVaultStorageStats } from '../server/b2.js';
 import { verifyAdminUser } from '../server/auth.js';
+import { readImageDims } from '../server/imageDims.js';
 import { stripMarkdown } from '../src/utils/excerpt.js';
 import { generateSitemapXml, getRobotsTxt } from '../server/sitemap.js';
 
@@ -432,6 +433,37 @@ app.get('/api/b2/refresh', async (req, res) => {
   } catch (err) {
     console.error('REFRESH ROUTE ERROR:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/media/dims/* — pixel size of an image, read from its first bytes.
+// Lets entry images reserve their real shape before the file arrives (no
+// wrong-shaped placeholder, no jump). Nothing is stored anywhere: storage keys
+// are unique per upload, so the answer never changes and the CDN caches it.
+const mediaDimsMemo = new Map();
+app.get(/^\/api\/media\/dims\/(.+)$/, async (req, res) => {
+  const storageKey = decodeURIComponent(req.params[0] || '').trim();
+  const VALID_KEY = /^images\/(?!.*\.\.)[a-zA-Z0-9_\-./% ]+\.[a-zA-Z0-9]+$/;
+  if (!VALID_KEY.test(storageKey)) return res.status(400).json({ error: 'Invalid media path.' });
+  try {
+    let dims = mediaDimsMemo.get(storageKey);
+    if (!dims) {
+      const signedUrl = await getB2SignedUrl(storageKey, 3600);
+      if (!signedUrl) throw new Error('unavailable');
+      // 256 KB covers headers even behind large EXIF/ICC blocks.
+      const r = await fetch(signedUrl, { headers: { Range: 'bytes=0-262143' }, signal: globalThis.AbortSignal.timeout(6000) });
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      dims = readImageDims(Buffer.from(await r.arrayBuffer()));
+      if (!dims) throw new Error('unknown format');
+      if (mediaDimsMemo.size > 2000) mediaDimsMemo.clear();
+      mediaDimsMemo.set(storageKey, dims);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+    res.json(dims);
+  } catch {
+    // Short cache: the image may simply not be ready yet.
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.status(404).json({ error: 'Dimensions unavailable.' });
   }
 });
 
