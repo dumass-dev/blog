@@ -929,7 +929,7 @@ export default function Dashboard() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span
-                            className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] ${
+                            className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded border border-[var(--border-subtle)] whitespace-nowrap shrink-0 ${
                               item.status === 'draft'
                                 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                 : 'bg-[var(--code-bg)] text-[var(--text-primary)]'
@@ -945,7 +945,11 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        {/* inline-flex + no shrinking: the row is exactly as wide as its
+                            buttons, so the table gives this column that much room (and
+                            scrolls sideways when needed) instead of the buttons spilling
+                            left over the Status badge at mid widths. */}
+                        <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap [&>*]:shrink-0">
                           <button
                             type="button"
                             onClick={() => setAnalyticsTarget(item)}
