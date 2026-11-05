@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { uploadMediaFile } from '../../utils/uploadMedia';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -156,30 +157,18 @@ export default function Media() {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setUploading(true);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/media/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Upload failed.');
-      }
-
+      // Same route as the editor's picker: straight to Backblaze (no 4.5 MB
+      // server limit), moving on to the next bucket when one is full.
+      await uploadMediaFile(file, token);
       toastSuccess('Media uploaded to Backblaze pool successfully.');
       fetchMedia();
     } catch (err) {
       toastError(err.message || 'Upload failed.');
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 

@@ -1981,13 +1981,13 @@ app.post('/api/b2-upload', async (req, res) => {
   }
 
   try {
-    const { filename, mimeType, sizeBytes, targetVault, category } = req.body;
+    const { filename, mimeType, sizeBytes, targetVault, category, excludeBuckets } = req.body;
     if (!filename || !mimeType) {
       return res.status(400).json({ error: 'filename and mimeType are required.' });
     }
 
     const resolvedVault = targetVault || (category === 'journal' || category === 'writing' ? 'journal' : 'visuals');
-    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault);
+    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault, excludeBuckets);
     res.json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
@@ -2001,13 +2001,13 @@ app.post('/api/media/presign', async (req, res) => {
   }
 
   try {
-    const { filename, mimeType, sizeBytes, targetVault, category } = req.body;
+    const { filename, mimeType, sizeBytes, targetVault, category, excludeBuckets } = req.body;
     if (!filename || !mimeType) {
       return res.status(400).json({ error: 'filename and mimeType are required.' });
     }
 
     const resolvedVault = targetVault || (category === 'journal' || category === 'writing' ? 'journal' : 'visuals');
-    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault);
+    const result = await getB2PresignedPutUrl(filename, mimeType, sizeBytes || 104857600, resolvedVault, excludeBuckets);
     res.json(result);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });
@@ -2033,11 +2033,13 @@ app.get('/api/storage/stats', async (req, res) => {
   try {
     const supa = getSupabaseClient(req);
 
-    const [mediaRes, entriesRes, commentsRes] = await Promise.all([
+    const [mediaRes, entriesRes, commentsRes, reactionsRes] = await Promise.all([
       supa.from('media').select('size, url'),
       supa.from('entries').select('title, content, excerpt, type'),
-      supa.from('comments').select('content, author_name')
+      supa.from('comments').select('content, author_name'),
+      supa.from('reactions').select('id', { count: 'exact', head: true })
     ]);
+    const reactionsCount = Number(reactionsRes && reactionsRes.count) || 0;
 
     const mediaRows = Array.isArray(mediaRes.data) ? mediaRes.data : [];
     const entriesRows = Array.isArray(entriesRes.data) ? entriesRes.data : [];
@@ -2073,7 +2075,7 @@ app.get('/api/storage/stats', async (req, res) => {
       (sum, c) => sum + Buffer.byteLength((c.content || '') + (c.author_name || ''), 'utf8'),
       0
     );
-    const dbEstimatedBytes = entriesTextBytes + commentsTextBytes + (mediaRows.length * 160) + (entriesRows.length * 240) + (commentsRows.length * 120);
+    const dbEstimatedBytes = entriesTextBytes + commentsTextBytes + (mediaRows.length * 160) + (entriesRows.length * 240) + (commentsRows.length * 120) + (reactionsCount * 100);
 
     res.json({
       b2: {
@@ -2121,6 +2123,7 @@ app.get('/api/storage/stats', async (req, res) => {
           entriesBytes: entriesTextBytes,
           commentsCount: commentsRows.length,
           commentsBytes: commentsTextBytes,
+          reactionsCount,
           mediaRowsCount: mediaRows.length
         }
       }
@@ -2186,13 +2189,13 @@ app.post('/api/media/confirm', async (req, res) => {
   }
 
   try {
-    const { storageKey, originalName, mimeType, sizeBytes, publicUrl } = req.body;
+    const { storageKey, originalName, mimeType, sizeBytes, publicUrl, bucket } = req.body;
     if (!storageKey || !originalName || !mimeType) {
       return res.status(400).json({ error: 'storageKey, originalName, and mimeType required.' });
     }
 
-    // Verify magic bytes of uploaded object
-    await verifyB2UploadedFile(storageKey, originalName, mimeType);
+    // Verify magic bytes of uploaded object (in the bucket it landed in)
+    await verifyB2UploadedFile(storageKey, originalName, mimeType, typeof bucket === 'string' ? bucket : undefined);
 
     const _signedUrl = publicUrl || await getB2SignedUrl(storageKey, 86400);
 

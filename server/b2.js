@@ -424,7 +424,29 @@ export async function refreshB2Url(urlOrText) {
 /**
  * Generate a presigned B2 PUT URL for direct client upload
  */
-export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes = 104857600, targetVault = 'visuals') {
+// The vault (bucket) a storage key lives in: in-memory hint first, then
+// the bucket the client says it uploaded to (must be one of ours), then a
+// HEAD probe across all vaults. Memory alone is not enough on Vercel —
+// each request can land on a fresh instance that remembers nothing.
+export async function findVaultForKey(storageKey, bucketHint) {
+  const known = keyVaultMap.get(storageKey);
+  if (known) return known;
+  const all = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client);
+  const hinted = bucketHint ? all.find(v => v.bucket === bucketHint) : null;
+  const order = hinted ? [hinted, ...all.filter(v => v !== hinted)] : all;
+  for (const v of order) {
+    try {
+      await v.client.send(new HeadObjectCommand({ Bucket: v.bucket, Key: storageKey }));
+      keyVaultMap.set(storageKey, v);
+      return v;
+    } catch (_err) {
+      // not in this bucket
+    }
+  }
+  return null;
+}
+
+export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes = 104857600, _targetVault = 'visuals', excludeBuckets = []) {
   validateUploadFile(null, originalName, mimeType);
   const storageKey = generateStoragePath(originalName, mimeType);
 
@@ -437,9 +459,18 @@ export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes
     };
   }
 
-  const vault = getActiveVault(targetVault) || vaults.media1 || vaults.journal;
+  // Buckets the browser just found full (it couldn't upload there) are
+  // skipped, following the chain media1 -> media2 -> journal.
+  const skip = new Set(Array.isArray(excludeBuckets) ? excludeBuckets.map(String) : []);
+  for (const v of [vaults.media1, vaults.media2, vaults.journal]) {
+    if (v.client && skip.has(v.bucket)) markVaultFull(v.id);
+  }
+  const chain = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client && !skip.has(v.bucket));
+  const vault = chain.find(v => !vaultFullMap[v.id] && (vaultUsageMap[v.id] || 0) < BUCKET_FREE_TIER_LIMIT_BYTES) || chain[0];
   if (!vault || !vault.client) {
-    throw new Error('Backblaze B2 is not configured in .env file.');
+    const err = new Error(skip.size ? 'All storage buckets are full or refused the upload.' : 'Backblaze B2 is not configured in .env file.');
+    err.statusCode = skip.size ? 507 : 500;
+    throw err;
   }
 
   const putCommand = new PutObjectCommand({
@@ -463,10 +494,15 @@ export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes
 /**
  * Post-upload magic-byte check on B2 object
  */
-export async function verifyB2UploadedFile(storageKey, originalName, mimeType) {
+export async function verifyB2UploadedFile(storageKey, originalName, mimeType, bucketHint) {
   if (process.env.NODE_ENV === 'test' || !isB2Configured()) return true;
 
-  let vault = keyVaultMap.get(storageKey) || getActiveVault('visuals') || vaults.journal;
+  const vault = await findVaultForKey(storageKey, bucketHint);
+  if (!vault) {
+    const err = new Error('Uploaded file not found in storage.');
+    err.statusCode = 400;
+    throw err;
+  }
 
   try {
     const getCommand = new GetObjectCommand({

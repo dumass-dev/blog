@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Upload, X, Image as ImageIcon, AlignLeft, AlignCenter, AlignRight, FileVideo } from 'lucide-react';
 import { supabase, safeApiFetch } from '../supabase';
+import { uploadMediaFile } from '../utils/uploadMedia';
 
 import Modal from './Modal';
 import FeedSkeleton from './FeedSkeleton';
@@ -85,129 +86,21 @@ export default function MediaPicker({ isOpen, onClose, onSelectMedia }) {
     }
   }, [isOpen, fetchMedia]);
 
-  const uploadViaServerFallback = async (file) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch('/api/media/upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Server upload fallback failed.');
-      }
-
-      fetchMedia();
-    } catch (err) {
-      setError(err.message || 'Upload failed.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setUploading(true);
     setError(null);
-
-    const effectiveMime = file.type || 'application/octet-stream';
-    const isSmallFile = file.size < 4 * 1024 * 1024; // <4MB
-
     try {
-      // PRIMARY PATH: Direct-to-B2 presigned upload (Bypasses Vercel 4.5MB serverless limit)
-      let presignRes;
-      try {
-        presignRes = await fetch('/api/b2-upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({
-            filename: file.name,
-            mimeType: effectiveMime,
-            sizeBytes: file.size
-          })
-        });
-      } catch (presignErr) {
-        if (isSmallFile) {
-          return await uploadViaServerFallback(file);
-        }
-        throw new Error(`Failed to authorize upload: ${presignErr.message}`, { cause: presignErr });
-      }
-
-      if (!presignRes.ok) {
-        if (isSmallFile) {
-          return await uploadViaServerFallback(file);
-        }
-        const errData = await presignRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to authorize upload.');
-      }
-
-      const presignData = await presignRes.json();
-
-      // Step 2: Direct PUT to B2 S3 storage with exact matching Content-Type
-      try {
-        const b2Res = await fetch(presignData.uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': effectiveMime
-          },
-          body: file
-        });
-
-        if (!b2Res.ok) {
-          const errText = await b2Res.text().catch(() => '');
-          throw new Error(`B2 storage returned HTTP ${b2Res.status} ${b2Res.statusText}${errText ? `: ${errText.slice(0, 150)}` : ''}`);
-        }
-      } catch (b2Err) {
-        console.error('[Direct B2 Upload Detailed Error]:', b2Err);
-        if (isSmallFile) {
-          return await uploadViaServerFallback(file);
-        }
-        const failureDetails = (b2Err instanceof TypeError || b2Err.message?.includes('fetch'))
-          ? `Network/CORS rejection (${b2Err.message}). Check CORS configuration on B2 bucket.`
-          : b2Err.message;
-        throw new Error(`Direct B2 upload failed for large file (${(file.size / 1024 / 1024).toFixed(1)}MB): ${failureDetails}`, { cause: b2Err });
-      }
-
-
-      // Step 3: Confirm upload & record database row
-      const confirmRes = await fetch('/api/media/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          storageKey: presignData.storageKey,
-          originalName: file.name,
-          mimeType: effectiveMime,
-          sizeBytes: file.size,
-          publicUrl: presignData.publicUrl
-        })
-      });
-
-      if (!confirmRes.ok) {
-        if (isSmallFile) {
-          return await uploadViaServerFallback(file);
-        }
-        const confirmData = await confirmRes.json().catch(() => ({}));
-        throw new Error(confirmData.error || 'Media confirmation failed magic byte check.');
-      }
-
+      // Straight to Backblaze, skipping any bucket that's full (see uploadMedia.js).
+      await uploadMediaFile(file, token);
       fetchMedia();
     } catch (err) {
-      console.error('[MediaPicker handleFileUpload error]:', err);
+      console.error('[MediaPicker upload error]:', err);
       setError(err.message || 'Upload failed.');
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
