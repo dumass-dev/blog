@@ -129,12 +129,23 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // --- Rate Limiters ---
+// Behind Vercel's proxy every request arrives from the proxy's address, so
+// without this all visitors shared ONE rate-limit budget (150/min) — a
+// handful of open tabs (sync-check + now-playing polls) could get everyone
+// 429'd and stop live updates. Trust exactly one hop (Vercel's edge) so the
+// limiter sees each visitor's real IP from X-Forwarded-For. Local `npm
+// start` has no proxy and keeps the default.
+if (process.env.VERCEL) app.set('trust proxy', 1);
+// Vercel also sends the standard `Forwarded` header; the limiter uses
+// X-Forwarded-For (via trust proxy), so its warning about it is noise.
+const limiterValidate = { forwardedHeader: false };
 // General API limiter: 150 req / minute per IP
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 150,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: limiterValidate,
   message: { error: 'Too many requests. Please slow down.' }
 });
 app.use('/api/', apiLimiter);
@@ -145,6 +156,7 @@ const writeLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: limiterValidate,
   message: { error: 'Too many requests on this endpoint. Please slow down.' }
 });
 
@@ -155,6 +167,7 @@ const viewsLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: limiterValidate,
   message: { error: 'Too many requests on this endpoint. Please slow down.' }
 });
 
@@ -448,6 +461,27 @@ app.get('/api/b2/refresh', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// A base64 image (data: URI) sent in place of a link is uploaded to
+// Backblaze and replaced by its storage key, so image bytes never sit in
+// the database (and never ride along in every feed response). If the upload
+// fails the original value is kept — a save never loses an image.
+const DATA_URI_IMAGE = /^data:(image\/(?:png|jpe?g|gif|webp|avif));base64,([a-z0-9+/=\s]+)$/i;
+export async function offloadDataUriImage(value) {
+  const m = typeof value === 'string' ? DATA_URI_IMAGE.exec(value) : null;
+  if (!m) return value;
+  try {
+    const mime = m[1].toLowerCase().replace('image/jpg', 'image/jpeg');
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif' }[mime];
+    const buffer = Buffer.from(m[2].replace(/\s+/g, ''), 'base64');
+    if (!buffer.length) return value;
+    const { storageKey } = await uploadToB2(buffer, `cover.${ext}`, mime);
+    return storageKey || value;
+  } catch (err) {
+    console.error('Could not move inline cover image to storage:', err.message);
+    return value;
+  }
+}
 
 // GET /api/media/dims/* — pixel size of an image, read from its first bytes.
 // Lets entry images reserve their real shape before the file arrives (no
@@ -1320,6 +1354,11 @@ app.post('/api/posts', async (req, res) => {
     if (finalCover && /q04ti-quote|quote-/i.test(finalCover)) {
       finalCover = '';
     }
+    // Never keep image bytes in the database: an inline base64 cover moves
+    // to Backblaze and the row keeps only its storage key.
+    if (finalCover && finalCover.startsWith('data:')) {
+      finalCover = await offloadDataUriImage(finalCover);
+    }
     if (finalCover) {
       const extracted = extractB2StorageKey(finalCover);
       if (extracted) finalCover = extracted;
@@ -1621,6 +1660,11 @@ app.put('/api/posts/:id', async (req, res) => {
     let finalCover = payload.cover_image !== undefined ? (payload.cover_image ? payload.cover_image.trim() : '') : undefined;
     if (finalCover && /q04ti-quote|quote-/i.test(finalCover)) {
       finalCover = '';
+    }
+    // Never keep image bytes in the database: an inline base64 cover moves
+    // to Backblaze and the row keeps only its storage key.
+    if (finalCover && finalCover.startsWith('data:')) {
+      finalCover = await offloadDataUriImage(finalCover);
     }
     if (finalCover) {
       const extracted = extractB2StorageKey(finalCover);
