@@ -244,14 +244,10 @@ export function publishRealtimeUpdate(payload) {
     } catch {}
   }
 
-  // 4. Send event to backend to update serverless state & database sync table
-  try {
-    fetch('/api/realtime-broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(enriched)
-    }).catch(() => {});
-  } catch {}
+  // (No call to /api/realtime-broadcast here: it is admin-only and this
+  // request never carried the login, so it always failed with 401 — one
+  // wasted function call per action. Every write route on the server
+  // already broadcasts and updates the sync row itself.)
 }
 
 /**

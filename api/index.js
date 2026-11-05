@@ -1223,7 +1223,12 @@ function versionedCacheHeader(req, res, currentVersion) {
   if (versionMatches(req.query && req.query.v, currentVersion)) {
     res.setHeader('Cache-Control', 'public, max-age=600, s-maxage=600');
   } else {
-    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+    // No (or an outdated) version: this is a fresh page load or the
+    // sync-check fallback, so it must reflect the latest save. The old
+    // 60s + 5min stale-while-revalidate let a fresh load show the previous
+    // text for minutes after an edit. 5s still lets the CDN absorb bursts
+    // (one function call per 5s per URL) without serving stale content.
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5');
   }
 }
 
@@ -1753,6 +1758,9 @@ app.put('/api/posts/:id', async (req, res) => {
         id: data.id,
         slug: data.slug,
         title: data.title,
+        // The feed paints title + excerpt straight from this event (before
+        // its refetch lands). Plain text, capped at 150 chars at save time.
+        excerpt: typeof data.excerpt === 'string' ? data.excerpt.slice(0, 300) : undefined,
         status: data.status,
         updated_at: data.updated_at,
         // NOTE: this must NOT be named `type` — the client dispatcher reads

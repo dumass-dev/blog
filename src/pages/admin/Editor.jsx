@@ -786,7 +786,20 @@ export default function Editor() {
       updated_at: savedData.updated_at,
       status: savedData.status || formData.status,
       title: savedData.title || formData.title,
-      data: savedData
+      // Small fields only: a realtime message is capped (~256 KB), and the
+      // full row (body, cover) made long posts' events fail silently.
+      // Receivers refetch the body; the feed paints title + excerpt at once.
+      excerpt: savedData.excerpt,
+      data: {
+        id: savedData.id,
+        slug: savedData.slug,
+        status: savedData.status || formData.status,
+        updated_at: savedData.updated_at,
+        title: savedData.title || formData.title,
+        excerpt: savedData.excerpt,
+        show_in_feed: savedData.show_in_feed,
+        type: savedData.type
+      }
     });
     toastSuccess(id ? 'Entry updated successfully.' : 'Entry published successfully.');
     if (payload.passcode === null) {

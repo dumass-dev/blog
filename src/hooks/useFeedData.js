@@ -118,13 +118,48 @@ export function useFeedData({ type, category, tag, limit, forHomeFeed, pageSize 
 
     const handleFocus = () => { loadFeed(); };
     const handleInvalidate = () => { loadFeed(); };
+    // Instant paint: an edit's realtime event carries the new title and
+    // excerpt, so the list shows them the moment the event arrives instead
+    // of waiting for the refetch (which still runs and is the source of
+    // truth). Only patches an entry already on screen, only while it stays
+    // published, and never with an older version than the one shown.
+    const handleEntryUpdated = (e) => {
+      const d = e && e.detail ? ((e.detail.payload && typeof e.detail.payload === 'object') ? { ...e.detail, ...e.detail.payload } : e.detail) : null;
+      if (!d) return;
+      const kind = d.event || d.type;
+      const isEdit = kind === 'entry_updated' || (kind === 'entry' && d.op === 'UPDATE');
+      if (!isEdit) return;
+      const status = d.status || d.data?.status;
+      if (status && status !== 'published') return;
+      const id = d.id || d.data?.id;
+      if (!id) return;
+      const patch = {};
+      const title = d.title || d.data?.title;
+      const excerpt = typeof d.excerpt === 'string' ? d.excerpt : d.data?.excerpt;
+      if (typeof title === 'string' && title) patch.title = title;
+      if (typeof excerpt === 'string') patch.excerpt = excerpt;
+      if (!Object.keys(patch).length) return;
+      setEntries(prev => {
+        let changed = false;
+        const next = prev.map(item => {
+          if (item.id !== id) return item;
+          if (d.updated_at && item.updated_at && Date.parse(item.updated_at) > Date.parse(d.updated_at)) return item;
+          if (Object.keys(patch).every(k => item[k] === patch[k])) return item;
+          changed = true;
+          return { ...item, ...patch, updated_at: d.updated_at || item.updated_at };
+        });
+        return changed ? next : prev;
+      });
+    };
 
     window.addEventListener('focus', handleFocus);
     window.addEventListener('feed-data-invalidated', handleInvalidate);
+    window.addEventListener('entry-updated', handleEntryUpdated);
     return () => {
       isMounted = false;
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('feed-data-invalidated', handleInvalidate);
+      window.removeEventListener('entry-updated', handleEntryUpdated);
     };
   }, [loadFeed]);
 
