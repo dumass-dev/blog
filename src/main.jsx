@@ -7,11 +7,21 @@ import { TypewriterProvider } from './context/TypewriterContext';
 import { ViewCountProvider } from './context/ViewCountContext';
 import { ToastProvider } from './context/ToastContext';
 import { initRealtimeSync } from './utils/realtime';
+import { reloadForNewVersion } from './utils/staleChunk';
 import App from './App';
 import './index.css';
 
 // Initialize multi-transport realtime sync engine (SSE, Supabase Realtime, BroadcastChannel)
 initRealtimeSync();
+
+// A chunk from an older deploy failed to load: reload into the new version
+// (guarded against loops in staleChunk.js). Vite fires this before the
+// import rejects; preventDefault stops the error when we do reload.
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    if (reloadForNewVersion()) event.preventDefault();
+  });
+}
 
 // Register PWA service worker cleanly for installability and offline support
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV !== 'test') {
