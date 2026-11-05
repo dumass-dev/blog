@@ -461,10 +461,10 @@ export async function getB2PresignedPutUrl(originalName, mimeType, _maxSizeBytes
 
   // Buckets the browser just found full (it couldn't upload there) are
   // skipped, following the chain media1 -> media2 -> journal.
+  // Skipped for THIS request only — never remembered as "full", so one
+  // refused upload (or a CORS hiccup) can't push later uploads out of the
+  // chain order.
   const skip = new Set(Array.isArray(excludeBuckets) ? excludeBuckets.map(String) : []);
-  for (const v of [vaults.media1, vaults.media2, vaults.journal]) {
-    if (v.client && skip.has(v.bucket)) markVaultFull(v.id);
-  }
   const chain = [vaults.media1, vaults.media2, vaults.journal].filter(v => !!v.client && !skip.has(v.bucket));
   const vault = chain.find(v => !vaultFullMap[v.id] && (vaultUsageMap[v.id] || 0) < BUCKET_FREE_TIER_LIMIT_BYTES) || chain[0];
   if (!vault || !vault.client) {

@@ -9,6 +9,8 @@ import { useEntryPrefetch } from '../hooks/useEntryPrefetch';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ProgressiveImage from '../components/ProgressiveImage';
 import { resolveMediaUrl } from '../utils/media';
+import { safeApiFetch } from '../supabase';
+import { stripMarkdown } from '../utils/excerpt';
 
 export default function Photos() {
   useDocumentMeta({
@@ -27,6 +29,27 @@ export default function Photos() {
   const [passcodeModalPhoto, setPasscodeModalPhoto] = useState(null);
 
   const activePhoto = selectedPhotoIndex !== null ? photos[selectedPhotoIndex] : null;
+
+  // The gallery list arrives without each post's full text (kept light), so
+  // the caption under an opened photo was always empty. Show the short
+  // excerpt at once, then fetch the full text for the opened photo. Keyed by
+  // id + updated_at, so an edit (realtime) fetches the new text.
+  const [fullText, setFullText] = useState({});
+  const activeKey = activePhoto ? `${activePhoto.id}:${activePhoto.updated_at || ''}` : null;
+  useEffect(() => {
+    if (!activePhoto || !activeKey || fullText[activeKey] !== undefined) return;
+    if (activePhoto.has_passcode) return;
+    if (typeof activePhoto.content === 'string' && activePhoto.content) return;
+    let cancelled = false;
+    const ident = activePhoto.slug || activePhoto.id;
+    const v = activePhoto.updated_at ? `?v=${encodeURIComponent(activePhoto.updated_at)}` : '';
+    safeApiFetch(`/api/posts/${encodeURIComponent(ident)}${v}`).then((res) => {
+      if (cancelled) return;
+      const entry = res && (res.entry || res);
+      setFullText(prev => ({ ...prev, [activeKey]: (entry && typeof entry.content === 'string') ? entry.content : '' }));
+    });
+    return () => { cancelled = true; };
+  }, [activePhoto, activeKey, fullText]);
 
   const navigatePhoto = useCallback((direction) => {
     if (selectedPhotoIndex === null) return;
@@ -295,12 +318,18 @@ export default function Photos() {
                 </div>
               </div>
 
-              {/* Caption */}
-              {getCleanCaption(activePhoto) && (
-                <div className="flex-1 overflow-y-auto p-4 text-xs font-sans text-[var(--text-primary)] leading-relaxed break-words">
-                  {getCleanCaption(activePhoto)}
-                </div>
-              )}
+              {/* Caption: the post's text (full text once fetched, excerpt until then) */}
+              {(() => {
+                const full = activeKey ? fullText[activeKey] : undefined;
+                const caption = getCleanCaption(activePhoto)
+                  || (full ? stripMarkdown(getCleanCaption({ content: full })) : '')
+                  || (!activePhoto.has_passcode && typeof activePhoto.excerpt === 'string' ? activePhoto.excerpt.trim() : '');
+                return caption ? (
+                  <div className="flex-1 overflow-y-auto p-4 text-sm font-sans text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-line">
+                    {caption}
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
         </div>
