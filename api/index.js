@@ -210,6 +210,7 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
   // a short timeout; everyone else keeps the old fire-and-forget call.
   const clientToUse = supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
   if (!clientToUse || typeof clientToUse.from !== 'function') return Promise.resolve();
+  const bStart = Date.now();
   const upsertPromise = (async () => {
     try {
       await clientToUse.from('realtime_sync').upsert({
@@ -235,6 +236,10 @@ export function broadcastRealtimeEvent(event, data = {}, supabaseClient = null) 
       }
     } catch {}
   })();
+  if (event === 'entry_updated' || event === 'entry_created') { // rare: admin saves only
+    upsertPromise.then(() => console.log(`[broadcast] ${event} upsert ${Date.now() - bStart}ms`));
+    sendPromise.then(() => console.log(`[broadcast] ${event} send ${Date.now() - bStart}ms`));
+  }
   return Promise.allSettled([upsertPromise, sendPromise]);
 }
 
@@ -1647,7 +1652,13 @@ app.post('/api/posts/:identifier/verify-passcode', async (req, res) => {
 
 // PUT /api/posts/:id (Admin Only)
 app.put('/api/posts/:id', async (req, res) => {
+  // Step timings for the browser's Network panel (Server-Timing): durations
+  // only, no data. Lets save latency be diagnosed in production.
+  const t0 = Date.now();
+  const timings = [];
+  const mark = (name, since) => { timings.push(`${name};dur=${Date.now() - since}`); return Date.now(); };
   const auth = await verifyAdminUser(req);
+  let tStep = mark('auth', t0);
   if (!auth.authorized) {
     return res.status(auth.status).json({ error: auth.error });
   }
@@ -1730,6 +1741,7 @@ app.put('/api/posts/:id', async (req, res) => {
     }
 
     if (error) throw error;
+    tStep = mark('db', tStep);
 
     // Wait for the cross-device broadcast to land (bounded at 1.5s): the
     // save's response must not go out before the upsert other devices poll
@@ -1750,6 +1762,9 @@ app.put('/api/posts/:id', async (req, res) => {
       }),
       new Promise(resolve => setTimeout(resolve, 1500))
     ]);
+    mark('broadcast', tStep);
+    mark('total', t0);
+    res.setHeader('Server-Timing', timings.join(', '));
 
     res.json(data);
   } catch (err) {
