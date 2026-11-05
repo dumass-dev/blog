@@ -1333,9 +1333,7 @@ a.quiet-button-secondary:hover,
 .quiet-button-secondary:focus,
 a.quiet-button-secondary:focus,
 .quiet-button-secondary:active,
-a.quiet-button-secondary:active,
-.quiet-button-secondary:visited,
-a.quiet-button-secondary:visited {
+a.quiet-button-secondary:active {
   border-color: var(--border-hover);
   background-color: var(--code-bg);
   color: var(--text-primary) !important;
@@ -1345,8 +1343,10 @@ a.quiet-button-secondary:visited {
 /* ============================================================
    GLOBAL LINK STYLING - ELEGANT EDITORIAL PALETTE
    ============================================================ */
-a,
-a:visited {
+/* No a:visited here: it outranked the colour utility classes, so every
+   page you had already opened lit up in the header nav as if active. An
+   author-level `a` colour already overrides the browser's purple. */
+a {
   color: var(--text-primary);
   text-decoration: none;
   transition: color 0.2s ease-in-out, text-decoration-color 0.2s ease-in-out, border-color 0.2s ease-in-out;

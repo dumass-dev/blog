@@ -186,7 +186,7 @@ export default function Reactions({ postId, passcode }) {
   ];
 
   return (
-    <div className="py-6 border-t border-b border-[var(--border-subtle)] my-10">
+    <div className="py-6 border-t border-[var(--border-subtle)] my-10">
       <div className="text-xs font-sans uppercase tracking-widest text-[var(--text-muted)] font-medium text-center mb-3">
         Leave a quiet reaction
       </div>

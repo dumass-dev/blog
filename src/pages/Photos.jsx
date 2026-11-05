@@ -13,7 +13,7 @@ import { resolveMediaUrl } from '../utils/media';
 export default function Photos() {
   useDocumentMeta({
     title: 'Photos',
-    description: 'Visual journal, moments & Backblaze film archives.'
+    description: 'Visual journal, moments & film archives.'
   });
 
   const { displayedEntries: photos, loading, error, stale, refreshing, refetch } = useFeedData({
@@ -120,7 +120,7 @@ export default function Photos() {
         />
         <p className="font-sans text-xs sm:text-sm text-[var(--text-muted)] mt-1">
           <TypewriterText
-            text="Visual journal, moments & Backblaze film archives"
+            text="Visual journal, moments & film archives"
             as="span"
           />
           {!loading && ` (${photos.length} captures)`}
