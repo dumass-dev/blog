@@ -1,4 +1,7 @@
 {
+  "regions": [
+    "sin1"
+  ],
   "functions": {
     "api/index.js": {
       "includeFiles": "dist/**"
@@ -65,5 +68,4 @@
       "destination": "/api/index.js"
     }
   ]
-
 }
